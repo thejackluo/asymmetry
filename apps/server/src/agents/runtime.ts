@@ -312,7 +312,7 @@ export function createAgentRuntime({
           ...messages,
           {
             role: 'user',
-            content: 'All peer subchats are closed. Write a concise final summary to the human using the peer messages and tool results above.',
+            content: 'All peer conversations are finished. Write a short final message to the human: list each concrete option peers shared (with who shared it), clearly flag any mismatch with the request such as dates, mention useful tips, say briefly which peers had nothing, and offer a warm intro. Do not say you are still waiting.',
           },
         ], []);
         if (typeof result.reply === 'string' && result.reply.trim().length > 0) {
