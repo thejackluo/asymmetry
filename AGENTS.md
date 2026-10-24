@@ -23,6 +23,8 @@ instead of claiming an arbitrary branch.
 - At startup, launch a background GitHub watcher (subagent/child session/
   loop) that runs that poll even during long work (runbook §4a).
 - Stay in your own branch and paths; ask other roles through issues (§4b).
+- Don't stop when your layer is done: keep taking routed issues, fixes,
+  tests and reviews until Jack posts `[ALL] DONE` (runbook §11).
 - Keep one task claim per active role/session; never duplicate another claim.
 - Open a draft PR early; record requirements, tests, evidence, and blockers.
 - Run the layer's exact verification before declaring it ready.

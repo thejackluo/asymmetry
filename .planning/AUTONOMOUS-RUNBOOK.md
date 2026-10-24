@@ -215,4 +215,25 @@ At the end of the active build window, each owner posts:
 - Remaining bugs, exact repro, next owner/action.
 
 Jack runs integrated verification and the live demo rehearsal.
+
+## 11. Keep Working Until The Project Is Done
+
+Operator request: all Devins keep working until the whole project is done.
+- A session does not stop when its own PR is ready or merged. The watcher
+  (§4a) keeps running, and the session takes the next item from this list,
+  in order:
+  1. its own review findings and bugs;
+  2. `[Dn]` issues routed to its role;
+  3. integration bugs Jack routes after merges;
+  4. more regression tests, and demo polish, in its own paths;
+  5. independent review of another role's PR, when it's a different model
+     from that PR's implementer.
+- Claim every item with `CLAIM Dn/session-id`. Never edit another role's
+  paths just to stay busy.
+- Done means: Jack posts `[ALL] DONE` after the demo script passes
+  end-to-end (PROJECT.md Definition of Done). Only then may sessions stop,
+  each after posting its last SHA/status (§10).
+- If a session must stop earlier (credits, crash, operator), it posts its
+  last SHA, status and next action in its claim issue so another session
+  can resume.
 No agent claims the application is complete based only on these documents.

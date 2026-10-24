@@ -14,7 +14,36 @@ showing trusted vs discovered agents — all over Socket.IO per CONTRACTS §3/§
 
 You own everything judges see (`apps/web/**`). Backend is built in parallel —
 your socket layer goes behind a `SocketClient` interface with a mock so you
-never block. Dark/hacker aesthetic; Tailwind only; no component library.
+never block. Minimalist paper/ink aesthetic (see Design Direction); Tailwind only; no component library.
+
+## Design Direction (minimalist, inspired by bayzhan.com)
+
+Operator request: "the coolest minimalistic design", inspired by
+https://www.bayzhan.com. This replaces the earlier dark/hacker baseline.
+Jack (D1) can override it.
+
+- **Type:** IBM Plex Mono (400/500/600) everywhere, via `next/font/google`.
+  Tight letter-spacing on headings (`-0.02em`); small-caps-style labels
+  (`uppercase`, `0.08–0.12em` tracking) for section headers and status chips.
+- **Palette (light, default):** paper `#fffff8` bg, `#ffffff` surfaces, ink
+  `#000000` text and borders, `#404040` secondary, `#707070` muted,
+  `#C0BDAD` soft borders, `#f5f5f0` soft accent fills.
+- **Palette (dark toggle):** `#1a1816` bg, `#221f1d` surfaces, `#e8e6e0` text and
+  borders, `#a8a599` secondary, `#787366` muted, `#4a4540` soft borders.
+  Persist the theme in localStorage and apply it before first paint.
+- **Shape:** 1px solid borders, `border-radius: 0`, no shadows, no gradients,
+  no glassmorphism. Motion is subtle: 0.2s color/background transitions;
+  new messages fade/slide in under 200ms.
+- **Layout:** generous whitespace, narrow readable columns (main chat ≤ 700px),
+  thin dividers, and no decoration that carries no information.
+- **Agent traffic:** A2A subchats are the visual signature, shown as terminal-like
+  bordered panes with `A ↔ B` headers. Disclosure lines are plain text
+  (`shared 3 · withheld 2`) with one ink-colored lock glyph. Use text glyphs
+  instead of emoji in the UI.
+- **Network page:** ink-on-paper graph. Trusted = solid 1px line,
+  discovered = dashed line, own agent = filled node. No neon or glow.
+- **Agent-operable:** keep the stable labels/aria-labels in Constraints.
+  Minimalism never means icon-only controls.
 
 ## Requirements
 
