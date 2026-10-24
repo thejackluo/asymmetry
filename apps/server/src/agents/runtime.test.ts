@@ -98,6 +98,58 @@ describe('agent runtime queues and loops', () => {
         },
       }]);
       expect(listSubchatMessages(db, subchat.id).some(({ body }) => body === 'I found one option.')).toBe(true);
+      const peerPrompt = llm.calls[0]?.messages.find(({ role }) => role === 'system')?.content ?? '';
+      expect(peerPrompt).toContain("You are Bob's Agent, the personal agent for Bob.");
+      expect(peerPrompt).toContain("Alice's Agent is asking for help with:");
+      expect(peerPrompt).not.toContain('personal agent for Alice');
+      expect(peerPrompt).toContain(`Task ID: ${task.id}`);
+      expect(peerPrompt).toContain(`Subchat ID: ${subchat.id}`);
+      expect(peerPrompt).toContain(`Acting owner user ID: ${FIXTURE_IDS.users.bob}`);
+      expect(peerPrompt).toContain(`Acting agent ID: ${FIXTURE_IDS.agents.bob}`);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('does not seed a new group subchat with an earlier pair transcript', async () => {
+    const db = createFixtureDb();
+    const { io } = createFakeIO();
+    const task = createScopedTask(db);
+    const pair = createSubchat(db, task.id, [FIXTURE_IDS.agents.alice, FIXTURE_IDS.agents.bob]);
+    insertMessage(db, {
+      taskId: task.id,
+      subchatId: pair.id,
+      senderType: 'agent',
+      senderId: FIXTURE_IDS.agents.bob,
+      body: 'PAIR_TRANSCRIPT_SENTINEL must remain private to this pair.',
+    });
+    const group = createSubchat(db, task.id, [
+      FIXTURE_IDS.agents.alice,
+      FIXTURE_IDS.agents.bob,
+      FIXTURE_IDS.agents.carol,
+    ]);
+    insertMessage(db, {
+      taskId: task.id,
+      subchatId: group.id,
+      senderType: 'agent',
+      senderId: FIXTURE_IDS.agents.alice,
+      body: 'GROUP_ONLY_REQUEST',
+    });
+    const llm = routedLLM({
+      "Bob's Agent": [{ reply: 'I will answer in this group.' }],
+      "Alice's Agent": [{ reply: 'Thanks for checking.' }],
+    });
+    const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm });
+    try {
+      expect(listSubchatMessages(db, group.id).map(({ body }) => body)).toEqual(['GROUP_ONLY_REQUEST']);
+      runtime.runPeer(group.id, FIXTURE_IDS.agents.bob);
+      await runtime.idle();
+
+      const peerCall = llm.calls.find(({ route }) => route === "Bob's Agent");
+      expect(peerCall).toBeDefined();
+      const peerContext = peerCall?.messages.map(({ content }) => content).join('\n') ?? '';
+      expect(peerContext).toContain('GROUP_ONLY_REQUEST');
+      expect(peerContext).not.toContain('PAIR_TRANSCRIPT_SENTINEL');
     } finally {
       db.close();
     }

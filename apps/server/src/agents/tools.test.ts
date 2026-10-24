@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { userRoom } from '@asymmetry/shared';
 import { Budget } from './budgets.js';
 import { EVENTS } from './events.js';
 import { executeToolCall, type RuntimeHooks, type TrustedCtx } from './tools.js';
@@ -9,6 +10,7 @@ import {
   getTaskScope,
   insertMessage,
   listMainThreadMessages,
+  listSubchatMessages,
   putTaskScope,
 } from './repo.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
@@ -404,6 +406,52 @@ describe('trusted-context agent tools', () => {
       expect(emissions.some(({ event }) => event === EVENTS.TASK_UPDATED)).toBe(true);
       expect(emissions.some(({ event, payload }) => event === EVENTS.SUBCHAT_CLOSED
         && (payload as { outcome?: string }).outcome === 'done')).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('keeps an owner report out of peer subchat closure payloads and rows', async () => {
+    const { db, ownerCtx, emissions } = setup();
+    try {
+      const bobSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const erinSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.erin,
+      ]);
+      insertMessage(db, {
+        taskId: ownerCtx.taskId,
+        subchatId: erinSubchat.id,
+        senderType: 'agent',
+        senderId: FIXTURE_IDS.agents.alice,
+        body: 'Can you check for any other options?',
+      });
+      const sentinel = 'BOBNET-91c';
+      const summary = `Bob found a room for $950. ${sentinel}`;
+
+      const report = await executeToolCall(ownerCtx, toolCall('report_to_human', {
+        taskId: ownerCtx.taskId,
+        status: 'done',
+        summary,
+      }));
+
+      expect(report.stop).toBe(true);
+      expect(listMainThreadMessages(db, ownerCtx.taskId).some(({ body }) => body === summary)).toBe(true);
+      const erinPayloads = emissions
+        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.erin))
+        .map(({ payload }) => JSON.stringify(payload))
+        .join('\n');
+      expect(erinPayloads).not.toContain(sentinel);
+      expect(JSON.stringify(listSubchatMessages(db, erinSubchat.id))).not.toContain(sentinel);
+      expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(erinSubchat.id)).toEqual({
+        summary: 'Closed: the requesting agent finished the task.',
+      });
+      expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(bobSubchat.id)).toEqual({
+        summary: 'Closed: the requesting agent finished the task.',
+      });
     } finally {
       db.close();
     }

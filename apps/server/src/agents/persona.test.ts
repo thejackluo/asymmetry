@@ -10,6 +10,13 @@ const aliceAgent: Agent = {
   status: 'idle',
 };
 
+const bobAgent: Agent = {
+  id: 'agent-bob',
+  userId: 'user-bob',
+  name: "Bob's Agent",
+  status: 'idle',
+};
+
 const task: Task = {
   id: 'task-alice',
   userId: 'user-alice',
@@ -41,6 +48,12 @@ describe('agent persona prompts', () => {
     expect(prompt).toContain(
       "If an option only partially matches (e.g. dates shorter than requested), say so honestly and ask whether it works; don't present it as a full match.",
     );
+    expect(prompt).toContain(
+      "Never relay information from one peer's subchat into another peer's subchat; each peer only sees what it shares itself.",
+    );
+    expect(prompt).toContain(`Task ID: ${task.id}`);
+    expect(prompt).toContain('Acting owner user ID: user-alice');
+    expect(prompt).toContain('Acting agent ID: agent-alice');
     expect(prompt).toContain('Bob (agent-bob, hop 1)');
     expect(prompt).not.toContain('726 Spring St');
     expect(prompt).not.toContain('404-555-0182');
@@ -48,18 +61,26 @@ describe('agent persona prompts', () => {
 
   it('omits recipient goals, main-thread text, and memory even if the fixture carries them', () => {
     const recipient = {
-      ...aliceAgent,
+      ...bobAgent,
       goals: 'Unrelated goal: get a promotion.',
       mainThread: 'Main-thread secret: salary and home details.',
     };
     const prompt = buildPeerPrompt({
       agent: recipient,
-      ownerDisplayName: 'Alice',
-      requesterAgentName: "Bob's Agent",
+      ownerDisplayName: 'Bob',
+      requesterAgentName: "Alice's Agent",
+      taskId: task.id,
+      subchatId: 'subchat-bob',
       scope: { purpose: 'find a summer sublet', fields: ['location_area', 'price', 'dates'] },
     });
 
-    expect(prompt).toContain("Bob's Agent");
+    expect(prompt).toContain("You are Bob's Agent, the personal agent for Bob.");
+    expect(prompt).toContain("Alice's Agent is asking for help with:");
+    expect(prompt).not.toContain('personal agent for Alice');
+    expect(prompt).toContain(`Task ID: ${task.id}`);
+    expect(prompt).toContain('Subchat ID: subchat-bob');
+    expect(prompt).toContain('Acting owner user ID: user-bob');
+    expect(prompt).toContain('Acting agent ID: agent-bob');
     expect(prompt).toContain('location_area, price, dates');
     expect(prompt).not.toContain('Unrelated goal');
     expect(prompt).not.toContain('Main-thread secret');

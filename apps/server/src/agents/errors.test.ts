@@ -54,6 +54,10 @@ describe('safe agent failures', () => {
     const ownerDb = createFixtureDb();
     dbs.push(ownerDb);
     const ownerTask = createScopedTask(ownerDb);
+    const ownerSubchat = createSubchat(ownerDb, ownerTask.id, [
+      FIXTURE_IDS.agents.alice,
+      FIXTURE_IDS.agents.bob,
+    ]);
     const ownerIO = createFakeIO();
     const ownerLLM = routedLLM({
       "Alice's Agent": [() => { throw new Error(SENTINEL); }],
@@ -66,6 +70,9 @@ describe('safe agent failures', () => {
     });
     ownerRuntime.wakeOwner(ownerTask.id);
     await ownerRuntime.idle();
+    expect.soft(ownerDb.prepare('SELECT summary FROM subchats WHERE id = ?').get(ownerSubchat.id)).toEqual({
+      summary: 'Closed: the requesting agent stopped the task.',
+    });
     emissions.push(...ownerIO.emissions.map(({ payload }) => payload));
     llmCalls.push(...ownerLLM.calls);
 
@@ -89,6 +96,9 @@ describe('safe agent failures', () => {
     });
     peerRuntime.runPeer(subchat.id, FIXTURE_IDS.agents.bob);
     await peerRuntime.idle();
+    expect.soft(peerDb.prepare('SELECT summary FROM subchats WHERE id = ?').get(subchat.id)).toEqual({
+      summary: 'Closed: a peer agent stopped before completing this subchat.',
+    });
     emissions.push(...peerIO.emissions.map(({ payload }) => payload));
     llmCalls.push(...peerLLM.calls);
 
@@ -168,7 +178,9 @@ describe('safe agent failures', () => {
         emission.event === 'chat:message'
         && (emission.payload as { senderType?: string }).senderType === 'agent'
       ) {
-        throw new Error(SENTINEL);
+        const error = new Error(SENTINEL);
+        error.name = `Custom-${SENTINEL}`;
+        throw error;
       }
     });
     const queueLLM = routedLLM({
