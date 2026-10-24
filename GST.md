@@ -22,7 +22,9 @@ PLAN: discussion + specs
 | File | What it is |
 |---|---|
 | `.planning/PROJECT.md` | charter, core value, demo script, definition of done |
+| `.planning/CONTEXT.md` | locked decisions from combined discussion/planning |
 | `.planning/REQUIREMENTS.md` | 40+ falsifiable reqs with IDs + traceability |
+| `.planning/PLAN-REVIEW.md` | GSD source coverage and planning-gap review |
 | `.planning/ROADMAP.md` | 5 phases, path ownership, timeline |
 | `.planning/OPERATING-RULES.md` | cadence, PRs, review, GitHub-issue comms |
 | `CONTRACTS.md` | **frozen interfaces** — types, socket events, REST, DDL, permission matrix, seed data |
@@ -42,3 +44,7 @@ PLAN: discussion + specs
 
 D1 merges first (~25 min); D2/D3/D4 branch off `main` and build in parallel;
 Phase 5 integrates. Kick each off with its username-named Markdown file in `prompts/`.
+
+Each owner now has three bounded PLAN batches, not one large plan.
+Follow the dependency waves in ROADMAP.md and preserve completed implementation.
+All 51 original requirement IDs have detailed acceptance contracts.
