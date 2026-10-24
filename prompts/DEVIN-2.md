@@ -2,6 +2,8 @@
 
 Owner: Bayzhan (Devin 2). Coordinator: Jack (Devin 1).
 
+GitHub: `@bayzhan8`. Team routing: Jack `@thejackluo` (D1); Bayzhan `@bayzhan8` (D2); Jad `@jmb245` (D3); Akash `@AkashSingirikonda` (D4).
+
 Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
 
 You are Devin 2 of 4 on team **Asymmetry** — personal AI agents that negotiate

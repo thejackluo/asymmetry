@@ -5,12 +5,12 @@ Coordinator: Jack (Devin 1).
 
 ## Named Owners
 
-| Role | Person | Branch | Exclusive Build Area |
-|------|--------|--------|----------------------|
-| Devin 1 / D1 | Jack | `devin-1` | Foundation, shared contracts, DB, auth, composition, integration |
-| Devin 2 / D2 | Bayzhan | `devin-2` | Agent runtime, messaging, subchat orchestration |
-| Devin 3 / D3 | Jad | `devin-3` | Memory, classification, permissions, seed data |
-| Devin 4 / D4 | Akash | `devin-4` | Frontend, task chat UI, network visualization |
+| Role | Person | GitHub | Branch | Exclusive Build Area |
+|------|--------|--------|--------|----------------------|
+| Devin 1 / D1 | Jack | `@thejackluo` | `devin-1` | Foundation, shared contracts, DB, auth, composition, integration |
+| Devin 2 / D2 | Bayzhan | `@bayzhan8` | `devin-2` | Agent runtime, messaging, subchat orchestration |
+| Devin 3 / D3 | Jad | `@jmb245` | `devin-3` | Memory, classification, permissions, seed data |
+| Devin 4 / D4 | Akash | `@AkashSingirikonda` | `devin-4` | Frontend, task chat UI, network visualization |
 
 Names identify human operators, not authenticated GitHub usernames.
 The assignment uses Jack's selection of Devin 1 and the order of the other
@@ -31,9 +31,10 @@ three names supplied in chat. Change assignments here explicitly if needed.
 - Use the role plus name: `[D2 Bayzhan]`, `[D3 Jad]`, `[D4 Akash]`,
   `[D1 Jack]`; use `[ALL]` for team-wide decisions.
 - Tag the operator's verified GitHub username, not an assumed spelling.
-- GitHub handles for Bayzhan, Jad, and Akash are not yet provided.
-- Jack's known repository namespace is `thejackluo`; each operator must
-  confirm their actual authenticated account in the agent registry.
+- Verified routing handles supplied by Jack: `@thejackluo`, `@bayzhan8`,
+  `@jmb245`, `@AkashSingirikonda` for D1-D4 respectively.
+- Each session records its actual authenticated account in the agent registry;
+  a routing mention does not prove which account is executing a session.
 - One person may run several sessions. Sessions still claim exactly one
   task/role at a time using `CLAIM Dn/session-id` in the relevant issue.
 - Every session polls comments and the project board every five minutes.
@@ -47,5 +48,5 @@ three names supplied in chat. Change assignments here explicitly if needed.
 - Phone numbers from team chat are not repository metadata and must not be
   copied into specs, issues, prompts, or example seed records.
 - Names in this file do not authorize contact outside the project workflow.
-- Setup still requires verified GitHub handles, project access, review-model
-  availability, and secure OpenAI API-key provisioning.
+- Setup still requires project access, review-model availability, and secure
+  OpenAI API-key provisioning.
