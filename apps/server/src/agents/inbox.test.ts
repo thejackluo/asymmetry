@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { userRoom } from '@asymmetry/shared';
 import { createAgentRuntime } from './runtime.js';
 import { EVENTS } from './events.js';
-import { createTask, getTask, getTaskScope, listMainThreadMessages, listSubchatsByTask, listSubchatMessages, putTaskScope } from './repo.js';
+import { createTask, getTask, getTaskScope, listMainThreadMessages, listSubchatsByTask, listSubchatMessages, putTaskScope, setTaskStatus } from './repo.js';
 import { networkPayload } from './peers.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
 import { createFakeIO } from './test/fakeIO.js';
@@ -15,6 +15,23 @@ function fakeSocket(userId: string | undefined): Socket {
 }
 
 describe('agent inbox handlers', () => {
+  it('limits network agents to the owner, trusted peers, and discovered peers', () => {
+    const db = createFixtureDb();
+    try {
+      const network = networkPayload(db, FIXTURE_IDS.users.alice);
+      const agentIds = network.agents.map(({ id }) => id);
+      expect(agentIds).toEqual([
+        FIXTURE_IDS.agents.alice,
+        ...network.trusted,
+        ...network.discovered,
+      ]);
+      expect(network.discovered).toEqual([]);
+      expect(agentIds).not.toContain(FIXTURE_IDS.agents.dave);
+    } finally {
+      db.close();
+    }
+  });
+
   it('returns contract acks for task creation without starting a model request', async () => {
     const db = createFixtureDb();
     const { io, emissions } = createFakeIO((emission) => {
@@ -89,6 +106,37 @@ describe('agent inbox handlers', () => {
         error: { code: 'NOT_FOUND', message: 'task not found or not owned by this user' },
       });
       expect(db.prepare('SELECT COUNT(*) AS count FROM messages').get()).toEqual({ count: 0 });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects chat sends for terminal tasks before persistence or side effects', async () => {
+    const db = createFixtureDb();
+    const { io } = createFakeIO();
+    const task = createTask(db, FIXTURE_IDS.users.alice, 'Finished task');
+    setTaskStatus(db, task.id, 'done');
+    const { memory, calls } = createFakeMemory();
+    const llm = routedLLM({});
+    const runtime = createAgentRuntime({ io, db, memory, llm });
+    try {
+      const ack = vi.fn();
+      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.alice), {
+        taskId: task.id,
+        body: 'A late message',
+      }, ack);
+
+      expect(ack).toHaveBeenCalledWith({
+        ok: false,
+        error: {
+          code: 'CONFLICT',
+          message: 'This task is finished. Create or select an active task.',
+        },
+      });
+      expect(listMainThreadMessages(db, task.id)).toHaveLength(0);
+      expect(calls.ingest).toHaveLength(0);
+      expect(calls.extractGoals).toHaveLength(0);
+      expect(llm.calls).toHaveLength(0);
     } finally {
       db.close();
     }

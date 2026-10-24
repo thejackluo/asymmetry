@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { openAILLM } from './llm.js';
 import {
   ArgsParseError,
   LLMTimeoutError,
@@ -12,10 +13,31 @@ import {
   type ToolSpec,
 } from './llm.js';
 
+const { openAICompletionCreate } = vi.hoisted(() => ({
+  openAICompletionCreate: vi.fn(),
+}));
+
+vi.mock('openai', () => ({
+  default: class MockOpenAI {
+    chat = { completions: { create: openAICompletionCreate } };
+  },
+}));
+
 const message: LLMMessage = { role: 'user', content: 'hello' };
 const tools: ToolSpec[] = [];
 
 describe('LLM adapters', () => {
+  it('omits the tools parameter when no tools are supplied', async () => {
+    openAICompletionCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: 'done', tool_calls: [] } }],
+    });
+
+    await openAILLM({ apiKey: 'test-key' }).chat([message], []);
+
+    const params = openAICompletionCreate.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(Object.hasOwn(params, 'tools')).toBe(false);
+  });
+
   it('returns mock script steps in order and records each request', async () => {
     const llm = mockLLM([
       { reply: 'first' },

@@ -441,7 +441,8 @@ describe('trusted-context agent tools', () => {
       expect(report.stop).toBe(true);
       expect(listMainThreadMessages(db, ownerCtx.taskId).some(({ body }) => body === summary)).toBe(true);
       const erinPayloads = emissions
-        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.erin))
+        .filter(({ event, payload }) => event === EVENTS.SUBCHAT_MESSAGE
+          && (payload as { subchatId?: string }).subchatId === erinSubchat.id)
         .map(({ payload }) => JSON.stringify(payload))
         .join('\n');
       expect(erinPayloads).not.toContain(sentinel);
@@ -454,6 +455,73 @@ describe('trusted-context agent tools', () => {
       });
     } finally {
       db.close();
+    }
+  });
+
+  it('replaces an owner-supplied peer message with the canonical field request', async () => {
+    const { db, ownerCtx, emissions } = setup();
+    try {
+      const bobSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const erinSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.erin,
+      ]);
+      const sentinel = 'Bob found a room for $950, 0.4mi from campus.';
+      const fixedBody = 'Please return only information authorized for these task fields: location_area, price, dates.';
+
+      await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
+        subchatId: erinSubchat.id,
+        body: sentinel,
+      }));
+
+      expect(listSubchatMessages(db, bobSubchat.id)).toHaveLength(0);
+      expect(listSubchatMessages(db, erinSubchat.id).map(({ body }) => body)).toEqual([fixedBody]);
+      const erinPayloads = emissions
+        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.erin))
+        .map(({ payload }) => JSON.stringify(payload))
+        .join('\n');
+      expect(erinPayloads).toContain(fixedBody);
+      expect(erinPayloads).not.toContain('$950');
+      expect(erinPayloads).not.toContain('0.4mi');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('derives the owner status from other active tasks', async () => {
+    for (const scenario of [
+      { expected: 'negotiating' as const, openSubchat: true },
+      { expected: 'clarifying' as const, openSubchat: false },
+    ]) {
+      const { db, ownerCtx } = setup();
+      try {
+        const otherTask = createTask(db, FIXTURE_IDS.users.alice, 'Another active task');
+        if (scenario.openSubchat) {
+          putTaskScope(db, {
+            taskId: otherTask.id,
+            purpose: 'another task',
+            fields: ['location_area'],
+          });
+          createSubchat(db, otherTask.id, [
+            FIXTURE_IDS.agents.alice,
+            FIXTURE_IDS.agents.bob,
+          ]);
+        }
+
+        await executeToolCall(ownerCtx, toolCall('report_to_human', {
+          taskId: ownerCtx.taskId,
+          status: 'done',
+          summary: 'The reported task is complete.',
+        }));
+
+        expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.alice))
+          .toEqual({ status: scenario.expected });
+      } finally {
+        db.close();
+      }
     }
   });
 

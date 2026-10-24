@@ -76,6 +76,7 @@ describe('agent persona prompts', () => {
 
     expect(prompt).toContain("You are Bob's Agent, the personal agent for Bob.");
     expect(prompt).toContain("Alice's Agent is asking for help with:");
+    expect(prompt).not.toContain('find a summer sublet');
     expect(prompt).not.toContain('personal agent for Alice');
     expect(prompt).toContain(`Task ID: ${task.id}`);
     expect(prompt).toContain('Subchat ID: subchat-bob');
