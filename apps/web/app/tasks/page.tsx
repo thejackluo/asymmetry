@@ -112,7 +112,7 @@ export default function TasksPage() {
           />
         </aside>
         <section
-          className={`flex-1 ${selectedId ? 'block' : 'hidden'} md:block`}
+          className={`min-w-0 flex-1 ${selectedId ? 'block' : 'hidden'} md:block`}
         >
           {selected ? (
             <div className="flex h-full flex-col">

@@ -243,7 +243,7 @@ export default function TaskChat({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-neutral-200 bg-white px-4 py-2">
-        <h2 className="truncate text-sm font-medium text-neutral-900">
+        <h2 className="min-w-0 truncate text-sm font-medium text-neutral-900">
           {task.title}
         </h2>
         <div className="flex shrink-0 items-center gap-2">
