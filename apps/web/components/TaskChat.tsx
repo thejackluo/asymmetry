@@ -193,6 +193,9 @@ export default function TaskChat({
     ) as HTMLInputElement;
     const body = input.value.trim();
     if (!body) return;
+    // socket.io buffers emits while disconnected and replays them on
+    // reconnect — a retry would double-send. Fail fast, keep the text.
+    if (!getSocket().connected()) return;
     input.value = '';
 
     const localId = `local-${Date.now()}-${pendingSends.length}`;
