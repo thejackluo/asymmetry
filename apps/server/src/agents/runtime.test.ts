@@ -159,6 +159,48 @@ describe('agent runtime queues and loops', () => {
     }
   });
 
+  it('uses subchat outcomes when peers close before the owner reports', async () => {
+    const db = createFixtureDb();
+    const { io } = createFakeIO();
+    const task = createScopedTask(db);
+    const subchat = createSubchat(db, task.id, [
+      FIXTURE_IDS.agents.alice,
+      FIXTURE_IDS.agents.bob,
+    ]);
+    const calls: Array<{ tools: ToolSpec[] }> = [];
+    const llm: LLMClient = {
+      async chat(_messages, tools) {
+        calls.push({ tools });
+        if (tools.length === 0) {
+          return { reply: 'Bob shared an authorized option.' };
+        }
+        closeSubchat(db, subchat.id, 'done', 'Bob replied with an authorized option.');
+        return {
+          toolCalls: [{
+            id: 'report-stuck',
+            name: 'report_to_human',
+            args: { taskId: task.id, status: 'stuck', summary: 'No useful options.' },
+          }],
+        };
+      },
+    };
+    const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm });
+    try {
+      runtime.wakeOwner(task.id);
+      await runtime.idle();
+
+      expect(calls).toHaveLength(2);
+      expect(calls[0]?.tools.length).toBeGreaterThan(0);
+      expect(calls[1]?.tools).toEqual([]);
+      expect(getTask(db, task.id)?.status).toBe('done');
+      expect(listMainThreadMessages(db, task.id)
+        .filter(({ senderId }) => senderId === FIXTURE_IDS.agents.alice))
+        .toHaveLength(1);
+    } finally {
+      db.close();
+    }
+  });
+
   it('uses the latest owner reply if the invocation-start no-tools summary call fails', async () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();

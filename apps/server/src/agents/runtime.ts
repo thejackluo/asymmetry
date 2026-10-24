@@ -376,6 +376,16 @@ export function createAgentRuntime({
       if (calls.length > 0) {
         messages.push(toolCallMessage(calls));
         for (const [index, call] of calls.entries()) {
+          if (call.name === 'report_to_human' && hasResolvedSubchats(taskId)) {
+            for (const skippedCall of calls.slice(index)) {
+              messages.push(toolResultMessage(
+                skippedCall,
+                'Not executed because all task subchats are closed.',
+              ));
+            }
+            await finalizeResolvedSubchats(task, ctx, messages, result.reply);
+            return;
+          }
           const execution = await executeToolCall(ctx, call);
           traceOwnerToolResult(
             taskId,
