@@ -134,6 +134,7 @@ export default function TasksPage() {
               </button>
               <div className="min-h-0 flex-1">
                 <TaskChat
+                  key={selected.id}
                   task={selected}
                   myAgentId={user.agentId}
                   agentName={agentName}

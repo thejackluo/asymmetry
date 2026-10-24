@@ -161,6 +161,11 @@ export default function TaskChat({
         EVT.SUBCHAT_CLOSED,
         (c: { subchatId: string; outcome: 'done' | 'stuck'; summary: string }) => {
           setSubchats((prev) => applySubchatClosed(prev, c));
+          // The closure may arrive before the subchat entity (or while a
+          // stale 'open' snapshot is in flight). The DB commits the closure
+          // before emitting, so a guarded refetch converges state; the
+          // terminal-aware merge keeps an older 'open' reply from winning.
+          void fetchHistory();
         },
       ),
       socket.on(EVT.DISCLOSURE_LOGGED, (n: DisclosureNotice) => {
