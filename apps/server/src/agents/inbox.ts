@@ -4,8 +4,9 @@ import type { Server, Socket } from 'socket.io';
 import type { Database } from '../db.js';
 import { CLARIFY_CAP, MODEL_TIMEOUT_MS } from './budgets.js';
 import { emitAgentStatus, emitMainMessage } from './emit.js';
+import { logAgentError, safeFailureReason } from './errors.js';
 import { EVENTS } from './events.js';
-import { LLMTimeoutError, withTimeout, type LLMClient, type LLMMessage } from './llm.js';
+import { withTimeout, type LLMClient, type LLMMessage } from './llm.js';
 import { buildDirectory } from './peers.js';
 import {
   agentByUser,
@@ -51,17 +52,6 @@ function ackError<T>(code: ErrorCode, message: string): CommandResult<T> {
 }
 
 const INTERNAL_ERROR_MESSAGE = 'Internal server error';
-
-function errorReason(error: unknown, timeoutMs: number): string {
-  if (error instanceof LLMTimeoutError) {
-    return `model request timed out after ${timeoutMs}ms`;
-  }
-  const message = error instanceof Error ? error.message : String(error);
-  if (message.includes('OPENAI_API_KEY is required')) {
-    return 'LLM not configured';
-  }
-  return `model error: ${message}`;
-}
 
 function replyMessages(messages: Message[]): LLMMessage[] {
   return messages.map((message) => {
@@ -159,7 +149,7 @@ export function createInboxHandlers({
       }
       persistAgentMessage(io, db, task, agentId, result.reply);
     } catch (error) {
-      await reportStuck(rt, task, errorReason(error, timeoutMs));
+      await reportStuck(rt, task, safeFailureReason(error));
     }
   }
 
@@ -225,12 +215,12 @@ export function createInboxHandlers({
     try {
       await memory.ingest(userId, payload.body, 'chat');
     } catch (error) {
-      console.error('Memory ingest failed', error);
+      logAgentError('memory ingest', error);
     }
     try {
       await memory.extractGoals(userId, task.id, payload.body);
     } catch (error) {
-      console.error('Goal extraction failed', error);
+      logAgentError('goal extraction', error);
     }
 
     if (!getTaskScope(db, task.id)) {
@@ -247,7 +237,7 @@ export function createInboxHandlers({
           mainThread: listMainThreadMessages(db, task.id),
         });
       } catch (error) {
-        await reportStuck(rt, task, errorReason(error, timeoutMs));
+        await reportStuck(rt, task, safeFailureReason(error));
         return;
       }
       if (scope) {

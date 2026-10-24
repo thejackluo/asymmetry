@@ -2,13 +2,14 @@ import type { ID, MemoryEngine, Message, Task } from '@asymmetry/shared';
 import type { Server } from 'socket.io';
 import type { Database } from '../db.js';
 import { Budget, MODEL_TIMEOUT_MS, TASK_MODEL_CALL_CAP, TOOL_ITER_CAP } from './budgets.js';
+import { logAgentError, safeFailureReason } from './errors.js';
 import { emitMainMessage, emitSubchatEvent } from './emit.js';
 import { EVENTS } from './events.js';
 import { agentById, agentByUser, getTask, getTaskScope, insertMessage, listMainThreadMessages, listSubchatMessages, listSubchatsByTask, subchatById, userByAgent } from './repo.js';
 import { buildDirectory } from './peers.js';
 import { closeSubchatAndNotify } from './subchats.js';
 import { buildOwnerPrompt, buildPeerPrompt, peerMessageToLLM } from './persona.js';
-import { LLMTimeoutError, withTimeout, type LLMClient, type LLMMessage } from './llm.js';
+import { withTimeout, type LLMClient, type LLMMessage } from './llm.js';
 import {
   AGENT_TOOLS,
   executeToolCall,
@@ -122,17 +123,6 @@ function peerHistory(
   return history;
 }
 
-function errorReason(error: unknown, timeoutMs: number): string {
-  if (error instanceof LLMTimeoutError) {
-    return `model request timed out after ${timeoutMs}ms`;
-  }
-  const message = error instanceof Error ? error.message : String(error);
-  if (message.includes('OPENAI_API_KEY is required')) {
-    return 'LLM not configured';
-  }
-  return `model error: ${message}`;
-}
-
 export function createAgentRuntime({
   io,
   db,
@@ -164,7 +154,7 @@ export function createAgentRuntime({
       .catch(() => undefined)
       .then(job)
       .catch((error: unknown) => {
-        console.error(`Agent queue ${key} failed`, error);
+        logAgentError(`queue ${key}`, error);
       })
       .finally(() => {
         if (queueTails.get(key) === queued) {
@@ -244,7 +234,7 @@ export function createAgentRuntime({
       try {
         result = await timedLLM.chat(messages, AGENT_TOOLS);
       } catch (error) {
-        await reportOwnerFailure(taskId, errorReason(error, timeoutMs));
+        await reportOwnerFailure(taskId, safeFailureReason(error));
         return;
       }
 
@@ -326,7 +316,7 @@ export function createAgentRuntime({
       try {
         result = await timedLLM.chat(messages, AGENT_TOOLS);
       } catch (error) {
-        await failPeer(subchatId, agentId, task.id, errorReason(error, timeoutMs));
+        await failPeer(subchatId, agentId, task.id, safeFailureReason(error));
         return;
       }
 

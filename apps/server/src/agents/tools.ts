@@ -117,10 +117,6 @@ function stringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function toolArgs(call: ToolCall): Args | string {
   if (call.args instanceof Error) {
     return `Invalid arguments: ${call.args.message}`;
@@ -382,7 +378,7 @@ export async function executeToolCall(ctx: TrustedCtx, call: ToolCall): Promise<
         content = `Error: unknown tool ${call.name}`;
     }
   } catch (error) {
-    content = `Error: ${errorText(error)}`;
+    content = 'Error: tool failed';
   }
   return {
     content,

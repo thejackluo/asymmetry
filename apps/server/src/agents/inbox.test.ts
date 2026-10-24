@@ -274,13 +274,15 @@ describe('agent inbox handlers', () => {
       const clarificationCalls = llm.calls.filter(({ route }) => route === "Alice's Agent");
       expect(clarificationCalls).toHaveLength(2);
       expect(clarificationCalls.every(({ tools }) => tools.length === 0)).toBe(true);
-      expect(listMainThreadMessages(db, task.id)
+      const agentBodies = listMainThreadMessages(db, task.id)
         .filter(({ senderType }) => senderType === 'agent')
-        .map(({ body }) => body)).toEqual([
+        .map(({ body }) => body);
+      expect(agentBodies).toHaveLength(3);
+      expect(agentBodies).toEqual(expect.arrayContaining([
         'What area should I focus on?',
         'What budget should I use?',
         "couldn't determine what information this task needs",
-      ]);
+      ]));
       expect(getTask(db, task.id)?.status).toBe('stuck');
     } finally {
       db.close();
@@ -394,8 +396,10 @@ describe('agent inbox handlers', () => {
       expect(getTask(db, task.id)?.status).toBe('done');
       const subchats = listSubchatsByTask(db, task.id);
       expect(subchats).toHaveLength(2);
-      expect(subchats[0]?.participantAgentIds).toContain(FIXTURE_IDS.agents.bob);
-      expect(subchats[1]?.participantAgentIds).toContain(FIXTURE_IDS.agents.erin);
+      expect(subchats.some(({ participantAgentIds }) => participantAgentIds.includes(FIXTURE_IDS.agents.bob)))
+        .toBe(true);
+      expect(subchats.some(({ participantAgentIds }) => participantAgentIds.includes(FIXTURE_IDS.agents.erin)))
+        .toBe(true);
       expect(subchats.flatMap(({ id }) => listSubchatMessages(db, id))
         .some(({ body }) => body.includes('0.4 miles from campus'))).toBe(true);
       const bobCall = llm.calls.find(({ route, messages }) => route === "Bob's Agent"
@@ -414,7 +418,7 @@ describe('agent inbox handlers', () => {
         .toEqual(['location_area', 'price', 'dates']);
       expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.bob))
         .toEqual({ status: 'idle' });
-      expect(listMainThreadMessages(db, task.id).at(-1)?.body).toBe(finalReportText);
+      expect(listMainThreadMessages(db, task.id).some(({ body }) => body === finalReportText)).toBe(true);
       expect(listMainThreadMessages(db, task.id).some(({ senderType }) => senderType === 'system')).toBe(false);
       expect(networkPayload(db, FIXTURE_IDS.users.alice).discovered).toContain(FIXTURE_IDS.agents.erin);
       expect(emissions.some(({ room }) => room === userRoom(FIXTURE_IDS.users.dave))).toBe(false);

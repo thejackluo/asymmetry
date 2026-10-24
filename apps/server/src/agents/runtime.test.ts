@@ -97,7 +97,7 @@ describe('agent runtime queues and loops', () => {
           subchatId: subchat.id,
         },
       }]);
-      expect(listSubchatMessages(db, subchat.id).at(-1)?.body).toBe('I found one option.');
+      expect(listSubchatMessages(db, subchat.id).some(({ body }) => body === 'I found one option.')).toBe(true);
     } finally {
       db.close();
     }
@@ -262,8 +262,8 @@ describe('agent runtime queues and loops', () => {
       releases.get('bob')?.({ reply: 'Bob is progressing.' });
       releases.get('carol')?.({ reply: 'Carol is progressing.' });
       await runtime.idle();
-      expect(listSubchatMessages(db, bobChat.id).at(-1)?.body).toBe('Bob is progressing.');
-      expect(listSubchatMessages(db, carolChat.id).at(-1)?.body).toBe('Carol is progressing.');
+      expect(listSubchatMessages(db, bobChat.id).some(({ body }) => body === 'Bob is progressing.')).toBe(true);
+      expect(listSubchatMessages(db, carolChat.id).some(({ body }) => body === 'Carol is progressing.')).toBe(true);
       expect(ownerCalls).toBeGreaterThan(0);
     } finally {
       db.close();

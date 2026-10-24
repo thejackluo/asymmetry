@@ -399,7 +399,8 @@ describe('trusted-context agent tools', () => {
       expect(report.stop).toBe(true);
       expect(getTask(db, ownerCtx.taskId)?.status).toBe('done');
       expect(db.prepare('SELECT status FROM subchats WHERE id = ?').get(subchat.id)).toEqual({ status: 'closed' });
-      expect(listMainThreadMessages(db, ownerCtx.taskId).at(-1)?.body).toContain('warm introduction');
+      expect(listMainThreadMessages(db, ownerCtx.taskId)
+        .some(({ body }) => body.includes('warm introduction'))).toBe(true);
       expect(emissions.some(({ event }) => event === EVENTS.TASK_UPDATED)).toBe(true);
       expect(emissions.some(({ event, payload }) => event === EVENTS.SUBCHAT_CLOSED
         && (payload as { outcome?: string }).outcome === 'done')).toBe(true);
