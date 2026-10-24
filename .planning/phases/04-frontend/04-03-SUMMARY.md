@@ -30,8 +30,13 @@ states, a11y labels, utility tests, verified build, draft PR evidence.
 - UI-08 graph + states ✓; UI-09 reconnect refetch + send uncertainty ✓;
 - UI-10 browser-verified flow, a11y names, mobile-usable single-column
   fallback ✓ (see deviation); OPS-01…06 ✓.
-- Deviation: full real-backend round-trip still pending — server code
-  landed on devin-1 (`ee40149` merged) but `agents`/`memory` layers are
-  D2/D3's in-flight branches; real-socket integration check will run
-  once a runnable server build exists. Mock playback is never counted
-  as real-backend proof.
+- Deviation resolved post-merge (head `9d85b8b`): devin-2 (agent runtime)
+  + devin-3 (memory/seed) merged into devin-4. **REAL round-trip verified
+  at `30b1ed0`** — fresh seeded DB (D3's seed: 5 users/5 edges/18 memory
+  items), `DATABASE_PATH=/tmp/asym-fresh.db npm run dev -w
+  @asymmetry/server`, real login alice/demo → `task:create` → ACTIVE
+  badge → `chat:send` → human echo → agent reply (`LLM not configured` —
+  OPENAI_API_KEY is the runtime's remaining infra dep) → `agent:status`
+  stuck. Screenshot `real_chat.png` on PR #9. Integration fix: D2's
+  `agents/repo.ts` populated/persisted Subchat outcome/summary/closedAt
+  (flagged on registry #1 for D2 confirmation).
