@@ -18,7 +18,7 @@ Mandatory execution loop: read `.planning/AUTONOMOUS-RUNBOOK.md` and use `.plann
 2. `.planning/PROJECT.md` — charter + **demo script** (design for this path)
 3. `CONTRACTS.md` — **law**; esp. §1 types, §3 socket events + payloads, §4 REST
 4. `.planning/phases/04-frontend/04-SPEC.md` — falsifiable requirements
-5. `.planning/phases/04-frontend/04-01-PLAN.md` — **your executable plan; work its tasks in order, run every `<verify>`, meet every `<acceptance_criteria>`**
+5. Execute `04-01-PLAN.md`, `04-02-PLAN.md`, then `04-03-PLAN.md` in your phase folder. Use `.planning/REQUIREMENTS.md` for detailed acceptance; inspect `.planning/CONTEXT.md` for locked decisions. Do not restart already completed work: map existing commits to these batches and close only remaining gaps.
 
 ## You own exclusively
 - `apps/web/**` — including scaffolding it (D1 left only a placeholder package.json).

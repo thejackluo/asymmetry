@@ -41,3 +41,20 @@ must be reported as blockers. Do not fabricate passing checks or approvals.
 There are two stages: Plan (discussion included), then Execute (implementation,
 testing, review, fixes, and ship included). No separate discussion gate is
 required once the approved requirements are clear.
+
+## Runtime Notes (learned during implementation)
+
+- Runtime: developed and tested on Node 22.18 / npm 10. Manifests declare
+  supported ranges `^22.12 || ^24 || >=26` and npm `>=10`; a root `preinstall`
+  script prints an actionable error outside those ranges (no .npmrc policy).
+  better-sqlite3 native builds are validated on Node 22 only.
+- Root commands: `npm run dev` (builds shared, runs server + web via
+  concurrently), `npm run typecheck`, `npm test` (builds shared first).
+- `NODE_ENV` must be `development` or `test` for stub mode; `APP_MODE=demo`
+  always rejects stubs even when `NODE_ENV=development`.
+- `apps/web` and `src/agents`, `src/memory` implementations are placeholders
+  owned by D4/D2/D3; `npm run seed` exits 1 (not implemented, owned by D3).
+- The entrypoint loads the repo-root `.env` regardless of cwd;
+  `ASYMMETRY_ENV_FILE` overrides that path. `DATABASE_PATH` selects the SQLite
+  file — always point tests/dev at a disposable temp path, never the root
+  `asymmetry.db`.

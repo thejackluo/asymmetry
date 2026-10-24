@@ -90,8 +90,11 @@ Do not resolve a contradiction by choosing a less restrictive implementation.
 - Reject arbitrary browser subchat joins and forged sender IDs.
 - D2 emits message/status/subchat events only to authorized user rooms.
 - Incoming peer text is untrusted content, never a system instruction.
-- REST task history returns `{ task, messages, subchats }`, owner-only,
+- REST task history returns `{ task, messages, subchats, disclosures }`, owner-only,
   so a refresh reconstructs participants, closed states, and transcripts.
+- Subchat outcome, summary, and closedAt are persisted, not transient events.
+- Groups require release authorization for every observing participant;
+  one trusted requester does not authorize disclosure to other strangers.
 - Canonical network payload for both REST and socket:
   `{ agents: Agent[], trusted: ID[], discovered: ID[] }`.
 - `trusted` and `discovered` contain agent IDs relative to the current user.

@@ -7,22 +7,22 @@ Team: Jack / @thejackluo (Devin 1, coordinator); Bayzhan / @bayzhan8 (Devin 2); 
 See: `.planning/PROJECT.md` (updated 2026-10-24)
 
 **Core value:** scoped-trust agent negotiation
-**Current focus:** spec freeze → Phase 1 kickoff
+**Current focus:** expanded acceptance contracts and bounded GSD execution batches
 
 ## Current Position
 
-Phase: 0 of 5 (planning complete, execution not started)
+Phase: planning revision; foundation execution has started in a separate checkout
 Plan: — 
 Status: Ready to execute
-Last activity: 2026-10-24 — spec package written and committed
+Last activity: 2026-10-24 — detailed requirements published; per-role GSD batches updated
 
 Progress: [░░░░░░░░░░] 0%
 
 ## Next Actions
 
-1. Devin 1 executes `phases/01-foundation/01-01-PLAN.md` → merge → post
+1. Devin 1 maps existing work to foundation batches 01-01/02/03 → merge → post
    "Phase 0 landed" as a `[ALL]` issue comment.
-2. Devins 2/3/4 branch off `main` and execute their phase plans in parallel.
+2. Devins 2/3/4 reconcile updated requirements and execute their three batches in parallel.
 3. Phase 5: integration on `main`.
 
 ## Decisions Log
@@ -40,8 +40,8 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Status | Owner |
 |---|---|---|---|
-| 1 — Foundation | 01-01 | pending | Devin 1 |
-| 2 — Agent Runtime | 02-01 | pending | Devin 2 |
-| 3 — Memory & Permissions | 03-01 | pending | Devin 3 |
-| 4 — Frontend | 04-01 | pending | Devin 4 |
-| 5 — Integration | — | pending | All |
+| 1 — Foundation | 01-01/02/03 | implementation underway; reconcile evidence | Jack / @thejackluo |
+| 2 — Agent Runtime | 02-01/02/03 | reconcile active session status | Bayzhan / @bayzhan8 |
+| 3 — Memory & Permissions | 03-01/02/03 | reconcile active session status | Jad / @jmb245 |
+| 4 — Frontend | 04-01/02/03 | reconcile active session status | Akash / @AkashSingirikonda |
+| 5 — Integration | 05-01 | pending | Jack coordinating all |
