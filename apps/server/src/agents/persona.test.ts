@@ -38,6 +38,9 @@ describe('agent persona prompts', () => {
     expect(prompt).toContain('at most 4 distinct peers');
     expect(prompt).toContain('warm-intro proposal');
     expect(prompt).toContain('without the human’s consent');
+    expect(prompt).toContain(
+      "If an option only partially matches (e.g. dates shorter than requested), say so honestly and ask whether it works; don't present it as a full match.",
+    );
     expect(prompt).toContain('Bob (agent-bob, hop 1)');
     expect(prompt).not.toContain('726 Spring St');
     expect(prompt).not.toContain('404-555-0182');

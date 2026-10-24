@@ -126,6 +126,13 @@ describe('trusted-context agent tools', () => {
         mode: 'peer',
         subchatId: subchat.id,
       };
+      const unbound = await executeToolCall({ ...bobCtx, subchatId: null }, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.bob,
+        scope: { fields: ['location_area'] },
+      }));
+      expect(unbound.content).toContain('subchat');
+      expect(calls.queryMemory).toHaveLength(0);
+
       const spoofed = await executeToolCall(bobCtx, toolCall('query_memory', {
         ownerUserId: FIXTURE_IDS.users.alice,
         scope: { fields: ['location_area'] },
@@ -172,6 +179,92 @@ describe('trusted-context agent tools', () => {
     }
   });
 
+  it('fails closed for mismatched or non-participating peer memory contexts', async () => {
+    const { db, ownerCtx, calls } = setup();
+    try {
+      const otherTask = createTask(db, FIXTURE_IDS.users.bob, 'Another task');
+      putTaskScope(db, {
+        taskId: otherTask.id,
+        purpose: 'another task',
+        fields: ['location_area'],
+      });
+      const mismatchedSubchat = createSubchat(db, otherTask.id, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const bobCtx: TrustedCtx = {
+        ...ownerCtx,
+        actingAgentId: FIXTURE_IDS.agents.bob,
+        mode: 'peer',
+        subchatId: mismatchedSubchat.id,
+      };
+      const mismatched = await executeToolCall(bobCtx, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.bob,
+        scope: { fields: ['location_area'] },
+      }));
+      expect(mismatched.content).toContain('subchat');
+
+      const missingOwnerSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.carol,
+      ]);
+      const missingOwner = await executeToolCall({
+        ...bobCtx,
+        taskId: ownerCtx.taskId,
+        subchatId: missingOwnerSubchat.id,
+      }, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.bob,
+        scope: { fields: ['location_area'] },
+      }));
+      expect(missingOwner.content).toContain('subchat');
+
+      const missingRequesterSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.carol,
+      ]);
+      const missingRequester = await executeToolCall({
+        ...bobCtx,
+        taskId: ownerCtx.taskId,
+        subchatId: missingRequesterSubchat.id,
+      }, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.bob,
+        scope: { fields: ['location_area'] },
+      }));
+      expect(missingRequester.content).toContain('subchat');
+      expect(calls.queryMemory).toHaveLength(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('does not expose memory engine exceptions to the model', async () => {
+    const { db, ownerCtx, task, scope } = setup();
+    try {
+      const subchat = createSubchat(db, task.id, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const errorMessage = 'private disclosure audit details';
+      const { memory } = createFakeMemory({ queryMemoryError: new Error(errorMessage) });
+      const result = await executeToolCall({
+        ...ownerCtx,
+        memory,
+        actingAgentId: FIXTURE_IDS.agents.bob,
+        mode: 'peer',
+        subchatId: subchat.id,
+      }, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.bob,
+        scope: { fields: ['location_area'] },
+      }));
+
+      expect(result.content).toBe('Error: no data available for this request');
+      expect(result.content).not.toContain(errorMessage);
+      expect(scope.fields).toContain('location_area');
+    } finally {
+      db.close();
+    }
+  });
+
   it('uses the task owner as requester for owner-mode memory queries', async () => {
     const { db, ownerCtx, calls } = setup();
     try {
@@ -189,6 +282,30 @@ describe('trusted-context agent tools', () => {
           fields: ['price'],
         },
       });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects owner-self memory reads when the task belongs to another owner', async () => {
+    const { db, ownerCtx, calls } = setup();
+    try {
+      const bobTask = createTask(db, FIXTURE_IDS.users.bob, 'Bob task');
+      putTaskScope(db, {
+        taskId: bobTask.id,
+        purpose: 'Bob task',
+        fields: ['location_area'],
+      });
+      const result = await executeToolCall({
+        ...ownerCtx,
+        taskId: bobTask.id,
+      }, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.alice,
+        scope: { fields: ['location_area'] },
+      }));
+
+      expect(result.content).toMatch(/^Error:/);
+      expect(calls.queryMemory).toHaveLength(0);
     } finally {
       db.close();
     }

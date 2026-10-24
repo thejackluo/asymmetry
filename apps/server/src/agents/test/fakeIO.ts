@@ -6,13 +6,17 @@ export interface CapturedEmit {
   payload: unknown;
 }
 
-export function createFakeIO(): { io: Server; emissions: CapturedEmit[] } {
+export function createFakeIO(
+  onEmit?: (emission: CapturedEmit) => void,
+): { io: Server; emissions: CapturedEmit[] } {
   const emissions: CapturedEmit[] = [];
   const io = {
     to(room: string) {
       return {
         emit(event: string, payload: unknown) {
-          emissions.push({ room, event, payload });
+          const emission = { room, event, payload };
+          emissions.push(emission);
+          onEmit?.(emission);
         },
       };
     },

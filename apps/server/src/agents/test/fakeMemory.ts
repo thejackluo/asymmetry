@@ -14,6 +14,7 @@ export interface FakeMemoryOptions {
   withheldCountByOwner?: Record<ID, number>;
   ingestError?: Error;
   extractGoalsError?: Error;
+  queryMemoryError?: Error;
 }
 
 export interface FakeMemoryCalls {
@@ -44,6 +45,9 @@ export function createFakeMemory(options: FakeMemoryOptions = {}): {
     },
     async queryMemory(ownerUserId, requesterUserId, scope) {
       calls.queryMemory.push({ ownerUserId, requesterUserId, scope });
+      if (options.queryMemoryError) {
+        throw options.queryMemoryError;
+      }
       const items = options.itemsByOwner?.[ownerUserId] ?? options.items ?? [];
       const withheldCount = options.withheldCountByOwner?.[ownerUserId] ?? options.withheldCount ?? 0;
       const disclosure: Disclosure = {

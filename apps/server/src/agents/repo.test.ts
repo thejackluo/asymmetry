@@ -10,6 +10,7 @@ import {
   insertMessage,
   listMainThreadMessages,
   listParticipants,
+  listSubchatsByTask,
   listSubchatMessages,
   outgoingTrustEdges,
   putTaskScope,
@@ -58,6 +59,11 @@ describe('agent repository', () => {
 
       expect(pair.kind).toBe('pair');
       expect(group.kind).toBe('group');
+      expect(pair).toMatchObject({ outcome: null, summary: null, closedAt: null });
+      expect(db.prepare('SELECT outcome, summary, closed_at FROM subchats WHERE id = ?').get(pair.id))
+        .toEqual({ outcome: null, summary: null, closed_at: null });
+      expect(listSubchatsByTask(db, task.id).find(({ id }) => id === group.id))
+        .toMatchObject({ outcome: null, summary: null, closedAt: null });
       expect(listParticipants(db, group.id)).toEqual([
         FIXTURE_IDS.agents.alice,
         FIXTURE_IDS.agents.bob,
