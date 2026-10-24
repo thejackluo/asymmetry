@@ -2,15 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { clearSession, getUser } from '@/lib/auth';
+import { clearSession, useStoredUser } from '@/lib/auth';
 import { resetSocket } from '@/lib/socket';
-import { useState } from 'react';
-import type { User } from '@/lib/types';
 
 export default function Header({ connected }: { connected?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user] = useState<User | null>(() => getUser());
+  const user = useStoredUser();
 
   function logout() {
     clearSession();

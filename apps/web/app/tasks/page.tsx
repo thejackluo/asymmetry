@@ -6,20 +6,19 @@ import Header from '@/components/Header';
 import TaskList from '@/components/TaskList';
 import TaskChat from '@/components/TaskChat';
 import { getNetwork, getTasks } from '@/lib/api';
-import { getToken, getUser } from '@/lib/auth';
+import { getToken, useStoredUser } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
 import type {
   Agent,
   NetworkPayload,
   Task,
   TaskUpdatedPayload,
-  User,
 } from '@/lib/types';
 import { EVT } from '@/lib/types';
 
 export default function TasksPage() {
   const router = useRouter();
-  const [user] = useState<User | null>(() => getUser());
+  const user = useStoredUser();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);

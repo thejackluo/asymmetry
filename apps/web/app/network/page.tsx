@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import NetworkGraph from '@/components/NetworkGraph';
 import { getNetwork } from '@/lib/api';
-import { getToken, getUser } from '@/lib/auth';
+import { getToken, useStoredUser } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
-import type { NetworkPayload, User } from '@/lib/types';
+import type { NetworkPayload } from '@/lib/types';
 import { EVT } from '@/lib/types';
 
 export default function NetworkPage() {
   const router = useRouter();
-  const [user] = useState<User | null>(() => getUser());
+  const user = useStoredUser();
   const [network, setNetwork] = useState<NetworkPayload | null>(null);
   const [connected, setConnected] = useState(false);
 
