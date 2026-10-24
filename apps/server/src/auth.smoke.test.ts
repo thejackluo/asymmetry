@@ -480,6 +480,14 @@ describe('foundation smoke', () => {
     expect(malformed.status).toBe(400);
     expect(malformed.body).toEqual({ error: { code: 'BAD_INPUT', message: 'invalid request' } });
     expect(malformed.headers['access-control-allow-origin']).toBe('http://localhost:3000');
+    const oversize = await request(base)
+      .post('/api/login')
+      .set('Content-Type', 'application/json')
+      .send({ username: 'validuser', password: 'd'.repeat(300 * 1024) });
+    expect(oversize.status).toBe(400);
+    expect(oversize.body).toEqual({ error: { code: 'BAD_INPUT', message: 'invalid request' } });
+    expect(oversize.headers['access-control-allow-origin']).toBe('http://localhost:3000');
+    expect(JSON.stringify(oversize.body)).not.toContain('dddd');
     const unauth = await request(base).get('/api/tasks');
     expect(unauth.body).toEqual({ error: { code: 'UNAUTHORIZED', message: 'unauthorized' } });
     const notFound = await request(base).get('/api/nope');
