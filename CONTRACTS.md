@@ -338,6 +338,14 @@ pulls carol's mechanic knowledge into a **group** subchat.
 
 ## Changelog
 
+- 2026-10-24: D1/D2 agreed in PR #8 that owner-to-peer requests use only
+  server-generated canonical field labels. Model-authored bodies, task titles,
+  explanatory purposes, and other peer transcripts are not forwarded. Final
+  owner synthesis stays in the main thread; peer closures use safe lifecycle
+  summaries. Terminal-task sends return CONFLICT before persistence. These
+  privacy guards preserve the existing wire types; unrestricted counteroffers
+  are deferred until provenance-aware relay authorization exists.
+
 - 2026-10-24: Detailed requirement contracts added without changing their IDs.
   Subchat closure fields persist outcome/summary/closedAt. Task history returns
   scoped disclosure notices for replay. These are additive schema/type changes;
@@ -374,6 +382,8 @@ task:create takes `{title}` with 1-200 trimmed characters.
 It creates/selects an active task but does not start a model request.
 The human then sends the actual request using chat:send.
 chat:send takes `{taskId,body}` with 1-4000 non-whitespace characters.
+For a done or stuck task, reject chat:send with CONFLICT before persistence
+or model invocation; the human must select or create an active task.
 Server-supplied identity and conversation context always override model input.
 Unknown browser privileged events have no effect.
 
@@ -405,10 +415,28 @@ Tests cover Alice trusted by Bob while Carol is not: Bob's network fact is
 withheld from the group rather than leaked to Carol.
 This all-observers check also applies to the human owners observing the group.
 
+### Outbound Requests And Peer Context
+
+An owner model may see several peer replies when composing its human report.
+That does not authorize forwarding one peer's facts to a different observer.
+In owner mode, send_subchat_message ignores the model's body and sends only:
+`Please return only information authorized for these task fields: ` followed
+by the canonical field labels joined with `, ` and a final `.`.
+Do not include task titles, explanatory purpose, owner-private text, or
+previous peer replies in that server-generated request.
+Peer prompts contain trusted routing identities and allowed field labels,
+not the raw model-generated explanatory purpose or unrelated task history.
+Peer-mode replies remain bound to their subchat and facts authorized for
+every current observer. Unrestricted owner counteroffers and cross-thread
+fact forwarding are deferred until provenance-aware authorization exists.
+
 ### Closure And History Replay
 
 Persist subchat status, outcome, summary, and closed_at together.
 Emit subchat:closed only after that transaction commits.
+The owner's synthesized final report is delivered only to its main thread.
+Use a fixed, safe lifecycle summary for each peer closure, never that
+cross-thread synthesis or another peer's transcript.
 Read history using explicit task ownership before selecting child records.
 Return messages, subchat metadata, and browser-safe disclosure notices.
 Reconstruct notices from stored audits filtered to that task/subchat context.

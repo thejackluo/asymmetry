@@ -47,6 +47,8 @@ let runtimeCalls: { messages: LLMMessage[] }[];
 let clients: ClientRecorder[] = [];
 let adapterImpl: (messages: LLMMessage[]) => LLMResult | Promise<LLMResult>;
 let openaiUserInputs: string[];
+let classifierFacts: { content: string; classification: string; fieldTags: string[] }[];
+let scopePurpose: string;
 
 const fakeOpenAI = (): OpenAI => {
   openaiCalls = [];
@@ -64,13 +66,7 @@ const fakeOpenAI = (): OpenAI => {
             return {
               choices: [{
                 message: {
-                  content: JSON.stringify({
-                    facts: [{
-                      content: HUMAN_REQUEST,
-                      classification: 'network',
-                      fieldTags: SCOPE_FIELDS,
-                    }],
-                  }),
+                  content: JSON.stringify({ facts: classifierFacts }),
                 },
               }],
             };
@@ -105,7 +101,7 @@ const makeAdapter = (impl: typeof adapterImpl): void => {
           toolCalls: [{
             id: 'scope-1',
             name: 'set_task_scope',
-            args: { purpose: 'Find the requested summer sublet', fields: SCOPE_FIELDS },
+            args: { purpose: scopePurpose, fields: SCOPE_FIELDS },
           }],
         };
       }
@@ -221,6 +217,12 @@ const peerQueryThenReply = (ownerUserId: string, answered: { done: boolean }) =>
   };
 
 beforeEach(async () => {
+  classifierFacts = [{
+    content: HUMAN_REQUEST,
+    classification: 'network',
+    fieldTags: SCOPE_FIELDS,
+  }];
+  scopePurpose = 'Find the requested summer sublet';
   dir = mkdtempSync(join(tmpdir(), 'asymmetry-integration-'));
   const dbPath = join(dir, 'test.db');
   seedDatabase(dbPath);
@@ -533,4 +535,162 @@ describe('integration: real runtime + memory + seed', () => {
 
     aliceC.socket.close(); bobC.socket.close();
   }, 90_000);
+
+  it("owner model cannot relay one peer's authorized facts to an untrusted peer", async () => {
+    const alice = await login('alice');
+    const bob = await login('bob');
+    const erin = await login('erin');
+    const aliceC = await connectClient(alice.token);
+    const bobC = await connectClient(bob.token);
+    const erinC = await connectClient(erin.token);
+
+    let currentTaskId = '';
+    const state = { openedBob: false, sentBob: false, openedErin: false, sentErin: false };
+    const bobAnswered = { done: false };
+    const erinAnswered = { done: false };
+    makeAdapter((messages) => {
+      const sys = messages[0]?.content ?? '';
+      if (sys.includes('Available peer directory')) {
+        const subchats = parseSubchatsFromResults(messages);
+        const bobReplies = subchatReplies(messages, "Bob's Agent");
+        const erinReplies = subchatReplies(messages, "Erin's Agent");
+        if (!state.openedBob) {
+          state.openedBob = true;
+          return { toolCalls: [tc('open-bob', 'open_subchat', { agentIds: [SEED_IDS.bob.agentId], taskId: currentTaskId })] };
+        }
+        if (subchats.length > 0 && !state.sentBob) {
+          state.sentBob = true;
+          return { toolCalls: [tc('req-bob', 'send_subchat_message', { subchatId: subchats[subchats.length - 1].id, body: 'Please share what you can within scope: location_area, price, dates.' })] };
+        }
+        if (bobReplies.length === 0) {
+          return { reply: 'Waiting for Bob.' };
+        }
+        if (!state.openedErin) {
+          state.openedErin = true;
+          return { toolCalls: [tc('open-erin', 'open_subchat', { agentIds: [SEED_IDS.erin.agentId], taskId: currentTaskId })] };
+        }
+        if (!state.sentErin) {
+          state.sentErin = true;
+          const bobBody = bobReplies[bobReplies.length - 1].split('\n').pop() as string;
+          const erinSubchat = subchats[subchats.length - 1];
+          return { toolCalls: [tc('relay', 'send_subchat_message', { subchatId: erinSubchat.id, body: bobBody })] };
+        }
+        if (toolResults(messages).some((m) => m.toolCallId === 'relay' && /^(Error:|Invalid arguments:)/.test(m.content))) {
+          return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'stuck', summary: 'Relay blocked' })] };
+        }
+        if (erinReplies.length > 0) {
+          return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'done', summary: 'Peer exchange completed.' })] };
+        }
+        return { reply: 'Waiting for Erin.' };
+      }
+      if (sys.includes("Bob's Agent")) return peerQueryThenReply(SEED_IDS.bob.userId, bobAnswered)(messages);
+      if (sys.includes("Erin's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, erinAnswered)(messages);
+      throw new Error('adapter: unexpected invocation');
+    });
+
+    const created = await emitAck<Task>(aliceC.socket, 'task:create', { title: 'Sublet search' });
+    expect(created.ok).toBe(true);
+    currentTaskId = (created.data as Task).id;
+    const sent = await emitAck<Message>(aliceC.socket, 'chat:send', { taskId: currentTaskId, body: HUMAN_REQUEST });
+    expect(sent.ok).toBe(true);
+
+    await waitFor(() => {
+      const t = get<{ status: string }>(server.db, 'SELECT status FROM tasks WHERE id = ?', currentTaskId);
+      return t?.status === 'done' || t?.status === 'stuck';
+    }, 30_000);
+    await new Promise((r) => setTimeout(r, 500));
+
+    const bobAudit = get<{ released_json: string; withheld_count: number; decision: string }>(
+      server.db,
+      'SELECT released_json, withheld_count, decision FROM disclosures WHERE owner_user_id = ?',
+      SEED_IDS.bob.userId,
+    );
+    expect(bobAudit).toBeDefined();
+    expect(JSON.parse(bobAudit!.released_json)).toHaveLength(3);
+    expect(bobAudit!.withheld_count).toBe(3);
+    expect(bobAudit!.decision).toBe('partial');
+
+    const erinSocketPayloads = JSON.stringify(erinC.events);
+    const erinModelInputs = JSON.stringify(
+      runtimeCalls.filter((c) => String(c.messages[0]?.content ?? '').includes("Erin's Agent")).map((c) => c.messages),
+    );
+    expect(hasSentinel(erinSocketPayloads + erinModelInputs, BOB_NETWORK_SENTINELS)).toBe(false);
+
+    const aliceMain = all<{ body: string }>(
+      server.db,
+      "SELECT body FROM messages WHERE task_id = ? AND subchat_id IS NULL",
+      currentTaskId,
+    ).map((m) => m.body);
+    expect(hasSentinel(JSON.stringify(aliceMain), PRIVATE_SENTINELS)).toBe(false);
+  }, 60_000);
+
+  it('private owner note in explanatory scope purpose never enters peer context', async () => {
+    const alice = await login('alice');
+    const erin = await login('erin');
+    const aliceC = await connectClient(alice.token);
+    const erinC = await connectClient(erin.token);
+
+    const NOTE = 'Private owner note: OWNER-CONTEXT-SENTINEL';
+    classifierFacts = [
+      { content: HUMAN_REQUEST, classification: 'network', fieldTags: SCOPE_FIELDS },
+      { content: NOTE, classification: 'private', fieldTags: ['identifier'] },
+    ];
+    scopePurpose = `Find the requested summer sublet. ${NOTE}`;
+
+    let currentTaskId = '';
+    const state = { opened: false, sent: false };
+    const erinAnswered = { done: false };
+    makeAdapter((messages) => {
+      const sys = messages[0]?.content ?? '';
+      if (sys.includes('Available peer directory')) {
+        const subchats = parseSubchatsFromResults(messages);
+        if (!state.opened) {
+          state.opened = true;
+          return { toolCalls: [tc('open-erin', 'open_subchat', { agentIds: [SEED_IDS.erin.agentId], taskId: currentTaskId })] };
+        }
+        if (subchats.length > 0 && !state.sent) {
+          state.sent = true;
+          return { toolCalls: [tc('req', 'send_subchat_message', { subchatId: subchats[0].id, body: 'Share what you can within scope.' })] };
+        }
+        const erinReplies = subchatReplies(messages, "Erin's Agent");
+        if (erinReplies.length > 0) {
+          return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'done', summary: 'Peer exchange completed.' })] };
+        }
+        return { reply: 'Waiting for Erin.' };
+      }
+      if (sys.includes("Erin's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, erinAnswered)(messages);
+      throw new Error('adapter: unexpected invocation');
+    });
+
+    const created = await emitAck<Task>(aliceC.socket, 'task:create', { title: 'Sublet search' });
+    currentTaskId = (created.data as Task).id;
+    const sent = await emitAck<Message>(aliceC.socket, 'chat:send', {
+      taskId: currentTaskId,
+      body: `${HUMAN_REQUEST}\n${NOTE}`,
+    });
+    expect(sent.ok).toBe(true);
+
+    await waitFor(() => {
+      const t = get<{ status: string }>(server.db, 'SELECT status FROM tasks WHERE id = ?', currentTaskId);
+      return t?.status === 'done' || t?.status === 'stuck';
+    }, 30_000);
+    await new Promise((r) => setTimeout(r, 500));
+
+    const noteRow = get<{ classification: string; field_tags: string }>(
+      server.db,
+      "SELECT classification, field_tags FROM memory_items WHERE content LIKE '%OWNER-CONTEXT-SENTINEL%'",
+    );
+    expect(noteRow).toBeDefined();
+    expect(noteRow!.classification).toBe('private');
+    expect(JSON.parse(noteRow!.field_tags)).toContain('identifier');
+
+    const erinSocketPayloads = JSON.stringify(erinC.events);
+    const erinModelInputs = JSON.stringify(
+      runtimeCalls.filter((c) => String(c.messages[0]?.content ?? '').includes("Erin's Agent")).map((c) => c.messages),
+    );
+    const foreignHist = await request(base).get(`/api/tasks/${currentTaskId}/messages`).set('Authorization', `Bearer ${erin.token}`);
+    expect(foreignHist.status).toBe(404);
+    const scan = erinSocketPayloads + erinModelInputs + JSON.stringify(foreignHist.body);
+    expect(scan.includes('OWNER-CONTEXT-SENTINEL')).toBe(false);
+  }, 60_000);
 });
