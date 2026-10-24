@@ -1,6 +1,6 @@
 # Independent Model Review Instructions
 
-Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+Team: Jack / @thejackluo (Devin 1, coordinator); Bayzhan / @bayzhan8 (Devin 2); Jad / @jmb245 (Devin 3); Akash / @AkashSingirikonda (Devin 4).
 
 You are the independent reviewer, not the implementer.
 This review is read-only. Do not edit files, install packages, commit, push,

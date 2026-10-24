@@ -1,6 +1,6 @@
 # DEVIN 4 — Frontend (Phase 4, the whole visual demo)
 
-Owner: Akash (Devin 4). Coordinator: Jack (Devin 1).
+Owner: Akash / @AkashSingirikonda (Devin 4). Coordinator: Jack / @thejackluo (Devin 1).
 
 GitHub: `@AkashSingirikonda`. Team routing: Jack `@thejackluo` (D1); Bayzhan `@bayzhan8` (D2); Jad `@jmb245` (D3); Akash `@AkashSingirikonda` (D4).
 

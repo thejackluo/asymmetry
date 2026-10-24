@@ -1,6 +1,6 @@
 # ASYMMETRY — Start Here
 
-Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+Team: Jack / @thejackluo (Devin 1, coordinator); Bayzhan / @bayzhan8 (Devin 2); Jad / @jmb245 (Devin 3); Akash / @AkashSingirikonda (Devin 4).
 
 All sessions start with `AGENTS.md` and `.planning/AUTONOMOUS-RUNBOOK.md`; independent reviewers read `.planning/REVIEW-INSTRUCTIONS.md`.
 
@@ -41,4 +41,4 @@ PLAN: discussion + specs
 | D4 | 04-frontend | entire Next.js app |
 
 D1 merges first (~25 min); D2/D3/D4 branch off `main` and build in parallel;
-Phase 5 integrates. Kick each off by pasting its `prompts/DEVIN-N.md`.
+Phase 5 integrates. Kick each off with its username-named Markdown file in `prompts/`.

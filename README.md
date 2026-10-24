@@ -1,6 +1,6 @@
 # Asymmetry
 
-Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+Team: Jack / @thejackluo (Devin 1, coordinator); Bayzhan / @bayzhan8 (Devin 2); Jad / @jmb245 (Devin 3); Akash / @AkashSingirikonda (Devin 4).
 
 All sessions start with `AGENTS.md` and `.planning/AUTONOMOUS-RUNBOOK.md`; independent reviewers read `.planning/REVIEW-INSTRUCTIONS.md`.
 
@@ -74,10 +74,10 @@ The project is built by 4 parallel Devins with **zero file overlap**:
 
 | Devin | Owns | Kickoff prompt |
 |---|---|---|
-| D1 | repo root, `packages/shared`, server boot/auth/db/schema | [prompts/DEVIN-1.md](prompts/DEVIN-1.md) |
-| D2 | `apps/server/src/agents/**` — A2A protocol, subchat orchestration | [prompts/DEVIN-2.md](prompts/DEVIN-2.md) |
-| D3 | `apps/server/src/memory/**` + seed data — scoped disclosure engine | [prompts/DEVIN-3.md](prompts/DEVIN-3.md) |
-| D4 | `apps/web/**` — the entire frontend | [prompts/DEVIN-4.md](prompts/DEVIN-4.md) |
+| D1 | repo root, `packages/shared`, server boot/auth/db/schema | [prompts/DEVIN-1-thejackluo.md](prompts/DEVIN-1-thejackluo.md) |
+| D2 | `apps/server/src/agents/**` — A2A protocol, subchat orchestration | [prompts/DEVIN-2-bayzhan8.md](prompts/DEVIN-2-bayzhan8.md) |
+| D3 | `apps/server/src/memory/**` + seed data — scoped disclosure engine | [prompts/DEVIN-3-jmb245.md](prompts/DEVIN-3-jmb245.md) |
+| D4 | `apps/web/**` — the entire frontend | [prompts/DEVIN-4-AkashSingirikonda.md](prompts/DEVIN-4-AkashSingirikonda.md) |
 
 Operating rules (full details in `.planning/OPERATING-RULES.md` and the binding decisions):
 

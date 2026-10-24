@@ -1,6 +1,6 @@
 # DEVIN 1 — Foundation & Contracts (Phase 1, you unblock everyone)
 
-Owner: Jack (Devin 1). Coordinator: Jack (Devin 1).
+Owner: Jack / @thejackluo (Devin 1). Coordinator: Jack / @thejackluo (Devin 1).
 
 GitHub: `@thejackluo`. Team routing: Jack `@thejackluo` (D1); Bayzhan `@bayzhan8` (D2); Jad `@jmb245` (D3); Akash `@AkashSingirikonda` (D4).
 

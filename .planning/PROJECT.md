@@ -1,6 +1,6 @@
 # PROJECT.md — Asymmetry
 
-Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+Team: Jack / @thejackluo (Devin 1, coordinator); Bayzhan / @bayzhan8 (Devin 2); Jad / @jmb245 (Devin 3); Akash / @AkashSingirikonda (Devin 4).
 
 > GSD project charter. Last updated: 2026-10-24 (spec freeze).
 
@@ -88,19 +88,20 @@ Full list with IDs in `.planning/REQUIREMENTS.md`. Summary:
 
 ## Demo Script (win condition — verbatim path)
 
-1. Seed: `npm run seed` (alice, bob, carol, dave — CONTRACTS.md §7).
+1. Seed: `npm run seed` (alice, bob, carol, dave, erin — CONTRACTS.md §7).
 2. Open app, log in as `alice` / `demo`.
 3. New task: "Find a summer sublet near Georgia Tech, May–Aug, under $1200/mo."
 4. Alice's agent asks ≤2 clarifying questions (or proceeds if seeded memory
    already answers them).
 5. Agent opens subchat with Bob's agent → negotiation messages stream live.
-6. Bob's agent calls `query_memory` → releases room facts (network-classified),
+6. Bob's agent calls `query_memory` with Alice as the trusted requester and
+   the persisted housing scope → releases atomic room facts (network-classified),
    withholds address + phone (private) → `disclosure:logged` shows
    "shared 3 · withheld 2".
 7. Alice's agent reports: "Bob has a room 0.4mi from GT, $950/mo, May 15–Aug
    10. Want a warm intro?"
-8. Open `/network` — bob/carol solid (trusted), any new participant dashed
-   (discovered).
+8. Also query Erin's public housing tip; open `/network` — Bob/Carol solid
+   (two trusted peers), Erin dashed (discovered, not granted trusted access).
 9. Stretch: second task about buying Dave's Civic pulls Carol's mechanic
    knowledge into a 3-agent group subchat.
 
@@ -109,6 +110,6 @@ Full list with IDs in `.planning/REQUIREMENTS.md`. Summary:
 - [ ] Demo script runs live end-to-end on seed data
 - [ ] Human↔agent and agent↔agent messages are visually distinct
 - [ ] Out-of-scope info request → visible withholding (Disclosure row + UI line)
-- [ ] Network page: ≥3 trusted + ≥1 discovered agent rendered
+- [ ] Network page: Alice's two trusted peers plus at least one discovered peer
 - [ ] `npm run dev` boots everything; `npm test` is green
 - [ ] All 4 phase plans' acceptance criteria pass

@@ -1,6 +1,6 @@
 # DEVIN 2 — Agent Runtime & A2A Messaging (Phase 2, the negotiation brain)
 
-Owner: Bayzhan (Devin 2). Coordinator: Jack (Devin 1).
+Owner: Bayzhan / @bayzhan8 (Devin 2). Coordinator: Jack / @thejackluo (Devin 1).
 
 GitHub: `@bayzhan8`. Team routing: Jack `@thejackluo` (D1); Bayzhan `@bayzhan8` (D2); Jad `@jmb245` (D3); Akash `@AkashSingirikonda` (D4).
 

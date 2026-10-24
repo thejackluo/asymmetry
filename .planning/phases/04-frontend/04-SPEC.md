@@ -1,6 +1,6 @@
 # Phase 4: Frontend — Specification
 
-Owner: Akash (Devin 4). Coordinator: Jack (Devin 1).
+Owner: Akash / @AkashSingirikonda (Devin 4). Coordinator: Jack / @thejackluo (Devin 1).
 
 **Created:** 2026-10-24 · **Owner:** Devin 4 · **Requirements:** UI-01…10 locked
 
