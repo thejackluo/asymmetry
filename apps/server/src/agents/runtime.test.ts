@@ -91,6 +91,94 @@ describe('agent runtime queues and loops', () => {
     }
   });
 
+  it('keeps a no-fact peer reply stuck through owner text finalization', async () => {
+    const db = createFixtureDb();
+    const { io } = createFakeIO();
+    const task = createScopedTask(db);
+    const { memory, calls } = createFakeMemory({
+      itemsByOwner: { [FIXTURE_IDS.users.bob]: [] },
+      withheldCountByOwner: { [FIXTURE_IDS.users.bob]: 1 },
+    });
+    let ownerCalls = 0;
+    let peerCalls = 0;
+    const llm: LLMClient = {
+      async chat(messages) {
+        const system = messages.find(({ role }) => role === 'system')?.content ?? '';
+        if (system.includes("You are Alice's Agent,")) {
+          ownerCalls += 1;
+          if (ownerCalls === 1) {
+            return {
+              toolCalls: [{
+                id: 'open-bob',
+                name: 'open_subchat',
+                args: { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] },
+              }],
+            };
+          }
+          if (ownerCalls === 2) {
+            const subchat = messages
+              .filter(({ role }) => role === 'tool')
+              .flatMap(({ content }) => {
+                try {
+                  const parsed = JSON.parse(content) as { id?: string };
+                  return parsed.id ? [parsed] : [];
+                } catch {
+                  return [];
+                }
+              })
+              .at(-1);
+            if (!subchat?.id) {
+              throw new Error('owner did not receive the subchat ID');
+            }
+            return {
+              toolCalls: [{
+                id: 'ask-bob',
+                name: 'send_subchat_message',
+                args: { subchatId: subchat.id },
+              }],
+            };
+          }
+          return { reply: 'No matching information available.' };
+        }
+
+        if (system.includes("You are Bob's Agent,")) {
+          peerCalls += 1;
+          if (peerCalls === 1) {
+            return {
+              toolCalls: [{
+                id: 'query-bob',
+                name: 'query_memory',
+                args: {
+                  ownerUserId: FIXTURE_IDS.users.bob,
+                  scope: { fields: ['location_area', 'price', 'dates'] },
+                },
+              }],
+            };
+          }
+          return { reply: 'I have no matching information.' };
+        }
+
+        throw new Error(`unexpected model route: ${system.slice(0, 80)}`);
+      },
+    };
+    const runtime = createAgentRuntime({ io, db, memory, llm });
+    try {
+      runtime.wakeOwner(task.id);
+      await runtime.idle();
+
+      const [subchat] = listSubchatsByTask(db, task.id);
+      expect(calls.queryMemory).toHaveLength(1);
+      expect(subchat).toMatchObject({
+        status: 'closed',
+        outcome: 'stuck',
+        summary: 'Closed: peers had no matching information.',
+      });
+      expect(getTask(db, task.id)?.status).toBe('stuck');
+    } finally {
+      db.close();
+    }
+  });
+
   it('limits a peer to its subchat transcript and runs its memory tool with owner-bound identity', async () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();
@@ -376,7 +464,16 @@ describe('agent runtime queues and loops', () => {
       expect(getTask(db, task.id)?.status).toBe('done');
       const subchats = listSubchatsByTask(db, task.id);
       expect(subchats).toHaveLength(2);
-      expect(subchats.every(({ status, outcome }) => status === 'closed' && outcome === 'done')).toBe(true);
+      const bobSubchat = subchats.find(({ participantAgentIds }) =>
+        participantAgentIds.includes(FIXTURE_IDS.agents.bob));
+      const carolSubchat = subchats.find(({ participantAgentIds }) =>
+        participantAgentIds.includes(FIXTURE_IDS.agents.carol));
+      expect(bobSubchat).toMatchObject({ status: 'closed', outcome: 'done' });
+      expect(carolSubchat).toMatchObject({
+        status: 'closed',
+        outcome: 'stuck',
+        summary: 'Closed: peers had no matching information.',
+      });
       for (const subchat of subchats) {
         const peerMessages = listSubchatMessages(db, subchat.id)
           .filter(({ senderId }) => senderId !== FIXTURE_IDS.agents.alice);
