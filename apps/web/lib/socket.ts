@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { isMockMode, MockSocketClient } from './mock';
 import { API_URL } from './api';
@@ -23,10 +24,18 @@ export interface SocketClient {
 
 export class RealSocketClient implements SocketClient {
   private socket: Socket | null = null;
+  private token: string | null = null;
   private handlers = new Map<string, Set<EventHandler>>();
 
   connect(token: string): void {
-    if (this.socket) return;
+    if (this.socket && this.token === token) return;
+    // Identity changed — drop the old connection wholesale so no stale
+    // listeners, events, or buffered commands survive the switch.
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
+    this.token = token;
     this.socket = io(API_URL, {
       auth: { token },
       reconnection: true,
@@ -54,11 +63,21 @@ export class RealSocketClient implements SocketClient {
   }
 
   emit(event: string, payload: unknown, ack?: Ack): void {
+    // Never enqueue while disconnected — socket.io would buffer and replay
+    // on reconnect, duplicating commands. Refuse immediately with a safe
+    // failure ack so callers can surface the rejection.
+    if (!this.socket?.connected) {
+      ack?.({
+        ok: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Not connected' },
+      });
+      return;
+    }
     if (ack) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      this.socket?.emit(event, payload, ack as any);
+      this.socket.emit(event, payload, ack as any);
     } else {
-      this.socket?.emit(event, payload);
+      this.socket.emit(event, payload);
     }
   }
 
@@ -69,6 +88,7 @@ export class RealSocketClient implements SocketClient {
   disconnect(): void {
     this.socket?.disconnect();
     this.socket = null;
+    this.token = null;
   }
 }
 
@@ -84,4 +104,23 @@ export function getSocket(): SocketClient {
 export function resetSocket(): void {
   client?.disconnect();
   client = null;
+}
+
+// Live connection snapshot: replays the current socket state on subscribe
+// (a connected singleton never re-emits 'connect', so event-only tracking
+// leaves routed-in pages stuck on 'reconnecting').
+export function useSocketConnected(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      const socket = getSocket();
+      const offConnect = socket.on('connect', cb);
+      const offDisconnect = socket.on('disconnect', cb);
+      return () => {
+        offConnect();
+        offDisconnect();
+      };
+    },
+    () => getSocket().connected(),
+    () => false,
+  );
 }

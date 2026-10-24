@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import NetworkGraph from '@/components/NetworkGraph';
 import { getNetwork } from '@/lib/api';
-import { getToken, useStoredUser } from '@/lib/auth';
-import { getSocket } from '@/lib/socket';
+import { clearSession, getToken, useStoredUser } from '@/lib/auth';
+import { getSocket, useSocketConnected } from '@/lib/socket';
 import type { NetworkPayload } from '@/lib/types';
 import { EVT } from '@/lib/types';
 
@@ -14,7 +14,7 @@ export default function NetworkPage() {
   const router = useRouter();
   const user = useStoredUser();
   const [network, setNetwork] = useState<NetworkPayload | null>(null);
-  const [connected, setConnected] = useState(false);
+  const connected = useSocketConnected();
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
@@ -34,12 +34,13 @@ export default function NetworkPage() {
         .catch(() => setLoadError(true));
     };
     const unsubs = [
-      socket.on('connect', () => {
-        setConnected(true);
-        refresh();
-      }),
-      socket.on('disconnect', () => setConnected(false)),
+      socket.on('connect', refresh),
       socket.on(EVT.NETWORK_UPDATED, (n: NetworkPayload) => setNetwork(n)),
+      socket.on('connect_error', (err: Error) => {
+        if (/unauthorized|invalid|401/i.test(err?.message ?? '')) {
+          clearSession(true);
+        }
+      }),
     ];
     refresh();
     return () => unsubs.forEach((u) => u());

@@ -22,14 +22,20 @@ export function partitionMessages(messages: Message[]): PartitionedMessages {
   return { main, bySubchat };
 }
 
-// Dedupe by id — live socket echoes can overlap a REST history reload.
+// Dedupe by id — live socket echoes can overlap a REST history reload,
+// and a replay batch can repeat itself. Equal timestamps tie-break by id
+// so order matches REST replay exactly.
 export function mergeMessages(existing: Message[], incoming: Message[]): Message[] {
   const seen = new Set(existing.map((m) => m.id));
   const merged = [...existing];
   for (const m of incoming) {
-    if (!seen.has(m.id)) merged.push(m);
+    if (seen.has(m.id)) continue;
+    seen.add(m.id);
+    merged.push(m);
   }
-  return merged.sort((a, b) => a.createdAt - b.createdAt);
+  return merged.sort(
+    (a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id),
+  );
 }
 
 export interface RoutedDisclosures {
@@ -66,11 +72,16 @@ export function routeDisclosures(
 // Merge a history-replay subchat list into live state: replayed entries
 // replace known ones (they're authoritative) and unknown ones append.
 export function mergeSubchats(existing: Subchat[], incoming: Subchat[]): Subchat[] {
-  const byId = new Map(existing.map((s) => [s.id, s]));
-  for (const s of incoming) byId.set(s.id, s);
+  const liveById = new Map(existing.map((s) => [s.id, s]));
+  // A stale replay must never downgrade a live 'closed' back to 'open' —
+  // live lifecycle state wins over an older snapshot.
+  const merged = incoming.map((s) => {
+    const live = liveById.get(s.id);
+    return live?.status === 'closed' && s.status !== 'closed' ? live : s;
+  });
   const seen = new Set(incoming.map((s) => s.id));
   const kept = existing.filter((s) => !seen.has(s.id));
-  return [...kept, ...incoming].sort((a, b) => a.createdAt - b.createdAt);
+  return [...kept, ...merged].sort((a, b) => a.createdAt - b.createdAt);
 }
 
 // subchat:closed writes the closure back onto the entity — the pane reads

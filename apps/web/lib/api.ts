@@ -34,8 +34,9 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     } catch {
       // keep status message
     }
-    // Stale session: clear identity so guards route back to login.
-    if (res.status === 401) clearSession();
+    // Stale session: centralized teardown — clear identity, disconnect the
+    // socket, notify subscribers, and route back to login.
+    if (res.status === 401) clearSession(true);
     throw new ApiError(res.status, message);
   }
   return (await res.json()) as T;

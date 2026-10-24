@@ -35,6 +35,14 @@ describe('mergeSubchats', () => {
     const merged = mergeSubchats([subchat('sc-live', 5)], [subchat('sc-1', 1)]);
     expect(merged.map((s) => s.id)).toEqual(['sc-1', 'sc-live']);
   });
+
+  it('never downgrades a live closed subchat to a stale open replay', () => {
+    const live = [subchat('sc-1', 10, true)];
+    const replay = [subchat('sc-1', 10)]; // older snapshot still says open
+    const [s] = mergeSubchats(live, replay);
+    expect(s.status).toBe('closed');
+    expect(s.outcome).toBe('done');
+  });
 });
 
 describe('applySubchatClosed', () => {
@@ -148,5 +156,20 @@ describe('mergeMessages', () => {
       [msg('4', null), msg('1', null), msg('3', null)],
     );
     expect(merged.map((m) => m.id)).toEqual(['1', '2', '3', '4']);
+  });
+
+  it('dedupes duplicates inside the incoming batch itself', () => {
+    const merged = mergeMessages(
+      [],
+      [msg('1', null), msg('1', null), msg('2', null)],
+    );
+    expect(merged.map((m) => m.id)).toEqual(['1', '2']);
+  });
+
+  it('tie-breaks equal timestamps by id to match REST replay order', () => {
+    const a = { ...msg('b', null), createdAt: 5 };
+    const b = { ...msg('a', null), createdAt: 5 };
+    const merged = mergeMessages([], [a, b]);
+    expect(merged.map((m) => m.id)).toEqual(['a', 'b']);
   });
 });

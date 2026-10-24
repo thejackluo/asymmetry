@@ -55,6 +55,9 @@ export default function TaskChat({
   const [pendingSends, setPendingSends] = useState<PendingSend[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Generation guard: a fetch started under task A must never merge its
+  // response into task B after the selection changes.
+  const fetchGen = useRef(0);
 
   useEffect(
     () => () => timersRef.current.forEach(clearTimeout),
@@ -75,10 +78,14 @@ export default function TaskChat({
   }
 
   // Merge a history fetch into live state — dedupe by id so a refetch on
-  // reconnect never drops events that arrived mid-flight (UI-09).
-  const fetchHistory = () =>
-    getTaskMessages(task.id)
+  // reconnect never drops events that arrived mid-flight (UI-09). Stale
+  // responses for a previously selected task are discarded.
+  const fetchHistory = () => {
+    const gen = fetchGen.current;
+    const taskId = task.id;
+    return getTaskMessages(taskId)
       .then((h) => {
+        if (gen !== fetchGen.current) return;
         setMessages((prev) => mergeMessages(prev, h.messages));
         setSubchats((prev) => mergeSubchats(prev, h.subchats));
         if (h.disclosures) {
@@ -90,18 +97,33 @@ export default function TaskChat({
         }
         setLoadError(false);
       })
-      .catch(() => setLoadError(true))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (gen === fetchGen.current) setLoadError(true);
+      })
+      .finally(() => {
+        if (gen === fetchGen.current) setLoading(false);
+      });
+  };
 
   // REST history on select — replay reconstructs participants + transcripts.
+  // Merges (never replaces) so live events received mid-fetch survive.
+  // Bumping the generation here discards any in-flight response from a
+  // previously selected task (replay race).
   useEffect(() => {
+    fetchGen.current++;
     let cancelled = false;
     getTaskMessages(task.id)
       .then((h) => {
         if (cancelled) return;
-        setMessages(h.messages);
-        setSubchats(h.subchats);
-        if (h.disclosures) setDisclosures(h.disclosures);
+        setMessages((prev) => mergeMessages(prev, h.messages));
+        setSubchats((prev) => mergeSubchats(prev, h.subchats));
+        if (h.disclosures) {
+          setDisclosures((prev) =>
+            [...prev, ...h.disclosures!].filter(
+              (d, i, arr) => arr.findIndex((x) => x.id === d.id) === i,
+            ),
+          );
+        }
       })
       .catch(() => {
         if (!cancelled) setLoadError(true);
@@ -193,9 +215,6 @@ export default function TaskChat({
     ) as HTMLInputElement;
     const body = input.value.trim();
     if (!body) return;
-    // socket.io buffers emits while disconnected and replays them on
-    // reconnect — a retry would double-send. Fail fast, keep the text.
-    if (!getSocket().connected()) return;
     input.value = '';
 
     const localId = `local-${Date.now()}-${pendingSends.length}`;
@@ -320,13 +339,15 @@ export default function TaskChat({
           <input
             id="chat-body"
             name="body"
-            placeholder="Message your agent…"
+            placeholder={connected ? 'Message your agent…' : 'Reconnecting…'}
             autoComplete="off"
-            className="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            disabled={!connected}
+            className="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-neutral-100 disabled:text-neutral-400"
           />
           <button
             type="submit"
-            className="rounded-md bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700"
+            disabled={!connected}
+            className="rounded-md bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 disabled:bg-neutral-300"
           >
             Send
           </button>

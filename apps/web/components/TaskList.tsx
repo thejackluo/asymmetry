@@ -14,11 +14,13 @@ export default function TaskList({
   selectedId,
   onSelect,
   onCreate,
+  connected,
 }: {
   tasks: Task[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreate: (title: string, done: (ok: boolean) => void) => void;
+  connected: boolean;
 }) {
   const [createError, setCreateError] = useState<string | null>(null);
   return (
@@ -54,8 +56,11 @@ export default function TaskList({
         <input
           id="new-task-title"
           name="title"
-          placeholder="New task — what do you need?"
-          className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          placeholder={
+            connected ? 'New task — what do you need?' : 'Reconnecting…'
+          }
+          disabled={!connected}
+          className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-neutral-100 disabled:text-neutral-400"
         />
         {createError && (
           <p role="alert" className="mt-2 text-xs text-amber-700">

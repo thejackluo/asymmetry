@@ -6,8 +6,8 @@ import Header from '@/components/Header';
 import TaskList from '@/components/TaskList';
 import TaskChat from '@/components/TaskChat';
 import { getNetwork, getTasks } from '@/lib/api';
-import { getToken, useStoredUser } from '@/lib/auth';
-import { getSocket } from '@/lib/socket';
+import { clearSession, getToken, useStoredUser } from '@/lib/auth';
+import { getSocket, useSocketConnected } from '@/lib/socket';
 import type {
   Agent,
   NetworkPayload,
@@ -22,7 +22,7 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [connected, setConnected] = useState(false);
+  const connected = useSocketConnected();
   const selectedRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -51,11 +51,7 @@ export default function TasksPage() {
     };
     const unsubs = [
       // Refetch on (re)connect — recovers any events missed while down.
-      socket.on('connect', () => {
-        setConnected(true);
-        refresh();
-      }),
-      socket.on('disconnect', () => setConnected(false)),
+      socket.on('connect', refresh),
       socket.on(EVT.TASK_CREATED, (t: Task) => {
         setTasks((prev) => (prev.some((x) => x.id === t.id) ? prev : [...prev, t]));
         if (!selectedRef.current) setSelectedId(t.id);
@@ -67,6 +63,12 @@ export default function TasksPage() {
       }),
       socket.on(EVT.NETWORK_UPDATED, (n: NetworkPayload) => {
         setAgents(n.agents);
+      }),
+      // Auth rejected at socket level — same teardown as a REST 401.
+      socket.on('connect_error', (err: Error) => {
+        if (/unauthorized|invalid|401/i.test(err?.message ?? '')) {
+          clearSession(true);
+        }
       }),
     ];
 
@@ -99,6 +101,7 @@ export default function TasksPage() {
             tasks={tasks}
             selectedId={selectedId}
             onSelect={setSelectedId}
+            connected={connected}
             onCreate={(title, done) => {
               // While disconnected, socket.io buffers emits and replays them
               // on reconnect — a retry would double-create the task. Fail fast
