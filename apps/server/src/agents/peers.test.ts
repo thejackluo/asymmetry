@@ -4,7 +4,7 @@ import { buildDirectory, networkPayload } from './peers.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
 
 describe('peer directory', () => {
-  it("lists Alice's one- and two-hop peers before other agents and caps at four", () => {
+  it("lists Bayzhan's one- and two-hop peers before other agents and caps at four", () => {
     const db = createFixtureDb();
     try {
       const insertUser = db.prepare(
@@ -21,12 +21,12 @@ describe('peer directory', () => {
         insertUser.run(id, username, name, 'fixture-hash', `agent-${username}`, 6);
         insertAgent.run(`agent-${username}`, id, `${name}'s Agent`, 'idle');
       }
-      const directory = buildDirectory(db, FIXTURE_IDS.users.alice);
+      const directory = buildDirectory(db, FIXTURE_IDS.users.bayzhan);
       expect(directory).toEqual([
-        { agentId: FIXTURE_IDS.agents.bob, name: 'Bob', hop: 1 },
-        { agentId: FIXTURE_IDS.agents.carol, name: 'Carol', hop: 1 },
-        { agentId: FIXTURE_IDS.agents.dave, name: 'Dave', hop: 2 },
-        { agentId: FIXTURE_IDS.agents.erin, name: 'Erin', hop: 'other' },
+        { agentId: FIXTURE_IDS.agents.jack, name: 'Jack', hop: 1 },
+        { agentId: FIXTURE_IDS.agents.jad, name: 'Jad', hop: 1 },
+        { agentId: FIXTURE_IDS.agents.aziz, name: 'Aziz', hop: 2 },
+        { agentId: FIXTURE_IDS.agents.akash, name: 'Akash', hop: 'other' },
       ]);
       expect(directory).toHaveLength(4);
     } finally {
@@ -37,7 +37,7 @@ describe('peer directory', () => {
   it('exposes only agentId, display name, and hop in the directory', () => {
     const db = createFixtureDb();
     try {
-      const directory = buildDirectory(db, FIXTURE_IDS.users.alice);
+      const directory = buildDirectory(db, FIXTURE_IDS.users.bayzhan);
       expect(directory.every((peer) => Object.keys(peer).sort().join(',') === 'agentId,hop,name')).toBe(true);
       expect(JSON.stringify(directory)).not.toContain('username');
       expect(JSON.stringify(directory)).not.toContain('goal');
@@ -50,20 +50,20 @@ describe('peer directory', () => {
   it('returns trusted agent ids and subchat-derived discovered ids in network payload', () => {
     const db = createFixtureDb();
     try {
-      const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a car');
+      const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a car');
       db.prepare(
         'INSERT INTO trust_edges (owner_user_id, trusted_user_id, created_at) VALUES (?, ?, ?)',
-      ).run(FIXTURE_IDS.users.alice, FIXTURE_IDS.users.alice, 10);
+      ).run(FIXTURE_IDS.users.bayzhan, FIXTURE_IDS.users.bayzhan, 10);
       createSubchat(db, task.id, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.dave,
-        FIXTURE_IDS.agents.erin,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.aziz,
+        FIXTURE_IDS.agents.akash,
       ]);
 
-      const payload = networkPayload(db, FIXTURE_IDS.users.alice);
-      expect(payload.trusted).toEqual([FIXTURE_IDS.agents.bob, FIXTURE_IDS.agents.carol]);
-      expect(payload.discovered).toEqual([FIXTURE_IDS.agents.dave, FIXTURE_IDS.agents.erin]);
-      expect(payload.agents.map(({ id }) => id)).toContain(FIXTURE_IDS.agents.alice);
+      const payload = networkPayload(db, FIXTURE_IDS.users.bayzhan);
+      expect(payload.trusted).toEqual([FIXTURE_IDS.agents.jack, FIXTURE_IDS.agents.jad]);
+      expect(payload.discovered).toEqual([FIXTURE_IDS.agents.akash, FIXTURE_IDS.agents.aziz]);
+      expect(payload.agents.map(({ id }) => id)).toContain(FIXTURE_IDS.agents.bayzhan);
       expect(payload.agents).toHaveLength(5);
     } finally {
       db.close();

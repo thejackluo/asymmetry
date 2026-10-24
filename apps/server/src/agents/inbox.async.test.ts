@@ -24,7 +24,7 @@ describe('post-persistence inbox failures', () => {
     const db = createFixtureDb();
     const { io, emissions } = createFakeIO();
     const { memory } = createFakeMemory();
-    const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a summer room');
+    const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a summer room');
     putTaskScope(db, {
       taskId: task.id,
       purpose: 'find a summer room',
@@ -50,7 +50,7 @@ describe('post-persistence inbox failures', () => {
         acked = true;
       });
       await runtime.handleChatSend({
-        data: { userId: FIXTURE_IDS.users.alice },
+        data: { userId: FIXTURE_IDS.users.bayzhan },
       } as never, {
         taskId: task.id,
         body: 'The initial request',

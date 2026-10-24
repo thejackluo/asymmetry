@@ -18,15 +18,15 @@ describe('agent inbox handlers', () => {
   it('limits network agents to the owner, trusted peers, and discovered peers', () => {
     const db = createFixtureDb();
     try {
-      const network = networkPayload(db, FIXTURE_IDS.users.alice);
+      const network = networkPayload(db, FIXTURE_IDS.users.bayzhan);
       const agentIds = network.agents.map(({ id }) => id);
       expect(agentIds).toEqual([
-        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bayzhan,
         ...network.trusted,
         ...network.discovered,
       ]);
       expect(network.discovered).toEqual([]);
-      expect(agentIds).not.toContain(FIXTURE_IDS.agents.dave);
+      expect(agentIds).not.toContain(FIXTURE_IDS.agents.aziz);
     } finally {
       db.close();
     }
@@ -46,7 +46,7 @@ describe('agent inbox handlers', () => {
       const createdAck = vi.fn((_result: unknown) => {
         expect(db.prepare('SELECT COUNT(*) AS count FROM tasks').get()).toEqual({ count: 1 });
       });
-      await runtime.handleTaskCreate(fakeSocket(FIXTURE_IDS.users.alice), { title: '  Find a room  ' }, createdAck);
+      await runtime.handleTaskCreate(fakeSocket(FIXTURE_IDS.users.bayzhan), { title: '  Find a room  ' }, createdAck);
       expect(createdAck).toHaveBeenCalledWith({
         ok: true,
         data: expect.objectContaining({ title: 'Find a room' }),
@@ -56,7 +56,7 @@ describe('agent inbox handlers', () => {
       expect(llm.calls).toHaveLength(0);
 
       const invalidAck = vi.fn();
-      await runtime.handleTaskCreate(fakeSocket(FIXTURE_IDS.users.alice), { title: '   ' }, invalidAck);
+      await runtime.handleTaskCreate(fakeSocket(FIXTURE_IDS.users.bayzhan), { title: '   ' }, invalidAck);
       expect(invalidAck).toHaveBeenCalledWith({
         ok: false,
         error: {
@@ -80,12 +80,12 @@ describe('agent inbox handlers', () => {
   it('validates chat payloads and returns UNAUTHORIZED or NOT_FOUND for rejected commands', async () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();
-    const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a room');
+    const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a room');
     const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm: routedLLM({}) });
     try {
       for (const body of ['', '   ', 'x'.repeat(4001)]) {
         const ack = vi.fn();
-        await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.alice), { taskId: task.id, body }, ack);
+        await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.bayzhan), { taskId: task.id, body }, ack);
         expect(ack).toHaveBeenCalledWith({
           ok: false,
           error: { code: 'BAD_INPUT', message: expect.any(String) },
@@ -100,7 +100,7 @@ describe('agent inbox handlers', () => {
       });
 
       const notFound = vi.fn();
-      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.dave), { taskId: task.id, body: 'Need a room' }, notFound);
+      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.aziz), { taskId: task.id, body: 'Need a room' }, notFound);
       expect(notFound).toHaveBeenCalledWith({
         ok: false,
         error: { code: 'NOT_FOUND', message: 'task not found or not owned by this user' },
@@ -114,14 +114,14 @@ describe('agent inbox handlers', () => {
   it('rejects chat sends for terminal tasks before persistence or side effects', async () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();
-    const task = createTask(db, FIXTURE_IDS.users.alice, 'Finished task');
+    const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Finished task');
     setTaskStatus(db, task.id, 'done');
     const { memory, calls } = createFakeMemory();
     const llm = routedLLM({});
     const runtime = createAgentRuntime({ io, db, memory, llm });
     try {
       const ack = vi.fn();
-      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.alice), {
+      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.bayzhan), {
         taskId: task.id,
         body: 'A late message',
       }, ack);
@@ -151,7 +151,7 @@ describe('agent inbox handlers', () => {
       db.exec(`CREATE TRIGGER reject_task BEFORE INSERT ON tasks
         BEGIN SELECT RAISE(ABORT, '${rawError}'); END`);
       const taskAck = vi.fn();
-      await runtime.handleTaskCreate(fakeSocket(FIXTURE_IDS.users.alice), { title: 'A room' }, taskAck);
+      await runtime.handleTaskCreate(fakeSocket(FIXTURE_IDS.users.bayzhan), { title: 'A room' }, taskAck);
       expect(taskAck).toHaveBeenCalledWith({
         ok: false,
         error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
@@ -159,11 +159,11 @@ describe('agent inbox handlers', () => {
       expect(JSON.stringify(taskAck.mock.calls)).not.toContain(rawError);
 
       db.exec('DROP TRIGGER reject_task');
-      const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a room');
+      const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a room');
       db.exec(`CREATE TRIGGER reject_message BEFORE INSERT ON messages
         BEGIN SELECT RAISE(ABORT, '${rawError}'); END`);
       const chatAck = vi.fn();
-      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.alice), {
+      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.bayzhan), {
         taskId: task.id,
         body: 'Need a room',
       }, chatAck);
@@ -187,7 +187,7 @@ describe('agent inbox handlers', () => {
         expect(db.inTransaction).toBe(false);
       }
     });
-    const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a summer room');
+    const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a summer room');
     putTaskScope(db, {
       taskId: task.id,
       purpose: 'find a summer room',
@@ -198,7 +198,7 @@ describe('agent inbox handlers', () => {
       extractGoalsError: new Error('goal extractor unavailable'),
     });
     const llm = routedLLM({
-      "Alice's Agent": [{ reply: 'I will look for a summer room.' }],
+      "Bayzhan's Agent": [{ reply: 'I will look for a summer room.' }],
     });
     const runtime = createAgentRuntime({ io, db, memory, llm });
     try {
@@ -206,7 +206,7 @@ describe('agent inbox handlers', () => {
         expect(listMainThreadMessages(db, task.id)
           .some(({ senderType, body }) => senderType === 'human' && body === 'Need a summer room.')).toBe(true);
       });
-      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.alice), {
+      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.bayzhan), {
         taskId: task.id,
         body: 'Need a summer room.',
       }, ack);
@@ -225,31 +225,31 @@ describe('agent inbox handlers', () => {
         event === EVENTS.CHAT_MESSAGE && (payload as { senderType?: string }).senderType === 'human')).toHaveLength(1);
       expect(emissions.filter(({ event, payload }) =>
         event === EVENTS.CHAT_MESSAGE && (payload as { senderType?: string }).senderType === 'human')
-        .every(({ room }) => room === userRoom(FIXTURE_IDS.users.alice))).toBe(true);
+        .every(({ room }) => room === userRoom(FIXTURE_IDS.users.bayzhan))).toBe(true);
       expect(listMainThreadMessages(db, task.id).some(({ senderType }) => senderType === 'system')).toBe(false);
-      expect(llm.calls.filter(({ route }) => route === "Alice's Agent")).toHaveLength(1);
+      expect(llm.calls.filter(({ route }) => route === "Bayzhan's Agent")).toHaveLength(1);
       expect(calls.ingest).toEqual([{
-        userId: FIXTURE_IDS.users.alice,
+        userId: FIXTURE_IDS.users.bayzhan,
         text: 'Need a summer room.',
         source: 'chat',
       }]);
       expect(calls.extractGoals).toEqual([{
-        userId: FIXTURE_IDS.users.alice,
+        userId: FIXTURE_IDS.users.bayzhan,
         taskId: task.id,
         text: 'Need a summer room.',
       }]);
 
       const rejectedAck = vi.fn();
-      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.dave), {
+      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.aziz), {
         taskId: task.id,
-        body: 'Try to spoof Alice',
+        body: 'Try to spoof Bayzhan',
       }, rejectedAck);
       expect(rejectedAck).toHaveBeenCalledWith({
         ok: false,
         error: { code: 'NOT_FOUND', message: 'task not found or not owned by this user' },
       });
       expect(listMainThreadMessages(db, task.id).filter(({ senderType }) => senderType === 'human')).toHaveLength(1);
-      expect(llm.calls.filter(({ route }) => route === "Alice's Agent")).toHaveLength(1);
+      expect(llm.calls.filter(({ route }) => route === "Bayzhan's Agent")).toHaveLength(1);
     } finally {
       db.close();
     }
@@ -258,21 +258,21 @@ describe('agent inbox handlers', () => {
   it('A2A-07: closes a peer thread with no request after canonical scope is derived', async () => {
     const db = createFixtureDb();
     const { io, emissions } = createFakeIO();
-    const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a summer room');
+    const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a summer room');
     const llm = routedLLM({
       scope: [llmTool('set_task_scope', {
         purpose: 'find a summer room',
         fields: ['location_area', 'price', 'dates'],
       })],
-      "Alice's Agent": [
-        llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] }),
-        { reply: 'I reached out to Bob and am waiting for a response.' },
+      "Bayzhan's Agent": [
+        llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.jack] }),
+        { reply: 'I reached out to Jack and am waiting for a response.' },
         { reply: 'No request was sent before the subchat closed.' },
       ],
     });
     const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm });
     try {
-      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.alice), {
+      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.bayzhan), {
         taskId: task.id,
         body: 'Near campus in summer under $1200.',
       });
@@ -289,7 +289,7 @@ describe('agent inbox handlers', () => {
       });
       expect(emissions
         .filter(({ event, payload }) => event === EVENTS.AGENT_STATUS
-          && (payload as { agentId?: string }).agentId === FIXTURE_IDS.agents.alice)
+          && (payload as { agentId?: string }).agentId === FIXTURE_IDS.agents.bayzhan)
         .map(({ payload }) => (payload as { status: string }).status)).toEqual([
         'clarifying',
         'negotiating',
@@ -297,9 +297,9 @@ describe('agent inbox handlers', () => {
       ]);
       expect(llm.calls.map(({ route }) => route)).toEqual([
         'scope',
-        "Alice's Agent",
-        "Alice's Agent",
-        "Alice's Agent",
+        "Bayzhan's Agent",
+        "Bayzhan's Agent",
+        "Bayzhan's Agent",
       ]);
     } finally {
       db.close();
@@ -309,10 +309,10 @@ describe('agent inbox handlers', () => {
   it('uses one no-tools clarification per message and becomes stuck at the clarification cap', async () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();
-    const task = createTask(db, FIXTURE_IDS.users.alice, 'Help me find something');
+    const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Help me find something');
     const llm = routedLLM({
       scope: [{}, {}, {}],
-      "Alice's Agent": [
+      "Bayzhan's Agent": [
         { reply: 'What area should I focus on?' },
         { reply: 'What budget should I use?' },
       ],
@@ -320,11 +320,11 @@ describe('agent inbox handlers', () => {
     const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm });
     try {
       for (const body of ['Help me find something.', 'I need a place.', 'Still looking.']) {
-        await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.alice), { taskId: task.id, body });
+        await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.bayzhan), { taskId: task.id, body });
         await runtime.idle();
       }
       expect(llm.calls.filter(({ route }) => route === 'scope')).toHaveLength(3);
-      const clarificationCalls = llm.calls.filter(({ route }) => route === "Alice's Agent");
+      const clarificationCalls = llm.calls.filter(({ route }) => route === "Bayzhan's Agent");
       expect(clarificationCalls).toHaveLength(2);
       expect(clarificationCalls.every(({ tools }) => tools.length === 0)).toBe(true);
       const agentBodies = listMainThreadMessages(db, task.id)
@@ -342,20 +342,20 @@ describe('agent inbox handlers', () => {
     }
   });
 
-  it('A2A-12: completes the Alice/Bob/Erin demo with withheld facts and a warm-intro proposal only', async () => {
+  it('A2A-12: completes the Bayzhan/Jack/Akash demo with withheld facts and a warm-intro proposal only', async () => {
     const db = createFixtureDb();
     const { io, emissions } = createFakeIO();
     const task = createTask(
       db,
-      FIXTURE_IDS.users.alice,
+      FIXTURE_IDS.users.bayzhan,
       'Find a room 0.4 miles from Georgia Tech, May 15–August 10, under $1200/mo',
     );
     const { memory, calls } = createFakeMemory({
       itemsByOwner: {
-        [FIXTURE_IDS.users.bob]: [
+        [FIXTURE_IDS.users.jack]: [
         {
           id: 'fact-room-1',
-          userId: FIXTURE_IDS.users.bob,
+          userId: FIXTURE_IDS.users.jack,
           content: 'A room 0.4 miles from Georgia Tech.',
           classification: 'network',
           fieldTags: ['location_area'],
@@ -364,7 +364,7 @@ describe('agent inbox handlers', () => {
         },
         {
           id: 'fact-room-2',
-          userId: FIXTURE_IDS.users.bob,
+          userId: FIXTURE_IDS.users.jack,
           content: '$950/month.',
           classification: 'network',
           fieldTags: ['price'],
@@ -373,7 +373,7 @@ describe('agent inbox handlers', () => {
         },
         {
           id: 'fact-room-3',
-          userId: FIXTURE_IDS.users.bob,
+          userId: FIXTURE_IDS.users.jack,
           content: 'Available May 15 through August 10.',
           classification: 'network',
           fieldTags: ['dates'],
@@ -382,9 +382,9 @@ describe('agent inbox handlers', () => {
         },
         ],
       },
-      withheldCountByOwner: { [FIXTURE_IDS.users.bob]: 3 },
+      withheldCountByOwner: { [FIXTURE_IDS.users.jack]: 3 },
     });
-    const finalReportText = 'Bob has a room 0.4 miles from campus for $950/month from May 15 through August 10. Would you like a warm introduction?';
+    const finalReportText = 'Jack has a room 0.4 miles from campus for $950/month from May 15 through August 10. Would you like a warm introduction?';
     const subchatIdForAgent = (
       messages: Array<{ role: string; content: string }>,
       agentId: string,
@@ -407,21 +407,21 @@ describe('agent inbox handlers', () => {
         purpose: 'find a room near Georgia Tech for May 15 through August 10 under $1200/month',
         fields: ['location_area', 'price', 'dates'],
       })],
-      "Alice's Agent": [
-        llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] }),
-        llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.erin] }),
+      "Bayzhan's Agent": [
+        llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.jack] }),
+        llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.akash] }),
         (messages) => ({
           toolCalls: [{
-            id: 'send-to-bob',
+            id: 'send-to-jack',
             name: 'send_subchat_message',
-            args: { subchatId: subchatIdForAgent(messages, FIXTURE_IDS.agents.bob), body: 'Please share a room near Georgia Tech for May 15 through August 10 under $1200.' },
+            args: { subchatId: subchatIdForAgent(messages, FIXTURE_IDS.agents.jack), body: 'Please share a room near Georgia Tech for May 15 through August 10 under $1200.' },
           }],
         }),
         (messages) => ({
           toolCalls: [{
-            id: 'send-to-erin',
+            id: 'send-to-akash',
             name: 'send_subchat_message',
-            args: { subchatId: subchatIdForAgent(messages, FIXTURE_IDS.agents.erin), body: 'Do you know of summer sublets near Georgia Tech under $1200?' },
+            args: { subchatId: subchatIdForAgent(messages, FIXTURE_IDS.agents.akash), body: 'Do you know of summer sublets near Georgia Tech under $1200?' },
           }],
         }),
         (messages) => messages.some(({ content }) => content.includes('All peer subchats are closed.'))
@@ -439,16 +439,16 @@ describe('agent inbox handlers', () => {
           },
         { reply: finalReportText },
       ],
-      "Bob's Agent": [
+      "Jack's Agent": [
         llmTool('query_memory', {
-          ownerUserId: FIXTURE_IDS.users.bob,
+          ownerUserId: FIXTURE_IDS.users.jack,
           scope: { fields: ['location_area', 'price', 'dates'] },
         }),
         { reply: 'I have a room 0.4 miles from campus for $950/month, available May 15 through August 10.' },
       ],
-      "Erin's Agent": [
+      "Akash's Agent": [
         llmTool('query_memory', {
-          ownerUserId: FIXTURE_IDS.users.erin,
+          ownerUserId: FIXTURE_IDS.users.akash,
           scope: { fields: ['location_area', 'price', 'dates'] },
         }),
         { reply: 'I know of a summer room near campus for $1150/month.' },
@@ -456,7 +456,7 @@ describe('agent inbox handlers', () => {
     });
     const runtime = createAgentRuntime({ io, db, memory, llm });
     try {
-      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.alice), {
+      await runtime.handleChatSend(fakeSocket(FIXTURE_IDS.users.bayzhan), {
         taskId: task.id,
         body: 'Find a room 0.4 miles from Georgia Tech, May 15–August 10, under $1200/mo',
       });
@@ -466,36 +466,36 @@ describe('agent inbox handlers', () => {
       expect(getTask(db, task.id)?.status).toBe('done');
       const subchats = listSubchatsByTask(db, task.id);
       expect(subchats).toHaveLength(2);
-      expect(subchats.some(({ participantAgentIds }) => participantAgentIds.includes(FIXTURE_IDS.agents.bob)))
+      expect(subchats.some(({ participantAgentIds }) => participantAgentIds.includes(FIXTURE_IDS.agents.jack)))
         .toBe(true);
-      expect(subchats.some(({ participantAgentIds }) => participantAgentIds.includes(FIXTURE_IDS.agents.erin)))
+      expect(subchats.some(({ participantAgentIds }) => participantAgentIds.includes(FIXTURE_IDS.agents.akash)))
         .toBe(true);
       expect(subchats.flatMap(({ id }) => listSubchatMessages(db, id))
         .some(({ body }) => body.includes('0.4 miles from campus'))).toBe(true);
-      const bobCall = llm.calls.find(({ route, messages }) => route === "Bob's Agent"
+      const jackCall = llm.calls.find(({ route, messages }) => route === "Jack's Agent"
         && messages.some(({ role }) => role === 'tool'));
-      const bobFacts = JSON.parse(bobCall?.messages.find(({ role }) => role === 'tool')?.content ?? '{}') as {
+      const jackFacts = JSON.parse(jackCall?.messages.find(({ role }) => role === 'tool')?.content ?? '{}') as {
         facts: string[];
         withheldCount: number;
       };
-      expect(bobFacts.facts).toEqual([
+      expect(jackFacts.facts).toEqual([
         'A room 0.4 miles from Georgia Tech.',
         '$950/month.',
         'Available May 15 through August 10.',
       ]);
-      expect(bobFacts.withheldCount).toBe(3);
-      expect(calls.queryMemory.find(({ ownerUserId }) => ownerUserId === FIXTURE_IDS.users.bob)?.scope.fields)
+      expect(jackFacts.withheldCount).toBe(3);
+      expect(calls.queryMemory.find(({ ownerUserId }) => ownerUserId === FIXTURE_IDS.users.jack)?.scope.fields)
         .toEqual(['location_area', 'price', 'dates']);
-      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.bob))
+      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.jack))
         .toEqual({ status: 'idle' });
       const ownerReport = listMainThreadMessages(db, task.id)
         .find(({ senderType, body }) => senderType === 'agent' && body.startsWith(finalReportText))?.body;
       expect(ownerReport).toContain(
-        '\n\nShared with you:\n- Bob\'s Agent: A room 0.4 miles from Georgia Tech.; $950/month.; Available May 15 through August 10.',
+        '\n\nShared with you:\n- Jack\'s Agent: A room 0.4 miles from Georgia Tech.; $950/month.; Available May 15 through August 10.',
       );
       expect(listMainThreadMessages(db, task.id).some(({ senderType }) => senderType === 'system')).toBe(false);
-      expect(networkPayload(db, FIXTURE_IDS.users.alice).discovered).toContain(FIXTURE_IDS.agents.erin);
-      expect(emissions.some(({ room }) => room === userRoom(FIXTURE_IDS.users.dave))).toBe(false);
+      expect(networkPayload(db, FIXTURE_IDS.users.bayzhan).discovered).toContain(FIXTURE_IDS.agents.akash);
+      expect(emissions.some(({ room }) => room === userRoom(FIXTURE_IDS.users.aziz))).toBe(false);
       expect(emissions.some(({ event }) => event === EVENTS.DISCLOSURE_LOGGED)).toBe(false);
     } finally {
       db.close();

@@ -4,27 +4,27 @@ import type { Database as DatabaseType } from '../../db.js';
 
 export const FIXTURE_IDS = {
   users: {
-    alice: 'user-alice',
-    bob: 'user-bob',
-    carol: 'user-carol',
-    dave: 'user-dave',
-    erin: 'user-erin',
+    bayzhan: 'user-bayzhan',
+    jack: 'user-jack',
+    jad: 'user-jad',
+    aziz: 'user-aziz',
+    akash: 'user-akash',
   },
   agents: {
-    alice: 'agent-alice',
-    bob: 'agent-bob',
-    carol: 'agent-carol',
-    dave: 'agent-dave',
-    erin: 'agent-erin',
+    bayzhan: 'agent-bayzhan',
+    jack: 'agent-jack',
+    jad: 'agent-jad',
+    aziz: 'agent-aziz',
+    akash: 'agent-akash',
   },
 } as const;
 
 const PEOPLE = [
-  ['alice', 'Alice'],
-  ['bob', 'Bob'],
-  ['carol', 'Carol'],
-  ['dave', 'Dave'],
-  ['erin', 'Erin'],
+  ['bayzhan', 'Bayzhan'],
+  ['jack', 'Jack'],
+  ['jad', 'Jad'],
+  ['aziz', 'Aziz'],
+  ['akash', 'Akash'],
 ] as const;
 
 export function createFixtureDb(): DatabaseType {
@@ -49,11 +49,11 @@ export function createFixtureDb(): DatabaseType {
     'INSERT INTO trust_edges (owner_user_id, trusted_user_id, created_at) VALUES (?, ?, ?)',
   );
   const trustEdges = [
-    ['alice', 'bob'],
-    ['alice', 'carol'],
-    ['bob', 'alice'],
-    ['carol', 'alice'],
-    ['bob', 'dave'],
+    ['bayzhan', 'jack'],
+    ['bayzhan', 'jad'],
+    ['jack', 'bayzhan'],
+    ['jad', 'bayzhan'],
+    ['jack', 'aziz'],
   ] as const;
   trustEdges.forEach(([owner, trusted], index) => {
     insertTrust.run(FIXTURE_IDS.users[owner], FIXTURE_IDS.users[trusted], index + 1);

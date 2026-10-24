@@ -21,40 +21,40 @@ interface SeedFact {
 export const SEED_PASSWORD = 'demo';
 
 export const SEED_USERS: SeedUser[] = [
-  { key: 'alice', username: 'bayzhan', displayName: 'Bayzhan' },
-  { key: 'bob', username: 'jack', displayName: 'Jack' },
-  { key: 'carol', username: 'jad', displayName: 'Jad' },
-  { key: 'dave', username: 'aziz', displayName: 'Aziz' },
-  { key: 'erin', username: 'akash', displayName: 'Akash' },
+  { key: 'bayzhan', username: 'bayzhan', displayName: 'Bayzhan' },
+  { key: 'jack', username: 'jack', displayName: 'Jack' },
+  { key: 'jad', username: 'jad', displayName: 'Jad' },
+  { key: 'aziz', username: 'aziz', displayName: 'Aziz' },
+  { key: 'akash', username: 'akash', displayName: 'Akash' },
 ];
 
 export const SEED_TRUST: [string, string][] = [
-  ['alice', 'bob'],
-  ['alice', 'carol'],
-  ['bob', 'alice'],
-  ['carol', 'alice'],
-  ['bob', 'dave'],
+  ['bayzhan', 'jack'],
+  ['bayzhan', 'jad'],
+  ['jack', 'bayzhan'],
+  ['jad', 'bayzhan'],
+  ['jack', 'aziz'],
 ];
 
 export const SEED_FACTS: SeedFact[] = [
-  { id: 'seed-mem-alice-salary', user: 'alice', content: 'Works at Stripe, salary $185k', classification: 'private', fieldTags: ['salary'] },
-  { id: 'seed-mem-alice-ssn', user: 'alice', content: 'SSN on file', classification: 'private', fieldTags: ['ssn'] },
-  { id: 'seed-mem-alice-need-area', user: 'alice', content: 'Looking for a summer sublet near Georgia Tech', classification: 'network', fieldTags: ['location_area'] },
-  { id: 'seed-mem-alice-need-dates', user: 'alice', content: 'Needs the sublet May–Aug', classification: 'network', fieldTags: ['dates'] },
-  { id: 'seed-mem-alice-need-budget', user: 'alice', content: 'Sublet budget under $1200/mo', classification: 'network', fieldTags: ['price'] },
-  { id: 'seed-mem-bob-area', user: 'bob', content: 'Has a room for sublet 0.4mi from Georgia Tech campus', classification: 'network', fieldTags: ['location_area'] },
-  { id: 'seed-mem-bob-price', user: 'bob', content: 'Room rent is $950/mo', classification: 'network', fieldTags: ['price'] },
-  { id: 'seed-mem-bob-dates', user: 'bob', content: 'Room available May 15–Aug 10', classification: 'network', fieldTags: ['dates'] },
-  { id: 'seed-mem-bob-furnished', user: 'bob', content: 'Room is furnished', classification: 'network', fieldTags: ['furnished'] },
-  { id: 'seed-mem-bob-address', user: 'bob', content: 'Exact address: 726 Spring St NW Apt 4', classification: 'private', fieldTags: ['address'] },
-  { id: 'seed-mem-bob-phone', user: 'bob', content: 'Phone 404-555-0182', classification: 'private', fieldTags: ['phone'] },
-  { id: 'seed-mem-carol-mechanic', user: 'carol', content: "Knows a trusted mechanic (Mike's Auto) for pre-purchase inspection", classification: 'network', fieldTags: ['mechanic'] },
-  { id: 'seed-mem-carol-ceramics', user: 'carol', content: 'Sells handmade ceramics', classification: 'public', fieldTags: ['ceramics'] },
-  { id: 'seed-mem-dave-vehicle', user: 'dave', content: 'Selling a 2019 Honda Civic', classification: 'network', fieldTags: ['vehicle'] },
-  { id: 'seed-mem-dave-mileage', user: 'dave', content: 'The Civic has 62k miles', classification: 'network', fieldTags: ['mileage'] },
-  { id: 'seed-mem-dave-price', user: 'dave', content: 'Asking $14,500 OBO for the Civic', classification: 'network', fieldTags: ['price'] },
-  { id: 'seed-mem-dave-title', user: 'dave', content: 'The Civic has a clean title', classification: 'network', fieldTags: ['title_status'] },
-  { id: 'seed-mem-erin-tip', user: 'erin', content: 'Public housing tip: GT summer sublet listings are available through the campus housing board', classification: 'public', fieldTags: ['location_area'] },
+  { id: 'seed-mem-bayzhan-salary', user: 'bayzhan', content: 'Works at Stripe, salary $185k', classification: 'private', fieldTags: ['salary'] },
+  { id: 'seed-mem-bayzhan-ssn', user: 'bayzhan', content: 'SSN on file', classification: 'private', fieldTags: ['ssn'] },
+  { id: 'seed-mem-bayzhan-need-area', user: 'bayzhan', content: 'Looking for a summer sublet near Georgia Tech', classification: 'network', fieldTags: ['location_area'] },
+  { id: 'seed-mem-bayzhan-need-dates', user: 'bayzhan', content: 'Needs the sublet May–Aug', classification: 'network', fieldTags: ['dates'] },
+  { id: 'seed-mem-bayzhan-need-budget', user: 'bayzhan', content: 'Sublet budget under $1200/mo', classification: 'network', fieldTags: ['price'] },
+  { id: 'seed-mem-jack-area', user: 'jack', content: 'Has a room for sublet 0.4mi from Georgia Tech campus', classification: 'network', fieldTags: ['location_area'] },
+  { id: 'seed-mem-jack-price', user: 'jack', content: 'Room rent is $950/mo', classification: 'network', fieldTags: ['price'] },
+  { id: 'seed-mem-jack-dates', user: 'jack', content: 'Room available May 15–Aug 10', classification: 'network', fieldTags: ['dates'] },
+  { id: 'seed-mem-jack-furnished', user: 'jack', content: 'Room is furnished', classification: 'network', fieldTags: ['furnished'] },
+  { id: 'seed-mem-jack-address', user: 'jack', content: 'Exact address: 726 Spring St NW Apt 4', classification: 'private', fieldTags: ['address'] },
+  { id: 'seed-mem-jack-phone', user: 'jack', content: 'Phone 404-555-0182', classification: 'private', fieldTags: ['phone'] },
+  { id: 'seed-mem-jad-mechanic', user: 'jad', content: "Knows a trusted mechanic (Mike's Auto) for pre-purchase inspection", classification: 'network', fieldTags: ['mechanic'] },
+  { id: 'seed-mem-jad-ceramics', user: 'jad', content: 'Sells handmade ceramics', classification: 'public', fieldTags: ['ceramics'] },
+  { id: 'seed-mem-aziz-vehicle', user: 'aziz', content: 'Selling a 2019 Honda Civic', classification: 'network', fieldTags: ['vehicle'] },
+  { id: 'seed-mem-aziz-mileage', user: 'aziz', content: 'The Civic has 62k miles', classification: 'network', fieldTags: ['mileage'] },
+  { id: 'seed-mem-aziz-price', user: 'aziz', content: 'Asking $14,500 OBO for the Civic', classification: 'network', fieldTags: ['price'] },
+  { id: 'seed-mem-aziz-title', user: 'aziz', content: 'The Civic has a clean title', classification: 'network', fieldTags: ['title_status'] },
+  { id: 'seed-mem-akash-tip', user: 'akash', content: 'Public housing tip: GT summer sublet listings are available through the campus housing board', classification: 'public', fieldTags: ['location_area'] },
 ];
 
 export const fixtureUserId = (key: string): string => `seed-user-${key}`;

@@ -32,7 +32,7 @@ function setup() {
   const { memory, calls } = createFakeMemory({
     items: [{
       id: 'fact-1',
-      userId: FIXTURE_IDS.users.bob,
+      userId: FIXTURE_IDS.users.jack,
       content: 'A room near campus',
       classification: 'network',
       fieldTags: ['location_area'],
@@ -90,7 +90,7 @@ function setup() {
       return facts;
     },
   };
-  const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a summer sublet');
+  const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a summer sublet');
   const scope = { taskId: task.id, purpose: 'find a summer sublet', fields: ['location_area', 'price', 'dates'] };
   putTaskScope(db, scope);
   const ownerCtx: TrustedCtx = {
@@ -99,9 +99,9 @@ function setup() {
     memory,
     rt,
     taskId: task.id,
-    taskOwnerUserId: FIXTURE_IDS.users.alice,
-    ownerAgentId: FIXTURE_IDS.agents.alice,
-    actingAgentId: FIXTURE_IDS.agents.alice,
+    taskOwnerUserId: FIXTURE_IDS.users.bayzhan,
+    ownerAgentId: FIXTURE_IDS.agents.bayzhan,
+    actingAgentId: FIXTURE_IDS.agents.bayzhan,
     mode: 'owner',
     subchatId: null,
   };
@@ -130,7 +130,7 @@ describe('trusted-context agent tools', () => {
     try {
       const pairResult = await executeToolCall(ownerCtx, toolCall('open_subchat', {
         taskId: ownerCtx.taskId,
-        agentIds: [FIXTURE_IDS.agents.bob],
+        agentIds: [FIXTURE_IDS.agents.jack],
       }));
       const pair = JSON.parse(pairResult.content) as { id: string; kind: string };
       expect(pair.kind).toBe('pair');
@@ -138,12 +138,12 @@ describe('trusted-context agent tools', () => {
 
       const groupResult = await executeToolCall(ownerCtx, toolCall('open_subchat', {
         taskId: ownerCtx.taskId,
-        agentIds: [FIXTURE_IDS.agents.carol, FIXTURE_IDS.agents.dave],
+        agentIds: [FIXTURE_IDS.agents.jad, FIXTURE_IDS.agents.aziz],
       }));
       expect(JSON.parse(groupResult.content).kind).toBe('group');
 
       for (const agentIds of [
-        [FIXTURE_IDS.agents.alice],
+        [FIXTURE_IDS.agents.bayzhan],
         ['agent-not-in-directory'],
       ]) {
         const rejected = await executeToolCall(ownerCtx, toolCall('open_subchat', {
@@ -158,18 +158,18 @@ describe('trusted-context agent tools', () => {
       }
       const capResult = await executeToolCall(ownerCtx, toolCall('open_subchat', {
         taskId: ownerCtx.taskId,
-        agentIds: [FIXTURE_IDS.agents.erin],
+        agentIds: [FIXTURE_IDS.agents.akash],
       }));
       expect(capResult.content).toContain('peer cap');
 
       const peerResult = await executeToolCall({
         ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.bob,
+        actingAgentId: FIXTURE_IDS.agents.jack,
         mode: 'peer',
         subchatId: pair.id,
       }, toolCall('open_subchat', {
         taskId: ownerCtx.taskId,
-        agentIds: [FIXTURE_IDS.agents.carol],
+        agentIds: [FIXTURE_IDS.agents.jad],
       }));
       expect(peerResult.content).toMatch(/^Error:/);
       expect(vi.mocked(rt.budgetFor)).toHaveBeenCalled();
@@ -183,13 +183,13 @@ describe('trusted-context agent tools', () => {
     try {
       const first = await executeToolCall(ownerCtx, toolCall('open_subchat', {
         taskId: ownerCtx.taskId,
-        agentIds: [FIXTURE_IDS.agents.bob],
+        agentIds: [FIXTURE_IDS.agents.jack],
       }));
       expect(first.content).not.toMatch(/^Error:/);
 
       const second = await executeToolCall(ownerCtx, toolCall('open_subchat', {
         taskId: ownerCtx.taskId,
-        agentIds: [FIXTURE_IDS.agents.bob],
+        agentIds: [FIXTURE_IDS.agents.jack],
       }));
       expect(second.content).toMatch(/^Error:/);
       expect(listSubchatsByTask(db, ownerCtx.taskId)).toHaveLength(1);
@@ -202,31 +202,31 @@ describe('trusted-context agent tools', () => {
     const { db, ownerCtx, calls, memory, scope } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
-      const bobCtx: TrustedCtx = {
+      const jackCtx: TrustedCtx = {
         ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.bob,
+        actingAgentId: FIXTURE_IDS.agents.jack,
         mode: 'peer',
         subchatId: subchat.id,
       };
-      const unbound = await executeToolCall({ ...bobCtx, subchatId: null }, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.bob,
+      const unbound = await executeToolCall({ ...jackCtx, subchatId: null }, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.jack,
         scope: { fields: ['location_area'] },
       }));
       expect(unbound.content).toContain('subchat');
       expect(calls.queryMemory).toHaveLength(0);
 
-      const spoofed = await executeToolCall(bobCtx, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.alice,
+      const spoofed = await executeToolCall(jackCtx, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.bayzhan,
         scope: { fields: ['location_area'] },
       }));
       expect(spoofed.content).toContain('acting agent’s owner');
       expect(calls.queryMemory).toHaveLength(0);
 
-      const correct = await executeToolCall(bobCtx, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.bob,
+      const correct = await executeToolCall(jackCtx, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.jack,
         scope: { fields: ['location_area', 'price'] },
       }));
       expect(JSON.parse(correct.content)).toEqual({
@@ -234,8 +234,8 @@ describe('trusted-context agent tools', () => {
         withheldCount: 2,
       });
       expect(calls.queryMemory).toEqual([{
-        ownerUserId: FIXTURE_IDS.users.bob,
-        requesterUserId: FIXTURE_IDS.users.alice,
+        ownerUserId: FIXTURE_IDS.users.jack,
+        requesterUserId: FIXTURE_IDS.users.bayzhan,
         scope: {
           taskId: ownerCtx.taskId,
           purpose: scope.purpose,
@@ -244,16 +244,16 @@ describe('trusted-context agent tools', () => {
         },
       }]);
 
-      const outsideScope = await executeToolCall(bobCtx, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.bob,
+      const outsideScope = await executeToolCall(jackCtx, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.jack,
         scope: { fields: ['location_area', 'mechanic'] },
       }));
       expect(outsideScope.content).toContain('outside the canonical');
       expect(calls.queryMemory).toHaveLength(1);
 
       db.prepare('DELETE FROM task_scopes WHERE task_id = ?').run(ownerCtx.taskId);
-      const noScope = await executeToolCall(bobCtx, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.bob,
+      const noScope = await executeToolCall(jackCtx, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.jack,
         scope: { fields: ['location_area'] },
       }));
       expect(noScope.content).toContain('canonical task scope');
@@ -267,52 +267,52 @@ describe('trusted-context agent tools', () => {
   it('fails closed for mismatched or non-participating peer memory contexts', async () => {
     const { db, ownerCtx, calls } = setup();
     try {
-      const otherTask = createTask(db, FIXTURE_IDS.users.bob, 'Another task');
+      const otherTask = createTask(db, FIXTURE_IDS.users.jack, 'Another task');
       putTaskScope(db, {
         taskId: otherTask.id,
         purpose: 'another task',
         fields: ['location_area'],
       });
       const mismatchedSubchat = createSubchat(db, otherTask.id, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
-      const bobCtx: TrustedCtx = {
+      const jackCtx: TrustedCtx = {
         ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.bob,
+        actingAgentId: FIXTURE_IDS.agents.jack,
         mode: 'peer',
         subchatId: mismatchedSubchat.id,
       };
-      const mismatched = await executeToolCall(bobCtx, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.bob,
+      const mismatched = await executeToolCall(jackCtx, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.jack,
         scope: { fields: ['location_area'] },
       }));
       expect(mismatched.content).toContain('subchat');
 
       const missingOwnerSubchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.bob,
-        FIXTURE_IDS.agents.carol,
+        FIXTURE_IDS.agents.jack,
+        FIXTURE_IDS.agents.jad,
       ]);
       const missingOwner = await executeToolCall({
-        ...bobCtx,
+        ...jackCtx,
         taskId: ownerCtx.taskId,
         subchatId: missingOwnerSubchat.id,
       }, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.bob,
+        ownerUserId: FIXTURE_IDS.users.jack,
         scope: { fields: ['location_area'] },
       }));
       expect(missingOwner.content).toContain('subchat');
 
       const missingRequesterSubchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.carol,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jad,
       ]);
       const missingRequester = await executeToolCall({
-        ...bobCtx,
+        ...jackCtx,
         taskId: ownerCtx.taskId,
         subchatId: missingRequesterSubchat.id,
       }, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.bob,
+        ownerUserId: FIXTURE_IDS.users.jack,
         scope: { fields: ['location_area'] },
       }));
       expect(missingRequester.content).toContain('subchat');
@@ -326,19 +326,19 @@ describe('trusted-context agent tools', () => {
     const { db, ownerCtx, task, scope } = setup();
     try {
       const subchat = createSubchat(db, task.id, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
       const errorMessage = 'private disclosure audit details';
       const { memory } = createFakeMemory({ queryMemoryError: new Error(errorMessage) });
       const result = await executeToolCall({
         ...ownerCtx,
         memory,
-        actingAgentId: FIXTURE_IDS.agents.bob,
+        actingAgentId: FIXTURE_IDS.agents.jack,
         mode: 'peer',
         subchatId: subchat.id,
       }, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.bob,
+        ownerUserId: FIXTURE_IDS.users.jack,
         scope: { fields: ['location_area'] },
       }));
 
@@ -354,13 +354,13 @@ describe('trusted-context agent tools', () => {
     const { db, ownerCtx, calls } = setup();
     try {
       const result = await executeToolCall(ownerCtx, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.alice,
+        ownerUserId: FIXTURE_IDS.users.bayzhan,
         scope: { fields: ['price'] },
       }));
       expect(JSON.parse(result.content).withheldCount).toBe(2);
       expect(calls.queryMemory[0]).toEqual({
-        ownerUserId: FIXTURE_IDS.users.alice,
-        requesterUserId: FIXTURE_IDS.users.alice,
+        ownerUserId: FIXTURE_IDS.users.bayzhan,
+        requesterUserId: FIXTURE_IDS.users.bayzhan,
         scope: {
           taskId: ownerCtx.taskId,
           purpose: 'find a summer sublet',
@@ -375,17 +375,17 @@ describe('trusted-context agent tools', () => {
   it('rejects owner-self memory reads when the task belongs to another owner', async () => {
     const { db, ownerCtx, calls } = setup();
     try {
-      const bobTask = createTask(db, FIXTURE_IDS.users.bob, 'Bob task');
+      const jackTask = createTask(db, FIXTURE_IDS.users.jack, 'Jack task');
       putTaskScope(db, {
-        taskId: bobTask.id,
-        purpose: 'Bob task',
+        taskId: jackTask.id,
+        purpose: 'Jack task',
         fields: ['location_area'],
       });
       const result = await executeToolCall({
         ...ownerCtx,
-        taskId: bobTask.id,
+        taskId: jackTask.id,
       }, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.alice,
+        ownerUserId: FIXTURE_IDS.users.bayzhan,
         scope: { fields: ['location_area'] },
       }));
 
@@ -400,21 +400,21 @@ describe('trusted-context agent tools', () => {
     const { db, ownerCtx, rt, emissions } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
-        FIXTURE_IDS.agents.carol,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
+        FIXTURE_IDS.agents.jad,
       ]);
       const result = await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
         subchatId: subchat.id,
       }));
       expect(result.content).toContain('Please return only information authorized');
-      expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.bob);
-      expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.carol);
+      expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.jack);
+      expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.jad);
       expect(emissions.some(({ event }) => event === EVENTS.SUBCHAT_MESSAGE)).toBe(true);
 
       const outsider = await executeToolCall({
         ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.dave,
+        actingAgentId: FIXTURE_IDS.agents.aziz,
         mode: 'peer',
         subchatId: subchat.id,
       }, toolCall('send_subchat_message', { body: 'No participation' }));
@@ -428,12 +428,12 @@ describe('trusted-context agent tools', () => {
     const { db, ownerCtx, rt, emissions } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
       const result = await executeToolCall({
         ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.bob,
+        actingAgentId: FIXTURE_IDS.agents.jack,
         mode: 'peer',
         subchatId: subchat.id,
       }, toolCall('send_subchat_message', {
@@ -462,9 +462,9 @@ describe('trusted-context agent tools', () => {
     const { db, ownerCtx, rt } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
-        FIXTURE_IDS.agents.carol,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
+        FIXTURE_IDS.agents.jad,
       ]);
       await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
         subchatId: subchat.id,
@@ -479,7 +479,7 @@ describe('trusted-context agent tools', () => {
         subchatId: subchat.id,
       }, toolCall('send_subchat_message', { body }));
 
-      await sendPeerReply(FIXTURE_IDS.agents.bob, 'Bob can share the room facts.');
+      await sendPeerReply(FIXTURE_IDS.agents.jack, 'Jack can share the room facts.');
       expect(listSubchatsByTask(db, ownerCtx.taskId)[0]).toMatchObject({
         status: 'open',
         outcome: null,
@@ -487,7 +487,7 @@ describe('trusted-context agent tools', () => {
       expect(vi.mocked(rt.wakeOwner)).not.toHaveBeenCalled();
       expect(vi.mocked(rt.runPeer)).not.toHaveBeenCalled();
 
-      await sendPeerReply(FIXTURE_IDS.agents.carol, 'Carol has nothing relevant.');
+      await sendPeerReply(FIXTURE_IDS.agents.jad, 'Jad has nothing relevant.');
       expect(listSubchatsByTask(db, ownerCtx.taskId)[0]).toMatchObject({
         status: 'closed',
         outcome: 'stuck',
@@ -500,7 +500,7 @@ describe('trusted-context agent tools', () => {
       const report = await executeToolCall(ownerCtx, toolCall('report_to_human', {
         taskId: ownerCtx.taskId,
         status: 'done',
-        summary: 'Bob found a match and Carol had nothing relevant.',
+        summary: 'Jack found a match and Jad had nothing relevant.',
       }));
       expect(report.stop).toBe(true);
       expect(getTask(db, ownerCtx.taskId)?.status).toBe('done');
@@ -513,8 +513,8 @@ describe('trusted-context agent tools', () => {
     const { db, ownerCtx, rt } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
       closeSubchatAndNotify(db, ownerCtx.io, subchat.id, 'done', 'Peer response received.');
       vi.mocked(rt.runPeer).mockClear();
@@ -535,8 +535,8 @@ describe('trusted-context agent tools', () => {
     const { db, ownerCtx, budget, rt, emissions } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
       for (let turn = 0; turn < 12; turn += 1) {
         expect(budget.reserveSubchatTurn(subchat.id)).toBe(true);
@@ -567,12 +567,12 @@ describe('trusted-context agent tools', () => {
     const { db, ownerCtx, emissions } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
       const peerResult = await executeToolCall({
         ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.bob,
+        actingAgentId: FIXTURE_IDS.agents.jack,
         mode: 'peer',
         subchatId: subchat.id,
       }, toolCall('report_to_human', {
@@ -584,7 +584,7 @@ describe('trusted-context agent tools', () => {
 
       await executeToolCall({
         ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.bob,
+        actingAgentId: FIXTURE_IDS.agents.jack,
         mode: 'peer',
         subchatId: subchat.id,
       }, toolCall('send_subchat_message', {
@@ -612,36 +612,36 @@ describe('trusted-context agent tools', () => {
   it('keeps an owner report out of every peer event, closure payload, and row', async () => {
     const { db, ownerCtx, emissions } = setup();
     try {
-      const bobSubchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+      const jackSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
-      const erinSubchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.erin,
+      const akashSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.akash,
       ]);
       insertMessage(db, {
         taskId: ownerCtx.taskId,
-        subchatId: erinSubchat.id,
+        subchatId: akashSubchat.id,
         senderType: 'agent',
-        senderId: FIXTURE_IDS.agents.alice,
+        senderId: FIXTURE_IDS.agents.bayzhan,
         body: 'Can you check for any other options?',
       });
-      const sentinel = 'BOBNET-91c';
-      const summary = `Bob found a room for $950. ${sentinel}`;
+      const sentinel = 'JACKNET-91c';
+      const summary = `Jack found a room for $950. ${sentinel}`;
 
       await executeToolCall({
         ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.bob,
+        actingAgentId: FIXTURE_IDS.agents.jack,
         mode: 'peer',
-        subchatId: bobSubchat.id,
-      }, toolCall('send_subchat_message', { body: 'Bob has an authorized reply.' }));
+        subchatId: jackSubchat.id,
+      }, toolCall('send_subchat_message', { body: 'Jack has an authorized reply.' }));
       await executeToolCall({
         ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.erin,
+        actingAgentId: FIXTURE_IDS.agents.akash,
         mode: 'peer',
-        subchatId: erinSubchat.id,
-      }, toolCall('send_subchat_message', { body: 'Erin has an authorized reply.' }));
+        subchatId: akashSubchat.id,
+      }, toolCall('send_subchat_message', { body: 'Akash has an authorized reply.' }));
       const report = await executeToolCall(ownerCtx, toolCall('report_to_human', {
         taskId: ownerCtx.taskId,
         status: 'done',
@@ -650,25 +650,25 @@ describe('trusted-context agent tools', () => {
 
       expect(report.stop).toBe(true);
       expect(listMainThreadMessages(db, ownerCtx.taskId).some(({ body }) => body === summary)).toBe(true);
-      const erinPayloads = emissions
-        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.erin))
+      const akashPayloads = emissions
+        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.akash))
         .map(({ event, payload }) => `${event} ${JSON.stringify(payload)}`)
         .join('\n');
-      expect(erinPayloads).not.toContain(sentinel);
-      expect(JSON.stringify(listSubchatMessages(db, erinSubchat.id))).not.toContain(sentinel);
-      const erinClosure = emissions.find(({ room, event, payload }) =>
-        room === userRoom(FIXTURE_IDS.users.erin)
+      expect(akashPayloads).not.toContain(sentinel);
+      expect(JSON.stringify(listSubchatMessages(db, akashSubchat.id))).not.toContain(sentinel);
+      const akashClosure = emissions.find(({ room, event, payload }) =>
+        room === userRoom(FIXTURE_IDS.users.akash)
         && event === EVENTS.SUBCHAT_CLOSED
-        && (payload as { subchatId?: string }).subchatId === erinSubchat.id);
-      expect(erinClosure?.payload).toEqual({
-        subchatId: erinSubchat.id,
+        && (payload as { subchatId?: string }).subchatId === akashSubchat.id);
+      expect(akashClosure?.payload).toEqual({
+        subchatId: akashSubchat.id,
         outcome: 'stuck',
         summary: 'Closed: peers had no matching information.',
       });
-      expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(erinSubchat.id)).toEqual({
+      expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(akashSubchat.id)).toEqual({
         summary: 'Closed: peers had no matching information.',
       });
-      expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(bobSubchat.id)).toEqual({
+      expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(jackSubchat.id)).toEqual({
         summary: 'Closed: peers had no matching information.',
       });
     } finally {
@@ -680,8 +680,8 @@ describe('trusted-context agent tools', () => {
     const { db, ownerCtx } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
       const report = await executeToolCall(ownerCtx, toolCall('report_to_human', {
         taskId: ownerCtx.taskId,
@@ -706,31 +706,31 @@ describe('trusted-context agent tools', () => {
   it('replaces an owner-supplied peer message with the canonical field request', async () => {
     const { db, ownerCtx, emissions } = setup();
     try {
-      const bobSubchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+      const jackSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
-      const erinSubchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.erin,
+      const akashSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.akash,
       ]);
-      const sentinel = 'Bob found a room for $950, 0.4mi from campus.';
+      const sentinel = 'Jack found a room for $950, 0.4mi from campus.';
       const fixedBody = 'Please return only information authorized for these task fields: location_area, price, dates.';
 
       await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
-        subchatId: erinSubchat.id,
+        subchatId: akashSubchat.id,
         body: sentinel,
       }));
 
-      expect(listSubchatMessages(db, bobSubchat.id)).toHaveLength(0);
-      expect(listSubchatMessages(db, erinSubchat.id).map(({ body }) => body)).toEqual([fixedBody]);
-      const erinPayloads = emissions
-        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.erin))
+      expect(listSubchatMessages(db, jackSubchat.id)).toHaveLength(0);
+      expect(listSubchatMessages(db, akashSubchat.id).map(({ body }) => body)).toEqual([fixedBody]);
+      const akashPayloads = emissions
+        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.akash))
         .map(({ payload }) => JSON.stringify(payload))
         .join('\n');
-      expect(erinPayloads).toContain(fixedBody);
-      expect(erinPayloads).not.toContain('$950');
-      expect(erinPayloads).not.toContain('0.4mi');
+      expect(akashPayloads).toContain(fixedBody);
+      expect(akashPayloads).not.toContain('$950');
+      expect(akashPayloads).not.toContain('0.4mi');
     } finally {
       db.close();
     }
@@ -739,7 +739,7 @@ describe('trusted-context agent tools', () => {
   it('keeps the owner negotiating while another scoped owned task remains active', async () => {
     const { db, ownerCtx } = setup();
     try {
-      const otherTask = createTask(db, FIXTURE_IDS.users.alice, 'Another scoped task');
+      const otherTask = createTask(db, FIXTURE_IDS.users.bayzhan, 'Another scoped task');
       putTaskScope(db, {
         taskId: otherTask.id,
         purpose: 'another task',
@@ -752,7 +752,7 @@ describe('trusted-context agent tools', () => {
         summary: 'The reported task is complete.',
       }));
 
-      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.alice))
+      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.bayzhan))
         .toEqual({ status: 'negotiating' });
     } finally {
       db.close();
@@ -762,15 +762,15 @@ describe('trusted-context agent tools', () => {
   it('keeps an owner negotiating while its agent participates in another owner’s open subchat', async () => {
     const { db, ownerCtx } = setup();
     try {
-      const bobTask = createTask(db, FIXTURE_IDS.users.bob, 'Bob’s active task');
+      const jackTask = createTask(db, FIXTURE_IDS.users.jack, 'Jack’s active task');
       putTaskScope(db, {
-        taskId: bobTask.id,
-        purpose: 'Bob’s active task',
+        taskId: jackTask.id,
+        purpose: 'Jack’s active task',
         fields: ['price'],
       });
-      createSubchat(db, bobTask.id, [
-        FIXTURE_IDS.agents.bob,
-        FIXTURE_IDS.agents.alice,
+      createSubchat(db, jackTask.id, [
+        FIXTURE_IDS.agents.jack,
+        FIXTURE_IDS.agents.bayzhan,
       ]);
 
       await executeToolCall(ownerCtx, toolCall('report_to_human', {
@@ -779,7 +779,7 @@ describe('trusted-context agent tools', () => {
         summary: 'The reported task is complete.',
       }));
 
-      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.alice))
+      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.bayzhan))
         .toEqual({ status: 'negotiating' });
     } finally {
       db.close();
@@ -789,7 +789,7 @@ describe('trusted-context agent tools', () => {
   it('keeps the owner clarifying while another owned active task is unscoped', async () => {
     const { db, ownerCtx } = setup();
     try {
-      createTask(db, FIXTURE_IDS.users.alice, 'Another unscoped task');
+      createTask(db, FIXTURE_IDS.users.bayzhan, 'Another unscoped task');
 
       await executeToolCall(ownerCtx, toolCall('report_to_human', {
         taskId: ownerCtx.taskId,
@@ -797,7 +797,7 @@ describe('trusted-context agent tools', () => {
         summary: 'The reported task is complete.',
       }));
 
-      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.alice))
+      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.bayzhan))
         .toEqual({ status: 'clarifying' });
     } finally {
       db.close();
@@ -813,7 +813,7 @@ describe('trusted-context agent tools', () => {
         summary: 'The reported task is complete.',
       }));
 
-      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.alice))
+      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.bayzhan))
         .toEqual({ status: 'done' });
     } finally {
       db.close();
@@ -839,18 +839,18 @@ describe('trusted-context agent tools', () => {
   it('appends only released peer facts to the owner report', async () => {
     const { db, ownerCtx, emissions } = setup();
     try {
-      const bobSubchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+      const jackSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
-      const erinSubchat = createSubchat(db, ownerCtx.taskId, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.erin,
+      const akashSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.akash,
       ]);
-      const bobFacts: MemoryItem[] = [
+      const jackFacts: MemoryItem[] = [
         {
-          id: 'bob-price-released',
-          userId: FIXTURE_IDS.users.bob,
+          id: 'jack-price-released',
+          userId: FIXTURE_IDS.users.jack,
           content: 'Room rent is $950/mo.',
           classification: 'network',
           fieldTags: ['price'],
@@ -858,8 +858,8 @@ describe('trusted-context agent tools', () => {
           createdAt: 1,
         },
         {
-          id: 'bob-location-released',
-          userId: FIXTURE_IDS.users.bob,
+          id: 'jack-location-released',
+          userId: FIXTURE_IDS.users.jack,
           content: 'Room is 0.4mi from Georgia Tech.',
           classification: 'network',
           fieldTags: ['location_area'],
@@ -868,8 +868,8 @@ describe('trusted-context agent tools', () => {
         },
       ];
       const ownerOnlyFact: MemoryItem = {
-        id: 'alice-owner-only',
-        userId: FIXTURE_IDS.users.alice,
+        id: 'bayzhan-owner-only',
+        userId: FIXTURE_IDS.users.bayzhan,
         content: 'OWNER-ONLY-SENTINEL',
         classification: 'private',
         fieldTags: ['price'],
@@ -879,42 +879,42 @@ describe('trusted-context agent tools', () => {
       const withheldSentinel = 'WITHHELD-FACT-739';
       const { memory } = createFakeMemory({
         itemsByOwner: {
-          [FIXTURE_IDS.users.alice]: [ownerOnlyFact],
-          [FIXTURE_IDS.users.bob]: bobFacts,
+          [FIXTURE_IDS.users.bayzhan]: [ownerOnlyFact],
+          [FIXTURE_IDS.users.jack]: jackFacts,
         },
-        withheldCountByOwner: { [FIXTURE_IDS.users.bob]: 1 },
+        withheldCountByOwner: { [FIXTURE_IDS.users.jack]: 1 },
       });
       const peerCtx: TrustedCtx = {
         ...ownerCtx,
         memory,
-        actingAgentId: FIXTURE_IDS.agents.bob,
+        actingAgentId: FIXTURE_IDS.agents.jack,
         mode: 'peer',
-        subchatId: bobSubchat.id,
+        subchatId: jackSubchat.id,
       };
 
       const peerQuery = toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.bob,
+        ownerUserId: FIXTURE_IDS.users.jack,
         scope: { fields: ['price', 'location_area'] },
       });
       const firstQuery = await executeToolCall(peerCtx, peerQuery);
-      expect(JSON.parse(firstQuery.content).facts).toEqual(bobFacts.map(({ content }) => content));
+      expect(JSON.parse(firstQuery.content).facts).toEqual(jackFacts.map(({ content }) => content));
       await executeToolCall(peerCtx, peerQuery);
 
       const ownerQuery = await executeToolCall({ ...ownerCtx, memory }, toolCall('query_memory', {
-        ownerUserId: FIXTURE_IDS.users.alice,
+        ownerUserId: FIXTURE_IDS.users.bayzhan,
         scope: { fields: ['price'] },
       }));
       expect(ownerQuery.content).toContain('OWNER-ONLY-SENTINEL');
       await executeToolCall(peerCtx, toolCall('send_subchat_message', {
-        body: 'Bob can share the scoped room details.',
+        body: 'Jack can share the scoped room details.',
       }));
       await executeToolCall({
         ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.erin,
+        actingAgentId: FIXTURE_IDS.agents.akash,
         mode: 'peer',
-        subchatId: erinSubchat.id,
+        subchatId: akashSubchat.id,
       }, toolCall('send_subchat_message', {
-        body: 'Erin has no additional option.',
+        body: 'Akash has no additional option.',
       }));
 
       const ownerReport = 'I found a place, want an intro?';
@@ -940,25 +940,25 @@ describe('trusted-context agent tools', () => {
       const report = listMainThreadMessages(db, ownerCtx.taskId)
         .find(({ body }) => body.startsWith(ownerReport))?.body ?? '';
       expect(report).toContain(
-        '\n\nShared with you:\n- Bob\'s Agent: Room rent is $950/mo.; Room is 0.4mi from Georgia Tech.',
+        '\n\nShared with you:\n- Jack\'s Agent: Room rent is $950/mo.; Room is 0.4mi from Georgia Tech.',
       );
       expect(report.match(/\$950/g)).toHaveLength(1);
       expect(report).not.toContain('OWNER-ONLY-SENTINEL');
       expect(report).not.toContain(withheldSentinel);
 
-      const erinPayloads = emissions
-        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.erin))
+      const akashPayloads = emissions
+        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.akash))
         .map(({ event, payload }) => `${event} ${JSON.stringify(payload)}`)
         .join('\n');
-      expect(erinPayloads).toContain('Closed: peers had no matching information.');
-      expect(erinPayloads).not.toContain('$950');
-      expect(erinPayloads).not.toContain('0.4mi');
-      expect(erinPayloads).not.toContain('OWNER-ONLY-SENTINEL');
-      expect(erinPayloads).not.toContain(withheldSentinel);
-      const erinRows = listSubchatMessages(db, erinSubchat.id);
-      expect(JSON.stringify(erinRows)).not.toContain('$950');
-      expect(JSON.stringify(erinRows)).not.toContain('0.4mi');
-      expect(JSON.stringify(erinRows)).not.toContain(withheldSentinel);
+      expect(akashPayloads).toContain('Closed: peers had no matching information.');
+      expect(akashPayloads).not.toContain('$950');
+      expect(akashPayloads).not.toContain('0.4mi');
+      expect(akashPayloads).not.toContain('OWNER-ONLY-SENTINEL');
+      expect(akashPayloads).not.toContain(withheldSentinel);
+      const akashRows = listSubchatMessages(db, akashSubchat.id);
+      expect(JSON.stringify(akashRows)).not.toContain('$950');
+      expect(JSON.stringify(akashRows)).not.toContain('0.4mi');
+      expect(JSON.stringify(akashRows)).not.toContain(withheldSentinel);
     } finally {
       db.close();
     }

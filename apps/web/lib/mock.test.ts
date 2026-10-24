@@ -16,8 +16,8 @@ describe('mock fixture scope agreement', () => {
 
   it('seed transcript reply matches the exported fixture line', async () => {
     const history = await mockApi.getTaskMessages('t-welcome');
-    const bobReply = history.messages.find((m) => m.senderId === 'a-bob');
-    expect(bobReply?.body).toContain(JACK_RELEASED_FACTS);
+    const jackReply = history.messages.find((m) => m.senderId === 'a-jack');
+    expect(jackReply?.body).toContain(JACK_RELEASED_FACTS);
     const request = history.messages.find((m) => m.body.includes('info_request'));
     for (const field of DEMO_SCOPE_FIELDS) {
       expect(request?.body).toContain(field);

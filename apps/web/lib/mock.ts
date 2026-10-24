@@ -34,24 +34,24 @@ export function isMockMode(): boolean {
 const NOW = Date.now();
 
 export const mockUser: User = {
-  id: 'u-alice',
+  id: 'u-bayzhan',
   username: 'bayzhan',
   displayName: 'Bayzhan',
-  agentId: 'a-alice',
+  agentId: 'a-bayzhan',
   createdAt: NOW - 86_400_000,
 };
 
 const agents: Agent[] = [
-  { id: 'a-alice', userId: 'u-alice', name: "Bayzhan's Agent", status: 'idle' },
-  { id: 'a-bob', userId: 'u-bob', name: "Jack's Agent", status: 'idle' },
-  { id: 'a-carol', userId: 'u-carol', name: "Jad's Agent", status: 'idle' },
-  { id: 'a-erin', userId: 'u-erin', name: "Akash's Agent", status: 'idle' },
+  { id: 'a-bayzhan', userId: 'u-bayzhan', name: "Bayzhan's Agent", status: 'idle' },
+  { id: 'a-jack', userId: 'u-jack', name: "Jack's Agent", status: 'idle' },
+  { id: 'a-jad', userId: 'u-jad', name: "Jad's Agent", status: 'idle' },
+  { id: 'a-akash', userId: 'u-akash', name: "Akash's Agent", status: 'idle' },
 ];
 
 let tasks: Task[] = [
   {
     id: 't-welcome',
-    userId: 'u-alice',
+    userId: 'u-bayzhan',
     title: 'Example: find a summer sublet near Georgia Tech',
     status: 'active',
     createdAt: NOW - 3_600_000,
@@ -63,21 +63,21 @@ const subchatId = 'sc-1';
 const seedMessages: Message[] = [
   {
     id: 'm-0',
-    roomId: 'user:u-alice',
+    roomId: 'user:u-bayzhan',
     taskId: 't-welcome',
     subchatId: null,
     senderType: 'human',
-    senderId: 'u-alice',
+    senderId: 'u-bayzhan',
     body: 'Find me a summer sublet near Georgia Tech, May–Aug, under $1200/mo.',
     createdAt: NOW - 3_500_000,
   },
   {
     id: 'm-1',
-    roomId: 'user:u-alice',
+    roomId: 'user:u-bayzhan',
     taskId: 't-welcome',
     subchatId: null,
     senderType: 'agent',
-    senderId: 'a-alice',
+    senderId: 'a-bayzhan',
     body: 'On it — asking around my trusted network for sublet leads.',
     createdAt: NOW - 3_400_000,
   },
@@ -88,7 +88,7 @@ const seedSubchats: Subchat[] = [
     id: subchatId,
     taskId: 't-welcome',
     kind: 'pair',
-    participantAgentIds: ['a-alice', 'a-bob'],
+    participantAgentIds: ['a-bayzhan', 'a-jack'],
     status: 'open',
     outcome: null,
     summary: null,
@@ -104,7 +104,7 @@ const seedSubchatMessages: Message[] = [
     taskId: 't-welcome',
     subchatId,
     senderType: 'agent',
-    senderId: 'a-alice',
+    senderId: 'a-bayzhan',
     body: "info_request {taskId:'t-welcome', scope:['location_area','price','dates']}",
     createdAt: NOW - 3_200_000,
   },
@@ -114,7 +114,7 @@ const seedSubchatMessages: Message[] = [
     taskId: 't-welcome',
     subchatId,
     senderType: 'agent',
-    senderId: 'a-bob',
+    senderId: 'a-jack',
     body: `Room available — ${JACK_RELEASED_FACTS}.`,
     createdAt: NOW - 3_100_000,
   },
@@ -133,7 +133,7 @@ function loadNetwork(): NetworkPayload {
       }
     }
   }
-  return { agents: agents.slice(0, 3), trusted: ['a-bob', 'a-carol'], discovered: [] };
+  return { agents: agents.slice(0, 3), trusted: ['a-jack', 'a-jad'], discovered: [] };
 }
 
 let network: NetworkPayload = loadNetwork();
@@ -260,7 +260,7 @@ export class MockSocketClient implements SocketClient {
       id: scId,
       taskId: p.taskId,
       kind: 'pair',
-      participantAgentIds: ['a-alice', 'a-bob'],
+      participantAgentIds: ['a-bayzhan', 'a-jack'],
       status: 'open',
       outcome: null,
       summary: null,
@@ -271,25 +271,25 @@ export class MockSocketClient implements SocketClient {
     const at = (ms: number, event: string, payload: unknown) =>
       this.after(ms, () => this.fire(event, payload));
 
-    at(600, EVT.AGENT_STATUS, { agentId: 'a-alice', status: 'clarifying' });
+    at(600, EVT.AGENT_STATUS, { agentId: 'a-bayzhan', status: 'clarifying' });
     at(1400, EVT.CHAT_MESSAGE, {
       id: uid('m'),
       roomId: `user:${mockUser.id}`,
       taskId: p.taskId,
       subchatId: null,
       senderType: 'agent',
-      senderId: 'a-alice',
+      senderId: 'a-bayzhan',
       body: 'Checking my trusted network — Jack may have a lead.',
       createdAt: Date.now(),
     } satisfies Message);
-    at(2200, EVT.AGENT_STATUS, { agentId: 'a-alice', status: 'negotiating' });
+    at(2200, EVT.AGENT_STATUS, { agentId: 'a-bayzhan', status: 'negotiating' });
     at(2400, EVT.SUBCHAT_STARTED, subchat);
 
     const subchatMsgs: [string, string][] = [
-      ['a-alice', "info_request {scope:['location_area','price','dates']}"],
-      ['a-bob', 'query_memory → releasing permitted facts'],
-      ['a-bob', JACK_RELEASED_FACTS],
-      ['a-alice', 'Ack. Summarizing for Bayzhan.'],
+      ['a-bayzhan', "info_request {scope:['location_area','price','dates']}"],
+      ['a-jack', 'query_memory → releasing permitted facts'],
+      ['a-jack', JACK_RELEASED_FACTS],
+      ['a-bayzhan', 'Ack. Summarizing for Bayzhan.'],
     ];
     subchatMsgs.forEach(([sender, body], i) => {
       at(3200 + i * 800, EVT.SUBCHAT_MESSAGE, {
@@ -308,7 +308,7 @@ export class MockSocketClient implements SocketClient {
       id: uid('d'),
       taskId: p.taskId,
       subchatId: scId,
-      ownerAgentId: 'a-bob',
+      ownerAgentId: 'a-jack',
       releasedCount: 3,
       withheldCount: 3,
       decision: 'partial',
@@ -319,14 +319,14 @@ export class MockSocketClient implements SocketClient {
       outcome: 'done',
       summary: 'Jack has a room 0.4mi from GT, $950/mo, May 15–Aug 10.',
     });
-    at(7800, EVT.AGENT_STATUS, { agentId: 'a-alice', status: 'done' });
+    at(7800, EVT.AGENT_STATUS, { agentId: 'a-bayzhan', status: 'done' });
     at(8000, EVT.CHAT_MESSAGE, {
       id: uid('m'),
       roomId: `user:${mockUser.id}`,
       taskId: p.taskId,
       subchatId: null,
       senderType: 'agent',
-      senderId: 'a-alice',
+      senderId: 'a-bayzhan',
       body: 'Jack has a room 0.4mi from GT, $950/mo, May 15–Aug 10. Want a warm intro?',
       createdAt: Date.now(),
     } satisfies Message);
@@ -334,8 +334,8 @@ export class MockSocketClient implements SocketClient {
     this.after(8600, () => {
       saveNetwork({
         agents,
-        trusted: ['a-bob', 'a-carol'],
-        discovered: ['a-erin'],
+        trusted: ['a-jack', 'a-jad'],
+        discovered: ['a-akash'],
       });
       this.fire(EVT.NETWORK_UPDATED, network);
     });

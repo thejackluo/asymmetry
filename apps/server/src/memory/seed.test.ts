@@ -53,7 +53,7 @@ describe('seed', () => {
       .map((e) => `${e.o}>${e.t}`)
       .sort();
     expect(edges).toEqual(SEED_TRUST.map(([o, t]) => `${users[o].userId}>${users[t].userId}`).sort());
-    expect(edges).not.toContain(`${users.dave.userId}>${users.alice.userId}`);
+    expect(edges).not.toContain(`${users.aziz.userId}>${users.bayzhan.userId}`);
   });
 
   it('refuses to grant demo trust to a pre-existing non-fixture account and changes nothing', () => {
@@ -69,35 +69,35 @@ describe('seed', () => {
   it('Jack has separate private address/phone and atomic network room facts', () => {
     const db = tempDb();
     const { users } = seed(db);
-    const bob = db
+    const jack = db
       .prepare('SELECT content, classification, field_tags FROM memory_items WHERE user_id = ?')
-      .all(users.bob.userId) as { content: string; classification: string; field_tags: string }[];
-    const byTag = Object.fromEntries(bob.map((r) => [JSON.parse(r.field_tags)[0], r]));
+      .all(users.jack.userId) as { content: string; classification: string; field_tags: string }[];
+    const byTag = Object.fromEntries(jack.map((r) => [JSON.parse(r.field_tags)[0], r]));
     expect(byTag.address).toMatchObject({ classification: 'private', content: expect.stringContaining('726 Spring St') });
     expect(byTag.phone).toMatchObject({ classification: 'private', content: expect.stringContaining('404-555-0182') });
     for (const t of ['location_area', 'price', 'dates', 'furnished']) expect(byTag[t].classification).toBe('network');
-    expect(bob.every((r) => JSON.parse(r.field_tags).length === 1)).toBe(true);
+    expect(jack.every((r) => JSON.parse(r.field_tags).length === 1)).toBe(true);
   });
 
   it('demo flows against seeded data: money shot, Akash public, Aziz denied', async () => {
     const db = tempDb();
     const { users } = seed(db);
-    const { alice, bob, dave, erin } = users;
-    addTask(db, 't', alice.userId, ['location_area', 'price', 'dates', 'furnished'], {
+    const { bayzhan, jack, aziz, akash } = users;
+    addTask(db, 't', bayzhan.userId, ['location_area', 'price', 'dates', 'furnished'], {
       id: 'sc',
-      agents: [alice.agentId, bob.agentId],
+      agents: [bayzhan.agentId, jack.agentId],
     });
-    addTask(db, 'civic', alice.userId, ['vehicle', 'mileage', 'title_status', 'price'], {
-      id: 'sc-dave',
-      agents: [alice.agentId, dave.agentId],
+    addTask(db, 'civic', bayzhan.userId, ['vehicle', 'mileage', 'title_status', 'price'], {
+      id: 'sc-aziz',
+      agents: [bayzhan.agentId, aziz.agentId],
     });
-    db.prepare("INSERT INTO subchats (id, task_id, kind, status, created_at) VALUES ('sc-erin','t','discovery','open',1)").run();
-    for (const a of [alice.agentId, erin.agentId]) {
-      db.prepare("INSERT INTO subchat_participants (subchat_id, agent_id) VALUES ('sc-erin', ?)").run(a);
+    db.prepare("INSERT INTO subchats (id, task_id, kind, status, created_at) VALUES ('sc-akash','t','discovery','open',1)").run();
+    for (const a of [bayzhan.agentId, akash.agentId]) {
+      db.prepare("INSERT INTO subchat_participants (subchat_id, agent_id) VALUES ('sc-akash', ?)").run(a);
     }
     const engine = createMemoryEngine(db, fakeOpenAI('{}').client);
 
-    const money = await engine.queryMemory(bob.userId, alice.userId, {
+    const money = await engine.queryMemory(jack.userId, bayzhan.userId, {
       taskId: 't',
       purpose: 'sublet',
       fields: ['location_area', 'price', 'dates'],
@@ -108,20 +108,20 @@ describe('seed', () => {
     expect(money.disclosure.decision).toBe('partial');
     expect(JSON.stringify(money)).not.toMatch(/726 Spring|404-555/);
 
-    const erinRes = await engine.queryMemory(erin.userId, alice.userId, {
+    const akashRes = await engine.queryMemory(akash.userId, bayzhan.userId, {
       taskId: 't',
       purpose: 'sublet',
       fields: ['location_area'],
-      subchatId: 'sc-erin',
+      subchatId: 'sc-akash',
     });
-    expect(erinRes.items).toHaveLength(1);
-    expect(erinRes.items[0].classification).toBe('public');
+    expect(akashRes.items).toHaveLength(1);
+    expect(akashRes.items[0].classification).toBe('public');
 
-    const civic = await engine.queryMemory(dave.userId, alice.userId, {
+    const civic = await engine.queryMemory(aziz.userId, bayzhan.userId, {
       taskId: 'civic',
       purpose: 'buy a car',
       fields: ['vehicle', 'mileage', 'title_status', 'price'],
-      subchatId: 'sc-dave',
+      subchatId: 'sc-aziz',
     });
     expect(civic.items).toEqual([]);
     expect(civic.disclosure.decision).toBe('denied');

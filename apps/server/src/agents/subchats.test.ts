@@ -8,10 +8,10 @@ import { closeSubchatAndNotify } from './subchats.js';
 describe('subchat closure', () => {
   it('persists all closure metadata before emitting subchat:closed', () => {
     const db = createFixtureDb();
-    const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a room');
+    const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a room');
     const subchat = createSubchat(db, task.id, [
-      FIXTURE_IDS.agents.alice,
-      FIXTURE_IDS.agents.bob,
+      FIXTURE_IDS.agents.bayzhan,
+      FIXTURE_IDS.agents.jack,
     ]);
     const observations: Array<{
       inTransaction: boolean;

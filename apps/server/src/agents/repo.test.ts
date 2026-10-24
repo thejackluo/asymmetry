@@ -24,7 +24,7 @@ describe('agent repository', () => {
   it('creates, loads, and updates tasks', () => {
     const db = createFixtureDb();
     try {
-      const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a sublet');
+      const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a sublet');
       expect(getTask(db, task.id)).toEqual(task);
       expect(setTaskStatus(db, task.id, 'done')).toBe(true);
       expect(getTask(db, task.id)?.status).toBe('done');
@@ -36,7 +36,7 @@ describe('agent repository', () => {
   it('persists the canonical scope once and never overwrites it', () => {
     const db = createFixtureDb();
     try {
-      const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a sublet');
+      const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a sublet');
       const canonical = { taskId: task.id, purpose: 'sublet', fields: ['price', 'dates'] };
       expect(putTaskScope(db, canonical)).toBe(true);
       expect(putTaskScope(db, { ...canonical, purpose: 'changed', fields: ['mileage'] })).toBe(false);
@@ -49,12 +49,12 @@ describe('agent repository', () => {
   it('creates pair and group subchats with participants and closes them', () => {
     const db = createFixtureDb();
     try {
-      const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a car');
-      const pair = createSubchat(db, task.id, [FIXTURE_IDS.agents.alice, FIXTURE_IDS.agents.bob]);
+      const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a car');
+      const pair = createSubchat(db, task.id, [FIXTURE_IDS.agents.bayzhan, FIXTURE_IDS.agents.jack]);
       const group = createSubchat(db, task.id, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
-        FIXTURE_IDS.agents.carol,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
+        FIXTURE_IDS.agents.jad,
       ]);
 
       expect(pair.kind).toBe('pair');
@@ -65,9 +65,9 @@ describe('agent repository', () => {
       expect(listSubchatsByTask(db, task.id).find(({ id }) => id === group.id))
         .toMatchObject({ outcome: null, summary: null, closedAt: null });
       expect(listParticipants(db, group.id)).toEqual([
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
-        FIXTURE_IDS.agents.carol,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
+        FIXTURE_IDS.agents.jad,
       ]);
       expect(closeSubchat(db, pair.id, 'done', 'finished')).toBe(true);
       expect(db.prepare('SELECT status, outcome, summary FROM subchats WHERE id = ?').get(pair.id)).toEqual({
@@ -83,23 +83,23 @@ describe('agent repository', () => {
   it('uses contract room names and lists main-thread and subchat messages separately', () => {
     const db = createFixtureDb();
     try {
-      const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a sublet');
-      const subchat = createSubchat(db, task.id, [FIXTURE_IDS.agents.alice, FIXTURE_IDS.agents.bob]);
+      const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a sublet');
+      const subchat = createSubchat(db, task.id, [FIXTURE_IDS.agents.bayzhan, FIXTURE_IDS.agents.jack]);
       const main = insertMessage(db, {
         taskId: task.id,
         senderType: 'human',
-        senderId: FIXTURE_IDS.users.alice,
+        senderId: FIXTURE_IDS.users.bayzhan,
         body: 'Need a room',
       });
       const peer = insertMessage(db, {
         taskId: task.id,
         subchatId: subchat.id,
         senderType: 'agent',
-        senderId: FIXTURE_IDS.agents.bob,
+        senderId: FIXTURE_IDS.agents.jack,
         body: 'I can help',
       });
 
-      expect(main.roomId).toBe(userRoom(FIXTURE_IDS.users.alice));
+      expect(main.roomId).toBe(userRoom(FIXTURE_IDS.users.bayzhan));
       expect(peer.roomId).toBe(subchatRoom(subchat.id));
       expect(listMainThreadMessages(db, task.id)).toEqual([main]);
       expect(listSubchatMessages(db, subchat.id)).toEqual([peer]);
@@ -110,37 +110,37 @@ describe('agent repository', () => {
 
   it('orders messages and subchats by id when created_at timestamps tie', () => {
     const db = createFixtureDb();
-    const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a room');
+    const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a room');
     const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
     try {
       const subchat = createSubchat(db, task.id, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
       const firstMain = insertMessage(db, {
         taskId: task.id,
         senderType: 'human',
-        senderId: FIXTURE_IDS.users.alice,
+        senderId: FIXTURE_IDS.users.bayzhan,
         body: 'first',
       });
       const secondMain = insertMessage(db, {
         taskId: task.id,
         senderType: 'human',
-        senderId: FIXTURE_IDS.users.alice,
+        senderId: FIXTURE_IDS.users.bayzhan,
         body: 'second',
       });
       const firstPeer = insertMessage(db, {
         taskId: task.id,
         subchatId: subchat.id,
         senderType: 'agent',
-        senderId: FIXTURE_IDS.agents.bob,
+        senderId: FIXTURE_IDS.agents.jack,
         body: 'first peer',
       });
       const secondPeer = insertMessage(db, {
         taskId: task.id,
         subchatId: subchat.id,
         senderType: 'agent',
-        senderId: FIXTURE_IDS.agents.bob,
+        senderId: FIXTURE_IDS.agents.jack,
         body: 'second peer',
       });
       sortRowsAgainstIdOrder(db, firstMain.id, secondMain.id);
@@ -172,13 +172,13 @@ describe('agent repository', () => {
   it('updates agent status and maps users, agents, and outgoing trust edges', () => {
     const db = createFixtureDb();
     try {
-      expect(agentByUser(db, FIXTURE_IDS.users.alice)?.id).toBe(FIXTURE_IDS.agents.alice);
-      expect(userByAgent(db, FIXTURE_IDS.agents.bob)?.id).toBe(FIXTURE_IDS.users.bob);
-      expect(setAgentStatus(db, FIXTURE_IDS.agents.alice, 'negotiating')).toBe(true);
-      expect(agentByUser(db, FIXTURE_IDS.users.alice)?.status).toBe('negotiating');
-      expect(outgoingTrustEdges(db, FIXTURE_IDS.users.alice).map(({ trustedUserId }) => trustedUserId)).toEqual([
-        FIXTURE_IDS.users.bob,
-        FIXTURE_IDS.users.carol,
+      expect(agentByUser(db, FIXTURE_IDS.users.bayzhan)?.id).toBe(FIXTURE_IDS.agents.bayzhan);
+      expect(userByAgent(db, FIXTURE_IDS.agents.jack)?.id).toBe(FIXTURE_IDS.users.jack);
+      expect(setAgentStatus(db, FIXTURE_IDS.agents.bayzhan, 'negotiating')).toBe(true);
+      expect(agentByUser(db, FIXTURE_IDS.users.bayzhan)?.status).toBe('negotiating');
+      expect(outgoingTrustEdges(db, FIXTURE_IDS.users.bayzhan).map(({ trustedUserId }) => trustedUserId)).toEqual([
+        FIXTURE_IDS.users.jack,
+        FIXTURE_IDS.users.jad,
       ]);
     } finally {
       db.close();

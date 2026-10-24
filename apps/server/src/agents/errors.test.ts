@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 function createScopedTask(db: ReturnType<typeof createFixtureDb>) {
-  const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a room');
+  const task = createTask(db, FIXTURE_IDS.users.bayzhan, 'Find a room');
   putTaskScope(db, {
     taskId: task.id,
     purpose: 'find a room',
@@ -55,12 +55,12 @@ describe('safe agent failures', () => {
     dbs.push(ownerDb);
     const ownerTask = createScopedTask(ownerDb);
     const ownerSubchat = createSubchat(ownerDb, ownerTask.id, [
-      FIXTURE_IDS.agents.alice,
-      FIXTURE_IDS.agents.bob,
+      FIXTURE_IDS.agents.bayzhan,
+      FIXTURE_IDS.agents.jack,
     ]);
     const ownerIO = createFakeIO();
     const ownerLLM = routedLLM({
-      "Alice's Agent": [() => { throw new Error(SENTINEL); }],
+      "Bayzhan's Agent": [() => { throw new Error(SENTINEL); }],
     });
     const ownerRuntime = createAgentRuntime({
       io: ownerIO.io,
@@ -80,13 +80,13 @@ describe('safe agent failures', () => {
     dbs.push(peerDb);
     const peerTask = createScopedTask(peerDb);
     const subchat = createSubchat(peerDb, peerTask.id, [
-      FIXTURE_IDS.agents.alice,
-      FIXTURE_IDS.agents.bob,
+      FIXTURE_IDS.agents.bayzhan,
+      FIXTURE_IDS.agents.jack,
     ]);
     const peerIO = createFakeIO();
     const peerLLM = routedLLM({
-      "Bob's Agent": [() => { throw new Error(SENTINEL); }],
-      "Alice's Agent": [{ reply: 'I will follow up safely.' }],
+      "Jack's Agent": [() => { throw new Error(SENTINEL); }],
+      "Bayzhan's Agent": [{ reply: 'I will follow up safely.' }],
     });
     const peerRuntime = createAgentRuntime({
       io: peerIO.io,
@@ -94,7 +94,7 @@ describe('safe agent failures', () => {
       memory: createFakeMemory().memory,
       llm: peerLLM,
     });
-    peerRuntime.runPeer(subchat.id, FIXTURE_IDS.agents.bob);
+    peerRuntime.runPeer(subchat.id, FIXTURE_IDS.agents.jack);
     await peerRuntime.idle();
     expect.soft(peerDb.prepare('SELECT summary FROM subchats WHERE id = ?').get(subchat.id)).toEqual({
       summary: 'Closed: a peer agent stopped before completing this subchat.',
@@ -119,9 +119,9 @@ describe('safe agent failures', () => {
       memory: throwingMemory,
       rt: baseHooks,
       taskId: toolTask.id,
-      taskOwnerUserId: FIXTURE_IDS.users.alice,
-      ownerAgentId: FIXTURE_IDS.agents.alice,
-      actingAgentId: FIXTURE_IDS.agents.alice,
+      taskOwnerUserId: FIXTURE_IDS.users.bayzhan,
+      ownerAgentId: FIXTURE_IDS.agents.bayzhan,
+      actingAgentId: FIXTURE_IDS.agents.bayzhan,
       mode: 'owner',
       subchatId: null,
     };
@@ -129,7 +129,7 @@ describe('safe agent failures', () => {
       id: 'memory',
       name: 'query_memory',
       args: {
-        ownerUserId: FIXTURE_IDS.users.alice,
+        ownerUserId: FIXTURE_IDS.users.bayzhan,
         scope: { fields: ['price'] },
       },
     });
@@ -143,7 +143,7 @@ describe('safe agent failures', () => {
     const toolFailure = await executeToolCall({ ...toolCtx, rt: throwingHooks }, {
       id: 'open',
       name: 'open_subchat',
-      args: { taskId: toolTask.id, agentIds: [FIXTURE_IDS.agents.bob] },
+      args: { taskId: toolTask.id, agentIds: [FIXTURE_IDS.agents.jack] },
     });
     expect(toolFailure.content).toBe('Error: tool failed');
     toolResults.push(toolFailure.content);
@@ -154,7 +154,7 @@ describe('safe agent failures', () => {
     const ingestTask = createScopedTask(ingestDb);
     const ingestIO = createFakeIO();
     const ingestLLM = routedLLM({
-      "Alice's Agent": [{ reply: 'A safe response.' }],
+      "Bayzhan's Agent": [{ reply: 'A safe response.' }],
     });
     const ingestRuntime = createAgentRuntime({
       io: ingestIO.io,
@@ -162,7 +162,7 @@ describe('safe agent failures', () => {
       memory: createFakeMemory({ ingestError: new Error(SENTINEL) }).memory,
       llm: ingestLLM,
     });
-    await ingestRuntime.handleChatSend(socketFor(FIXTURE_IDS.users.alice), {
+    await ingestRuntime.handleChatSend(socketFor(FIXTURE_IDS.users.bayzhan), {
       taskId: ingestTask.id,
       body: 'Find a room.',
     });
@@ -184,7 +184,7 @@ describe('safe agent failures', () => {
       }
     });
     const queueLLM = routedLLM({
-      "Alice's Agent": [{ reply: 'A safe queued response.' }],
+      "Bayzhan's Agent": [{ reply: 'A safe queued response.' }],
     });
     const queueRuntime = createAgentRuntime({
       io: queueIO.io,
@@ -192,7 +192,7 @@ describe('safe agent failures', () => {
       memory: createFakeMemory().memory,
       llm: queueLLM,
     });
-    await queueRuntime.handleChatSend(socketFor(FIXTURE_IDS.users.alice), {
+    await queueRuntime.handleChatSend(socketFor(FIXTURE_IDS.users.bayzhan), {
       taskId: queueTask.id,
       body: 'Find a room.',
     });

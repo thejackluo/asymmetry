@@ -26,7 +26,7 @@ function registerWithRuntime(runtime: AgentRuntime) {
   const db = createFixtureDb();
   registerAgents(io, db, createFakeMemory().memory);
   const socket = {
-    data: { userId: FIXTURE_IDS.users.alice },
+    data: { userId: FIXTURE_IDS.users.bayzhan },
     on(event: string, handler: SocketHandler) {
       handlers.set(event, handler);
       return socket;

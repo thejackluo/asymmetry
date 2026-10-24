@@ -23,10 +23,10 @@ describe.skipIf(!process.env.OPENAI_API_KEY)('live OpenAI smoke', () => {
   it('runs a private owner/peer task through the real OpenAI adapter', async () => {
     const db = createFixtureDb();
     const { io, emissions } = createFakeIO();
-    const bobFacts: MemoryItem[] = [
+    const jackFacts: MemoryItem[] = [
       {
-        id: 'bob-location',
-        userId: FIXTURE_IDS.users.bob,
+        id: 'jack-location',
+        userId: FIXTURE_IDS.users.jack,
         content: 'Room is 0.4mi from Georgia Tech.',
         classification: 'network',
         fieldTags: ['location_area'],
@@ -34,8 +34,8 @@ describe.skipIf(!process.env.OPENAI_API_KEY)('live OpenAI smoke', () => {
         createdAt: 1,
       },
       {
-        id: 'bob-price',
-        userId: FIXTURE_IDS.users.bob,
+        id: 'jack-price',
+        userId: FIXTURE_IDS.users.jack,
         content: 'Room rent is $950/mo.',
         classification: 'network',
         fieldTags: ['price'],
@@ -43,8 +43,8 @@ describe.skipIf(!process.env.OPENAI_API_KEY)('live OpenAI smoke', () => {
         createdAt: 2,
       },
       {
-        id: 'bob-dates',
-        userId: FIXTURE_IDS.users.bob,
+        id: 'jack-dates',
+        userId: FIXTURE_IDS.users.jack,
         content: 'Room available May 15–Aug 10.',
         classification: 'network',
         fieldTags: ['dates'],
@@ -53,8 +53,8 @@ describe.skipIf(!process.env.OPENAI_API_KEY)('live OpenAI smoke', () => {
       },
     ];
     const { memory, calls } = createFakeMemory({
-      itemsByOwner: { [FIXTURE_IDS.users.bob]: bobFacts },
-      withheldCountByOwner: { [FIXTURE_IDS.users.bob]: 3 },
+      itemsByOwner: { [FIXTURE_IDS.users.jack]: jackFacts },
+      withheldCountByOwner: { [FIXTURE_IDS.users.jack]: 3 },
     });
     const model = openAILLM();
     const modelMessages: LLMMessage[] = [];
@@ -77,7 +77,7 @@ describe.skipIf(!process.env.OPENAI_API_KEY)('live OpenAI smoke', () => {
     try {
       const taskAcks: unknown[] = [];
       await runtime.handleTaskCreate(
-        fakeSocket(FIXTURE_IDS.users.alice),
+        fakeSocket(FIXTURE_IDS.users.bayzhan),
         { title: 'Find a summer sublet' },
         (result) => taskAcks.push(result),
       );
@@ -91,7 +91,7 @@ describe.skipIf(!process.env.OPENAI_API_KEY)('live OpenAI smoke', () => {
 
       const chatAcks: unknown[] = [];
       await runtime.handleChatSend(
-        fakeSocket(FIXTURE_IDS.users.alice),
+        fakeSocket(FIXTURE_IDS.users.bayzhan),
         {
           taskId,
           body: 'Find a summer sublet near Georgia Tech, May 15–Aug 10, under $1200/mo',
@@ -108,13 +108,13 @@ describe.skipIf(!process.env.OPENAI_API_KEY)('live OpenAI smoke', () => {
       );
       const subchats = listSubchatsByTask(db, taskId);
       expect(subchats.some(({ participantAgentIds }) =>
-        participantAgentIds.includes(FIXTURE_IDS.agents.bob))).toBe(true);
+        participantAgentIds.includes(FIXTURE_IDS.agents.jack))).toBe(true);
 
-      const bobQueries = calls.queryMemory.filter(({ ownerUserId, requesterUserId }) =>
-        ownerUserId === FIXTURE_IDS.users.bob
-        && requesterUserId === FIXTURE_IDS.users.alice);
-      expect(bobQueries.length).toBeGreaterThan(0);
-      expect(bobQueries.some(({ scope }) =>
+      const jackQueries = calls.queryMemory.filter(({ ownerUserId, requesterUserId }) =>
+        ownerUserId === FIXTURE_IDS.users.jack
+        && requesterUserId === FIXTURE_IDS.users.bayzhan);
+      expect(jackQueries.length).toBeGreaterThan(0);
+      expect(jackQueries.some(({ scope }) =>
         Boolean(scope.subchatId)
         && scope.fields.length > 0
         && scope.fields.every((field) => canonicalScope?.fields.includes(field)))).toBe(true);
@@ -175,7 +175,7 @@ describe.skipIf(!process.env.OPENAI_API_KEY)('live OpenAI smoke', () => {
       console.info('[live smoke] transcript:');
       for (const message of transcript) {
         const sender = message.senderType === 'human'
-          ? 'Alice'
+          ? 'Bayzhan'
           : message.senderType === 'agent'
             ? agentById(db, message.senderId)?.name ?? 'Agent'
             : 'System';

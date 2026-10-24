@@ -50,8 +50,8 @@ describe('agent socket integration', () => {
     const { memory } = createFakeMemory();
     const savedKey = process.env.OPENAI_API_KEY;
     delete process.env.OPENAI_API_KEY;
-    let alice: ClientSocket | undefined;
-    let dave: ClientSocket | undefined;
+    let bayzhan: ClientSocket | undefined;
+    let aziz: ClientSocket | undefined;
     try {
       registerAgents(ioServer, db, memory);
       ioServer.use((socket, next) => {
@@ -67,27 +67,27 @@ describe('agent socket integration', () => {
       await new Promise<void>((resolve) => httpServer.listen(0, resolve));
       const { port } = httpServer.address() as AddressInfo;
       const endpoint = `http://127.0.0.1:${port}`;
-      alice = createClient(endpoint, { auth: { userId: FIXTURE_IDS.users.alice }, transports: ['websocket'] });
-      dave = createClient(endpoint, { auth: { userId: FIXTURE_IDS.users.dave }, transports: ['websocket'] });
-      await Promise.all([connect(alice), connect(dave)]);
+      bayzhan = createClient(endpoint, { auth: { userId: FIXTURE_IDS.users.bayzhan }, transports: ['websocket'] });
+      aziz = createClient(endpoint, { auth: { userId: FIXTURE_IDS.users.aziz }, transports: ['websocket'] });
+      await Promise.all([connect(bayzhan), connect(aziz)]);
 
-      const daveEvents: string[] = [];
+      const azizEvents: string[] = [];
       for (const event of Object.values(EVENTS)) {
-        dave.on(event, () => daveEvents.push(event));
+        aziz.on(event, () => azizEvents.push(event));
       }
-      const createdPromise = waitForEvent(alice, EVENTS.TASK_CREATED);
-      alice.emit(EVENTS.TASK_CREATE, { title: '  Find a room  ' });
+      const createdPromise = waitForEvent(bayzhan, EVENTS.TASK_CREATED);
+      bayzhan.emit(EVENTS.TASK_CREATE, { title: '  Find a room  ' });
       const task = await createdPromise as { id: string; title: string };
       expect(task.title).toBe('Find a room');
 
       const humanMessagePromise = waitForEvent(
-        alice,
+        bayzhan,
         EVENTS.CHAT_MESSAGE,
         (payload) => (payload as { senderType?: string }).senderType === 'human',
       );
-      const taskUpdatedPromise = waitForEvent(alice, EVENTS.TASK_UPDATED);
+      const taskUpdatedPromise = waitForEvent(bayzhan, EVENTS.TASK_UPDATED);
       const ackPromise = new Promise<{ ok: boolean }>((resolve) => {
-        alice?.emit(EVENTS.CHAT_SEND, {
+        bayzhan?.emit(EVENTS.CHAT_SEND, {
           taskId: task.id,
           body: 'Find a room near campus',
         }, resolve);
@@ -96,14 +96,14 @@ describe('agent socket integration', () => {
       expect(ack.ok).toBe(true);
       expect((humanMessage as { body: string }).body).toBe('Find a room near campus');
       await taskUpdatedPromise;
-      expect(daveEvents).toEqual([]);
+      expect(azizEvents).toEqual([]);
 
       const subchat = createSubchat(db, task.id, [
-        FIXTURE_IDS.agents.alice,
-        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.bayzhan,
+        FIXTURE_IDS.agents.jack,
       ]);
       const closedEventPromise = waitForEvent(
-        alice,
+        bayzhan,
         EVENTS.SUBCHAT_CLOSED,
         (payload) => (payload as { subchatId?: string }).subchatId === subchat.id,
       );
@@ -136,8 +136,8 @@ describe('agent socket integration', () => {
         summary: closedRow?.summary,
       });
     } finally {
-      alice?.disconnect();
-      dave?.disconnect();
+      bayzhan?.disconnect();
+      aziz?.disconnect();
       await new Promise<void>((resolve) => ioServer.close(() => resolve()));
       db.close();
       if (savedKey === undefined) {

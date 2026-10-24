@@ -109,7 +109,7 @@ const notice = (
   id,
   taskId,
   subchatId,
-  ownerAgentId: 'a-bob',
+  ownerAgentId: 'a-jack',
   releasedCount: 3,
   withheldCount: 2,
   decision: 'partial',

@@ -30,13 +30,13 @@ const HUMAN_REQUEST =
   'Find a summer sublet near Georgia Tech under $1200 per month, May 15-August 10.';
 const SCOPE_FIELDS = ['location_area', 'price', 'dates'];
 const PRIVATE_SENTINELS = [/404-555/i, /726 Spring/i, /SSN/i, /salary|\$185k/i, /Stripe/i];
-const BOB_NETWORK_SENTINELS = [/\$950|950\/mo/i, /0\.4mi/i];
+const JACK_NETWORK_SENTINELS = [/\$950|950\/mo/i, /0\.4mi/i];
 
 const SEED_IDS = {
-  alice: { userId: 'seed-user-alice', agentId: 'seed-agent-alice' },
-  bob: { userId: 'seed-user-bob', agentId: 'seed-agent-bob' },
-  carol: { userId: 'seed-user-carol', agentId: 'seed-agent-carol' },
-  erin: { userId: 'seed-user-erin', agentId: 'seed-agent-erin' },
+  bayzhan: { userId: 'seed-user-bayzhan', agentId: 'seed-agent-bayzhan' },
+  jack: { userId: 'seed-user-jack', agentId: 'seed-agent-jack' },
+  jad: { userId: 'seed-user-jad', agentId: 'seed-agent-jad' },
+  akash: { userId: 'seed-user-akash', agentId: 'seed-agent-akash' },
 };
 
 let dir: string;
@@ -240,17 +240,17 @@ afterEach(async () => {
 
 describe('integration: real runtime + memory + seed', () => {
   it('pair release, observer isolation, refresh replay, discovered peer', async () => {
-    const alice = await login('bayzhan');
-    const bob = await login('jack');
-    const erin = await login('akash');
-    const carol = await login('jad');
-    const aliceC = await connectClient(alice.token);
-    const bobC = await connectClient(bob.token);
-    const erinC = await connectClient(erin.token);
-    const carolC = await connectClient(carol.token);
+    const bayzhan = await login('bayzhan');
+    const jack = await login('jack');
+    const akash = await login('akash');
+    const jad = await login('jad');
+    const bayzhanC = await connectClient(bayzhan.token);
+    const jackC = await connectClient(jack.token);
+    const akashC = await connectClient(akash.token);
+    const jadC = await connectClient(jad.token);
 
     const state = { opened: false, sent: false };
-    const answered = { bob: { done: false }, erin: { done: false } };
+    const answered = { jack: { done: false }, akash: { done: false } };
     let currentTaskId = '';
     makeAdapter((messages) => {
       const sys = messages[0]?.content ?? '';
@@ -260,8 +260,8 @@ describe('integration: real runtime + memory + seed', () => {
           state.opened = true;
           return {
             toolCalls: [
-              tc('open-bob', 'open_subchat', { agentIds: [SEED_IDS.bob.agentId], taskId: currentTaskId }),
-              tc('open-erin', 'open_subchat', { agentIds: [SEED_IDS.erin.agentId], taskId: currentTaskId }),
+              tc('open-jack', 'open_subchat', { agentIds: [SEED_IDS.jack.agentId], taskId: currentTaskId }),
+              tc('open-akash', 'open_subchat', { agentIds: [SEED_IDS.akash.agentId], taskId: currentTaskId }),
             ],
           };
         }
@@ -276,29 +276,29 @@ describe('integration: real runtime + memory + seed', () => {
             ),
           };
         }
-        const bobReplies = subchatReplies(messages, "Jack's Agent");
-        const erinReplies = subchatReplies(messages, "Akash's Agent");
-        if (bobReplies.length > 0 && erinReplies.length > 0) {
-          const synthesis = `Peer answers received. ${bobReplies[bobReplies.length - 1].split('\n').pop()} Proposing a warm introduction to Jack.`;
+        const jackReplies = subchatReplies(messages, "Jack's Agent");
+        const akashReplies = subchatReplies(messages, "Akash's Agent");
+        if (jackReplies.length > 0 && akashReplies.length > 0) {
+          const synthesis = `Peer answers received. ${jackReplies[jackReplies.length - 1].split('\n').pop()} Proposing a warm introduction to Jack.`;
           return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'done', summary: synthesis })] };
         }
         return { reply: 'Waiting for peer updates.' };
       }
-      if (sys.includes("Jack's Agent")) return peerQueryThenReply(SEED_IDS.bob.userId, answered.bob)(messages);
-      if (sys.includes("Akash's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, answered.erin)(messages);
+      if (sys.includes("Jack's Agent")) return peerQueryThenReply(SEED_IDS.jack.userId, answered.jack)(messages);
+      if (sys.includes("Akash's Agent")) return peerQueryThenReply(SEED_IDS.akash.userId, answered.akash)(messages);
       throw new Error(`adapter: unexpected invocation: ${sys.slice(0, 120)}`);
     });
 
-    const created = await emitAck<Task>(aliceC.socket, 'task:create', { title: 'Sublet search', userId: 'forged' });
+    const created = await emitAck<Task>(bayzhanC.socket, 'task:create', { title: 'Sublet search', userId: 'forged' });
     expect(created.ok).toBe(true);
     const task = created.data as Task;
     currentTaskId = task.id;
-    expect(task.userId).toBe(alice.user.id);
+    expect(task.userId).toBe(bayzhan.user.id);
     expect(runtimeCalls).toHaveLength(0);
 
-    const sent = await emitAck<Message>(aliceC.socket, 'chat:send', { taskId: task.id, body: HUMAN_REQUEST });
+    const sent = await emitAck<Message>(bayzhanC.socket, 'chat:send', { taskId: task.id, body: HUMAN_REQUEST });
     expect(sent.ok).toBe(true);
-    expect((sent.data as Message).senderId).toBe(alice.user.id);
+    expect((sent.data as Message).senderId).toBe(bayzhan.user.id);
     expect((sent.data as Message).subchatId).toBeNull();
 
     await waitFor(() => {
@@ -315,13 +315,13 @@ describe('integration: real runtime + memory + seed', () => {
       'SELECT released_json, withheld_count, decision FROM disclosures',
     );
     expect(audits).toHaveLength(2);
-    const bobAudit = get<{ released_json: string; withheld_count: number; decision: string }>(
+    const jackAudit = get<{ released_json: string; withheld_count: number; decision: string }>(
       server.db,
       'SELECT released_json, withheld_count, decision FROM disclosures WHERE owner_user_id = ?',
-      SEED_IDS.bob.userId,
+      SEED_IDS.jack.userId,
     );
-    expect(bobAudit).toBeDefined();
-    const releasedIds = JSON.parse(bobAudit!.released_json) as string[];
+    expect(jackAudit).toBeDefined();
+    const releasedIds = JSON.parse(jackAudit!.released_json) as string[];
     expect(releasedIds).toHaveLength(3);
     const tags = all<{ field_tags: string }>(
       server.db,
@@ -329,13 +329,13 @@ describe('integration: real runtime + memory + seed', () => {
       ...releasedIds,
     ).flatMap((r) => JSON.parse(r.field_tags) as string[]);
     expect(new Set(tags)).toEqual(new Set(SCOPE_FIELDS));
-    expect(bobAudit!.withheld_count).toBe(3);
-    expect(bobAudit!.decision).toBe('partial');
+    expect(jackAudit!.withheld_count).toBe(3);
+    expect(jackAudit!.decision).toBe('partial');
 
-    const notices = aliceC.events.filter((e) => e.event === 'disclosure:logged');
-    const bobNotice = notices.find((e) => (e.payload as DisclosureNotice).ownerAgentId === SEED_IDS.bob.agentId);
-    expect(bobNotice).toBeDefined();
-    const notice = bobNotice!.payload as DisclosureNotice;
+    const notices = bayzhanC.events.filter((e) => e.event === 'disclosure:logged');
+    const jackNotice = notices.find((e) => (e.payload as DisclosureNotice).ownerAgentId === SEED_IDS.jack.agentId);
+    expect(jackNotice).toBeDefined();
+    const notice = jackNotice!.payload as DisclosureNotice;
     expect(Object.keys(notice).sort()).toEqual(
       ['decision', 'id', 'ownerAgentId', 'releasedCount', 'subchatId', 'taskId', 'withheldCount'].sort(),
     );
@@ -356,47 +356,47 @@ describe('integration: real runtime + memory + seed', () => {
       expect(typeof s.closed_at).toBe('number');
     }
 
-    const hist = await request(base).get(`/api/tasks/${task.id}/messages`).set('Authorization', `Bearer ${alice.token}`);
+    const hist = await request(base).get(`/api/tasks/${task.id}/messages`).set('Authorization', `Bearer ${bayzhan.token}`);
     expect(hist.status).toBe(200);
     expect(hist.body.subchats).toHaveLength(2);
     expect(hist.body.disclosures.length).toBeGreaterThanOrEqual(2);
-    const otherHist = await request(base).get(`/api/tasks/${task.id}/messages`).set('Authorization', `Bearer ${erin.token}`);
+    const otherHist = await request(base).get(`/api/tasks/${task.id}/messages`).set('Authorization', `Bearer ${akash.token}`);
     expect(otherHist.status).toBe(404);
 
     const allContexts = serializedRuntimeContext() + JSON.stringify(openaiUserInputs);
     const socketPayloads = JSON.stringify([
-      ...aliceC.events, ...bobC.events, ...erinC.events, ...carolC.events,
+      ...bayzhanC.events, ...jackC.events, ...akashC.events, ...jadC.events,
     ]);
     const restPayloads = JSON.stringify([hist.body, otherHist.body]);
     expect(hasSentinel(allContexts + socketPayloads + restPayloads, PRIVATE_SENTINELS)).toBe(false);
 
-    const erinPayloads = JSON.stringify(erinC.events);
-    expect(hasSentinel(erinPayloads, BOB_NETWORK_SENTINELS)).toBe(false);
+    const akashPayloads = JSON.stringify(akashC.events);
+    expect(hasSentinel(akashPayloads, JACK_NETWORK_SENTINELS)).toBe(false);
 
-    const carolPayloads = JSON.stringify(carolC.events);
-    expect(carolC.events.filter((e) =>
+    const jadPayloads = JSON.stringify(jadC.events);
+    expect(jadC.events.filter((e) =>
       ['chat:message', 'subchat:started', 'subchat:message', 'subchat:closed', 'disclosure:logged'].includes(e.event),
     )).toHaveLength(0);
-    expect(hasSentinel(carolPayloads, BOB_NETWORK_SENTINELS)).toBe(false);
+    expect(hasSentinel(jadPayloads, JACK_NETWORK_SENTINELS)).toBe(false);
 
-    const network = await request(base).get('/api/network').set('Authorization', `Bearer ${alice.token}`);
+    const network = await request(base).get('/api/network').set('Authorization', `Bearer ${bayzhan.token}`);
     expect(network.status).toBe(200);
-    expect(new Set(network.body.trusted)).toEqual(new Set([SEED_IDS.bob.agentId, SEED_IDS.carol.agentId]));
-    expect(network.body.discovered).toEqual([SEED_IDS.erin.agentId]);
+    expect(new Set(network.body.trusted)).toEqual(new Set([SEED_IDS.jack.agentId, SEED_IDS.jad.agentId]));
+    expect(network.body.discovered).toEqual([SEED_IDS.akash.agentId]);
 
-    aliceC.socket.close(); bobC.socket.close(); erinC.socket.close(); carolC.socket.close();
+    bayzhanC.socket.close(); jackC.socket.close(); akashC.socket.close(); jadC.socket.close();
   }, 60_000);
 
   it('untrusted group observer blocks Jack network facts', async () => {
-    const alice = await login('bayzhan');
-    const bob = await login('jack');
-    const carol = await login('jad');
-    const aliceC = await connectClient(alice.token);
-    const bobC = await connectClient(bob.token);
-    const carolC = await connectClient(carol.token);
+    const bayzhan = await login('bayzhan');
+    const jack = await login('jack');
+    const jad = await login('jad');
+    const bayzhanC = await connectClient(bayzhan.token);
+    const jackC = await connectClient(jack.token);
+    const jadC = await connectClient(jad.token);
 
     const state = { opened: false, sent: false };
-    const answered = { bob: { done: false }, carol: { done: false } };
+    const answered = { jack: { done: false }, jad: { done: false } };
     let currentTaskId = '';
     makeAdapter((messages) => {
       const sys = messages[0]?.content ?? '';
@@ -404,31 +404,31 @@ describe('integration: real runtime + memory + seed', () => {
         const subchats = parseSubchatsFromResults(messages);
         if (!state.opened) {
           state.opened = true;
-          return { toolCalls: [tc('open-group', 'open_subchat', { agentIds: [SEED_IDS.bob.agentId, SEED_IDS.carol.agentId], taskId: currentTaskId })] };
+          return { toolCalls: [tc('open-group', 'open_subchat', { agentIds: [SEED_IDS.jack.agentId, SEED_IDS.jad.agentId], taskId: currentTaskId })] };
         }
         if (subchats.length > 0 && !state.sent) {
           state.sent = true;
           return { toolCalls: [tc('req', 'send_subchat_message', { subchatId: subchats[0].id, body: 'Share what you can within scope.' })] };
         }
-        const bobReplies = subchatReplies(messages, "Jack's Agent");
-        const carolReplies = subchatReplies(messages, "Jad's Agent");
-        if (bobReplies.length > 0 && carolReplies.length > 0) {
+        const jackReplies = subchatReplies(messages, "Jack's Agent");
+        const jadReplies = subchatReplies(messages, "Jad's Agent");
+        if (jackReplies.length > 0 && jadReplies.length > 0) {
           return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'stuck', summary: 'No authorized match available from trusted peers.' })] };
         }
         return { reply: 'Waiting.' };
       }
-      if (sys.includes("Jack's Agent")) return peerQueryThenReply(SEED_IDS.bob.userId, answered.bob)(messages);
+      if (sys.includes("Jack's Agent")) return peerQueryThenReply(SEED_IDS.jack.userId, answered.jack)(messages);
       if (sys.includes("Jad's Agent")) {
-        answered.carol.done = true;
+        answered.jad.done = true;
         return { reply: 'Acknowledged.' };
       }
       throw new Error(`adapter: unexpected invocation: ${sys.slice(0, 120)}`);
     });
 
-    const created = await emitAck<Task>(aliceC.socket, 'task:create', { title: 'Sublet search' });
+    const created = await emitAck<Task>(bayzhanC.socket, 'task:create', { title: 'Sublet search' });
     expect(created.ok).toBe(true);
     currentTaskId = (created.data as Task).id;
-    const sent = await emitAck<Message>(aliceC.socket, 'chat:send', { taskId: currentTaskId, body: HUMAN_REQUEST });
+    const sent = await emitAck<Message>(bayzhanC.socket, 'chat:send', { taskId: currentTaskId, body: HUMAN_REQUEST });
     expect(sent.ok).toBe(true);
 
     await waitFor(() => {
@@ -445,31 +445,31 @@ describe('integration: real runtime + memory + seed', () => {
     expect(audits[0].withheld_count).toBe(6);
     expect(audits[0].decision).toBe('denied');
 
-    const notices = aliceC.events.filter((e) => e.event === 'disclosure:logged');
+    const notices = bayzhanC.events.filter((e) => e.event === 'disclosure:logged');
     expect(notices).toHaveLength(1);
     expect((notices[0].payload as DisclosureNotice).releasedCount).toBe(0);
     expect((notices[0].payload as DisclosureNotice).withheldCount).toBe(6);
 
-    const bobSubchat = get<{ status: string; outcome: string | null; summary: string | null; closed_at: number | null }>(
+    const jackSubchat = get<{ status: string; outcome: string | null; summary: string | null; closed_at: number | null }>(
       server.db, 'SELECT * FROM subchats WHERE task_id = ?', currentTaskId,
     );
-    expect(bobSubchat?.status).toBe('closed');
-    expect(bobSubchat?.outcome).toBe('stuck');
-    expect(BOB_NETWORK_SENTINELS.concat(PRIVATE_SENTINELS).some((p) => p.test(bobSubchat?.summary ?? ''))).toBe(false);
-    expect(typeof bobSubchat?.closed_at).toBe('number');
+    expect(jackSubchat?.status).toBe('closed');
+    expect(jackSubchat?.outcome).toBe('stuck');
+    expect(JACK_NETWORK_SENTINELS.concat(PRIVATE_SENTINELS).some((p) => p.test(jackSubchat?.summary ?? ''))).toBe(false);
+    expect(typeof jackSubchat?.closed_at).toBe('number');
 
-    const peerContexts = JSON.stringify([...bobC.events, ...carolC.events]);
+    const peerContexts = JSON.stringify([...jackC.events, ...jadC.events]);
     const allContexts = serializedRuntimeContext() + peerContexts + JSON.stringify(openaiUserInputs);
-    expect(hasSentinel(allContexts, [...PRIVATE_SENTINELS, ...BOB_NETWORK_SENTINELS])).toBe(false);
+    expect(hasSentinel(allContexts, [...PRIVATE_SENTINELS, ...JACK_NETWORK_SENTINELS])).toBe(false);
 
-    aliceC.socket.close(); bobC.socket.close(); carolC.socket.close();
+    bayzhanC.socket.close(); jackC.socket.close(); jadC.socket.close();
   }, 60_000);
 
   it('bounded ping-pong reaches stuck without deadlock', async () => {
-    const alice = await login('bayzhan');
-    const bob = await login('jack');
-    const aliceC = await connectClient(alice.token);
-    const bobC = await connectClient(bob.token);
+    const bayzhan = await login('bayzhan');
+    const jack = await login('jack');
+    const bayzhanC = await connectClient(bayzhan.token);
+    const jackC = await connectClient(jack.token);
 
     let currentTaskId = '';
     const state = { opened: false };
@@ -479,7 +479,7 @@ describe('integration: real runtime + memory + seed', () => {
         const subchats = parseSubchatsFromResults(messages);
         if (subchats.length === 0 && !state.opened) {
           state.opened = true;
-          return { toolCalls: [tc('open', 'open_subchat', { agentIds: [SEED_IDS.bob.agentId], taskId: currentTaskId })] };
+          return { toolCalls: [tc('open', 'open_subchat', { agentIds: [SEED_IDS.jack.agentId], taskId: currentTaskId })] };
         }
         if (subchats.length === 0) {
           return { reply: 'Waiting.' };
@@ -496,9 +496,9 @@ describe('integration: real runtime + memory + seed', () => {
       throw new Error(`adapter: unexpected invocation: ${sys.slice(0, 120)}`);
     });
 
-    const created = await emitAck<Task>(aliceC.socket, 'task:create', { title: 'Ping test' });
+    const created = await emitAck<Task>(bayzhanC.socket, 'task:create', { title: 'Ping test' });
     currentTaskId = (created.data as Task).id;
-    await emitAck<Message>(aliceC.socket, 'chat:send', { taskId: currentTaskId, body: HUMAN_REQUEST });
+    await emitAck<Message>(bayzhanC.socket, 'chat:send', { taskId: currentTaskId, body: HUMAN_REQUEST });
 
     await waitFor(() => {
       const t = get<{ status: string }>(server.db, 'SELECT status FROM tasks WHERE id = ?', currentTaskId);
@@ -518,7 +518,7 @@ describe('integration: real runtime + memory + seed', () => {
     );
     expect(agentMsgs.length).toBeLessThanOrEqual(12);
     expect(runtimeCalls.length).toBeLessThanOrEqual(30);
-    const closedEvent = aliceC.events.find((e) => e.event === 'subchat:closed');
+    const closedEvent = bayzhanC.events.find((e) => e.event === 'subchat:closed');
     const closedRow = get<{ outcome: string | null; summary: string | null; closed_at: number | null }>(
       server.db, 'SELECT outcome, summary, closed_at FROM subchats WHERE id = ?', subchat!.id,
     );
@@ -527,71 +527,71 @@ describe('integration: real runtime + memory + seed', () => {
     expect(closedRow?.outcome).toBe(closedPayload.outcome);
     expect(closedRow?.summary).toBe(closedPayload.summary);
     expect(typeof closedRow?.closed_at).toBe('number');
-    const capHist = await request(base).get(`/api/tasks/${currentTaskId}/messages`).set('Authorization', `Bearer ${alice.token}`);
+    const capHist = await request(base).get(`/api/tasks/${currentTaskId}/messages`).set('Authorization', `Bearer ${bayzhan.token}`);
     expect(capHist.status).toBe(200);
     expect(capHist.body.subchats[0].status).toBe('closed');
     expect(capHist.body.subchats[0].outcome).toBe(closedPayload.outcome);
     expect(capHist.body.subchats[0].closedAt).toBe(closedRow?.closed_at);
 
-    aliceC.socket.close(); bobC.socket.close();
+    bayzhanC.socket.close(); jackC.socket.close();
   }, 90_000);
 
   it("owner model cannot relay one peer's authorized facts to an untrusted peer", async () => {
-    const alice = await login('bayzhan');
-    const bob = await login('jack');
-    const erin = await login('akash');
-    const aliceC = await connectClient(alice.token);
-    const bobC = await connectClient(bob.token);
-    const erinC = await connectClient(erin.token);
+    const bayzhan = await login('bayzhan');
+    const jack = await login('jack');
+    const akash = await login('akash');
+    const bayzhanC = await connectClient(bayzhan.token);
+    const jackC = await connectClient(jack.token);
+    const akashC = await connectClient(akash.token);
 
     let currentTaskId = '';
-    const state = { openedBob: false, sentBob: false, openedErin: false, sentErin: false };
-    const bobAnswered = { done: false };
-    const erinAnswered = { done: false };
+    const state = { openedJack: false, sentJack: false, openedAkash: false, sentAkash: false };
+    const jackAnswered = { done: false };
+    const akashAnswered = { done: false };
     makeAdapter((messages) => {
       const sys = messages[0]?.content ?? '';
       if (sys.includes('Available peer directory')) {
         const subchats = parseSubchatsFromResults(messages);
-        const bobReplies = subchatReplies(messages, "Jack's Agent");
-        const erinReplies = subchatReplies(messages, "Akash's Agent");
-        if (!state.openedBob) {
-          state.openedBob = true;
-          return { toolCalls: [tc('open-bob', 'open_subchat', { agentIds: [SEED_IDS.bob.agentId], taskId: currentTaskId })] };
+        const jackReplies = subchatReplies(messages, "Jack's Agent");
+        const akashReplies = subchatReplies(messages, "Akash's Agent");
+        if (!state.openedJack) {
+          state.openedJack = true;
+          return { toolCalls: [tc('open-jack', 'open_subchat', { agentIds: [SEED_IDS.jack.agentId], taskId: currentTaskId })] };
         }
-        if (subchats.length > 0 && !state.sentBob) {
-          state.sentBob = true;
-          return { toolCalls: [tc('req-bob', 'send_subchat_message', { subchatId: subchats[subchats.length - 1].id, body: 'Please share what you can within scope: location_area, price, dates.' })] };
+        if (subchats.length > 0 && !state.sentJack) {
+          state.sentJack = true;
+          return { toolCalls: [tc('req-jack', 'send_subchat_message', { subchatId: subchats[subchats.length - 1].id, body: 'Please share what you can within scope: location_area, price, dates.' })] };
         }
-        if (bobReplies.length === 0) {
+        if (jackReplies.length === 0) {
           return { reply: 'Waiting for Jack.' };
         }
-        if (!state.openedErin) {
-          state.openedErin = true;
-          return { toolCalls: [tc('open-erin', 'open_subchat', { agentIds: [SEED_IDS.erin.agentId], taskId: currentTaskId })] };
+        if (!state.openedAkash) {
+          state.openedAkash = true;
+          return { toolCalls: [tc('open-akash', 'open_subchat', { agentIds: [SEED_IDS.akash.agentId], taskId: currentTaskId })] };
         }
-        if (!state.sentErin) {
-          state.sentErin = true;
-          const bobBody = bobReplies[bobReplies.length - 1].split('\n').pop() as string;
-          const erinSubchat = subchats[subchats.length - 1];
-          return { toolCalls: [tc('relay', 'send_subchat_message', { subchatId: erinSubchat.id, body: bobBody })] };
+        if (!state.sentAkash) {
+          state.sentAkash = true;
+          const jackBody = jackReplies[jackReplies.length - 1].split('\n').pop() as string;
+          const akashSubchat = subchats[subchats.length - 1];
+          return { toolCalls: [tc('relay', 'send_subchat_message', { subchatId: akashSubchat.id, body: jackBody })] };
         }
         if (toolResults(messages).some((m) => m.toolCallId === 'relay' && /^(Error:|Invalid arguments:)/.test(m.content))) {
           return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'stuck', summary: 'Relay blocked' })] };
         }
-        if (erinReplies.length > 0) {
+        if (akashReplies.length > 0) {
           return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'done', summary: 'Peer exchange completed.' })] };
         }
         return { reply: 'Waiting for Akash.' };
       }
-      if (sys.includes("Jack's Agent")) return peerQueryThenReply(SEED_IDS.bob.userId, bobAnswered)(messages);
-      if (sys.includes("Akash's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, erinAnswered)(messages);
+      if (sys.includes("Jack's Agent")) return peerQueryThenReply(SEED_IDS.jack.userId, jackAnswered)(messages);
+      if (sys.includes("Akash's Agent")) return peerQueryThenReply(SEED_IDS.akash.userId, akashAnswered)(messages);
       throw new Error('adapter: unexpected invocation');
     });
 
-    const created = await emitAck<Task>(aliceC.socket, 'task:create', { title: 'Sublet search' });
+    const created = await emitAck<Task>(bayzhanC.socket, 'task:create', { title: 'Sublet search' });
     expect(created.ok).toBe(true);
     currentTaskId = (created.data as Task).id;
-    const sent = await emitAck<Message>(aliceC.socket, 'chat:send', { taskId: currentTaskId, body: HUMAN_REQUEST });
+    const sent = await emitAck<Message>(bayzhanC.socket, 'chat:send', { taskId: currentTaskId, body: HUMAN_REQUEST });
     expect(sent.ok).toBe(true);
 
     await waitFor(() => {
@@ -600,35 +600,35 @@ describe('integration: real runtime + memory + seed', () => {
     }, 30_000);
     await new Promise((r) => setTimeout(r, 500));
 
-    const bobAudit = get<{ released_json: string; withheld_count: number; decision: string }>(
+    const jackAudit = get<{ released_json: string; withheld_count: number; decision: string }>(
       server.db,
       'SELECT released_json, withheld_count, decision FROM disclosures WHERE owner_user_id = ?',
-      SEED_IDS.bob.userId,
+      SEED_IDS.jack.userId,
     );
-    expect(bobAudit).toBeDefined();
-    expect(JSON.parse(bobAudit!.released_json)).toHaveLength(3);
-    expect(bobAudit!.withheld_count).toBe(3);
-    expect(bobAudit!.decision).toBe('partial');
+    expect(jackAudit).toBeDefined();
+    expect(JSON.parse(jackAudit!.released_json)).toHaveLength(3);
+    expect(jackAudit!.withheld_count).toBe(3);
+    expect(jackAudit!.decision).toBe('partial');
 
-    const erinSocketPayloads = JSON.stringify(erinC.events);
-    const erinModelInputs = JSON.stringify(
+    const akashSocketPayloads = JSON.stringify(akashC.events);
+    const akashModelInputs = JSON.stringify(
       runtimeCalls.filter((c) => String(c.messages[0]?.content ?? '').includes("Akash's Agent")).map((c) => c.messages),
     );
-    expect(hasSentinel(erinSocketPayloads + erinModelInputs, BOB_NETWORK_SENTINELS)).toBe(false);
+    expect(hasSentinel(akashSocketPayloads + akashModelInputs, JACK_NETWORK_SENTINELS)).toBe(false);
 
-    const aliceMain = all<{ body: string }>(
+    const bayzhanMain = all<{ body: string }>(
       server.db,
       "SELECT body FROM messages WHERE task_id = ? AND subchat_id IS NULL",
       currentTaskId,
     ).map((m) => m.body);
-    expect(hasSentinel(JSON.stringify(aliceMain), PRIVATE_SENTINELS)).toBe(false);
+    expect(hasSentinel(JSON.stringify(bayzhanMain), PRIVATE_SENTINELS)).toBe(false);
   }, 60_000);
 
   it('private owner note in explanatory scope purpose never enters peer context', async () => {
-    const alice = await login('bayzhan');
-    const erin = await login('akash');
-    const aliceC = await connectClient(alice.token);
-    const erinC = await connectClient(erin.token);
+    const bayzhan = await login('bayzhan');
+    const akash = await login('akash');
+    const bayzhanC = await connectClient(bayzhan.token);
+    const akashC = await connectClient(akash.token);
 
     const NOTE = 'Private owner note: OWNER-CONTEXT-SENTINEL';
     classifierFacts = [
@@ -639,32 +639,32 @@ describe('integration: real runtime + memory + seed', () => {
 
     let currentTaskId = '';
     const state = { opened: false, sent: false };
-    const erinAnswered = { done: false };
+    const akashAnswered = { done: false };
     makeAdapter((messages) => {
       const sys = messages[0]?.content ?? '';
       if (sys.includes('Available peer directory')) {
         const subchats = parseSubchatsFromResults(messages);
         if (!state.opened) {
           state.opened = true;
-          return { toolCalls: [tc('open-erin', 'open_subchat', { agentIds: [SEED_IDS.erin.agentId], taskId: currentTaskId })] };
+          return { toolCalls: [tc('open-akash', 'open_subchat', { agentIds: [SEED_IDS.akash.agentId], taskId: currentTaskId })] };
         }
         if (subchats.length > 0 && !state.sent) {
           state.sent = true;
           return { toolCalls: [tc('req', 'send_subchat_message', { subchatId: subchats[0].id, body: 'Share what you can within scope.' })] };
         }
-        const erinReplies = subchatReplies(messages, "Akash's Agent");
-        if (erinReplies.length > 0) {
+        const akashReplies = subchatReplies(messages, "Akash's Agent");
+        if (akashReplies.length > 0) {
           return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'done', summary: 'Peer exchange completed.' })] };
         }
         return { reply: 'Waiting for Akash.' };
       }
-      if (sys.includes("Akash's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, erinAnswered)(messages);
+      if (sys.includes("Akash's Agent")) return peerQueryThenReply(SEED_IDS.akash.userId, akashAnswered)(messages);
       throw new Error('adapter: unexpected invocation');
     });
 
-    const created = await emitAck<Task>(aliceC.socket, 'task:create', { title: 'Sublet search' });
+    const created = await emitAck<Task>(bayzhanC.socket, 'task:create', { title: 'Sublet search' });
     currentTaskId = (created.data as Task).id;
-    const sent = await emitAck<Message>(aliceC.socket, 'chat:send', {
+    const sent = await emitAck<Message>(bayzhanC.socket, 'chat:send', {
       taskId: currentTaskId,
       body: `${HUMAN_REQUEST}\n${NOTE}`,
     });
@@ -684,13 +684,13 @@ describe('integration: real runtime + memory + seed', () => {
     expect(noteRow!.classification).toBe('private');
     expect(JSON.parse(noteRow!.field_tags)).toContain('identifier');
 
-    const erinSocketPayloads = JSON.stringify(erinC.events);
-    const erinModelInputs = JSON.stringify(
+    const akashSocketPayloads = JSON.stringify(akashC.events);
+    const akashModelInputs = JSON.stringify(
       runtimeCalls.filter((c) => String(c.messages[0]?.content ?? '').includes("Akash's Agent")).map((c) => c.messages),
     );
-    const foreignHist = await request(base).get(`/api/tasks/${currentTaskId}/messages`).set('Authorization', `Bearer ${erin.token}`);
+    const foreignHist = await request(base).get(`/api/tasks/${currentTaskId}/messages`).set('Authorization', `Bearer ${akash.token}`);
     expect(foreignHist.status).toBe(404);
-    const scan = erinSocketPayloads + erinModelInputs + JSON.stringify(foreignHist.body);
+    const scan = akashSocketPayloads + akashModelInputs + JSON.stringify(foreignHist.body);
     expect(scan.includes('OWNER-CONTEXT-SENTINEL')).toBe(false);
   }, 60_000);
 });
