@@ -9,7 +9,9 @@ import type {
 
 export interface FakeMemoryOptions {
   items?: MemoryItem[];
+  itemsByOwner?: Record<ID, MemoryItem[]>;
   withheldCount?: number;
+  withheldCountByOwner?: Record<ID, number>;
   ingestError?: Error;
   extractGoalsError?: Error;
 }
@@ -42,19 +44,21 @@ export function createFakeMemory(options: FakeMemoryOptions = {}): {
     },
     async queryMemory(ownerUserId, requesterUserId, scope) {
       calls.queryMemory.push({ ownerUserId, requesterUserId, scope });
+      const items = options.itemsByOwner?.[ownerUserId] ?? options.items ?? [];
+      const withheldCount = options.withheldCountByOwner?.[ownerUserId] ?? options.withheldCount ?? 0;
       const disclosure: Disclosure = {
         id: 'fixture-disclosure',
         ownerUserId,
         requesterAgentId: 'fixture-requester',
         scope,
-        released: options.items?.map(({ content }) => content) ?? [],
-        withheldCount: options.withheldCount ?? 0,
+        released: items.map(({ content }) => content),
+        withheldCount,
         decision: 'released',
         createdAt: 1,
       };
       return {
-        items: options.items ?? [],
-        withheldCount: options.withheldCount ?? 0,
+        items,
+        withheldCount,
         disclosure,
       };
     },

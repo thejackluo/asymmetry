@@ -183,6 +183,28 @@ describe('trusted-context agent tools', () => {
     }
   });
 
+  it('uses the task owner as requester for owner-mode memory queries', async () => {
+    const { db, ownerCtx, calls } = setup();
+    try {
+      const result = await executeToolCall(ownerCtx, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.alice,
+        scope: { fields: ['price'] },
+      }));
+      expect(JSON.parse(result.content).withheldCount).toBe(2);
+      expect(calls.queryMemory[0]).toEqual({
+        ownerUserId: FIXTURE_IDS.users.alice,
+        requesterUserId: FIXTURE_IDS.users.alice,
+        scope: {
+          taskId: ownerCtx.taskId,
+          purpose: 'find a summer sublet',
+          fields: ['price'],
+        },
+      });
+    } finally {
+      db.close();
+    }
+  });
+
   it('A2A-04: sends participant messages and schedules every other peer but rejects non-participants', async () => {
     const { db, ownerCtx, rt, emissions } = setup();
     try {

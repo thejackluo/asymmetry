@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LLMClient, LLMMessage, ToolSpec } from './llm.js';
+import type { LLMClient, LLMMessage, LLMResult, ToolSpec } from './llm.js';
 import { createAgentRuntime } from './runtime.js';
 import { createSubchat, createTask, getTask, insertMessage, putTaskScope, listSubchatMessages } from './repo.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
@@ -108,7 +108,7 @@ describe('agent runtime queues and loops', () => {
     const { io } = createFakeIO();
     const task = createScopedTask(db);
     const llm: LLMClient = {
-      chat: () => new Promise(() => undefined),
+      chat: () => new Promise<LLMResult>(() => undefined),
     };
     const runtime = createAgentRuntime({
       io,
@@ -142,7 +142,11 @@ describe('agent runtime queues and loops', () => {
           if (!latest) {
             throw new Error('open_subchat tool result was not provided to the owner');
           }
-          const subchatId = (JSON.parse(latest.content) as { id: string }).id;
+          const result = JSON.parse(latest.content) as { id?: string; subchatId?: string };
+          const subchatId = result.subchatId ?? result.id;
+          if (!subchatId) {
+            throw new Error('subchat id was not present in the previous tool result');
+          }
           return {
             toolCalls: [{
               id: `owner-turn-${index}`,

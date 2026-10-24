@@ -117,7 +117,7 @@ export function networkPayload(db: Database, userId: ID): NetworkPayload {
   const trusted = [...new Set(
     outgoingTrustEdges(db, userId)
       .map(({ trustedUserId }) => userAgents.get(trustedUserId))
-      .filter((agentId): agentId is ID => agentId !== undefined),
+      .filter((agentId): agentId is ID => agentId !== undefined && agentId !== owner?.agent_id),
   )];
   const trustedIds = new Set(trusted);
 

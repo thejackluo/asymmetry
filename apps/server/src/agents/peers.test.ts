@@ -36,6 +36,9 @@ describe('peer directory', () => {
     const db = createFixtureDb();
     try {
       const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a car');
+      db.prepare(
+        'INSERT INTO trust_edges (owner_user_id, trusted_user_id, created_at) VALUES (?, ?, ?)',
+      ).run(FIXTURE_IDS.users.alice, FIXTURE_IDS.users.alice, 10);
       createSubchat(db, task.id, [
         FIXTURE_IDS.agents.alice,
         FIXTURE_IDS.agents.dave,

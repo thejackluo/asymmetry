@@ -2,7 +2,7 @@ import type { Socket } from 'socket.io';
 import { describe, expect, it, vi } from 'vitest';
 import { createAgentRuntime } from './runtime.js';
 import { EVENTS } from './events.js';
-import { createTask, getTask, getTaskScope, insertMessage, listMainThreadMessages, listSubchatsByTask, listSubchatMessages, putTaskScope } from './repo.js';
+import { createTask, getTask, getTaskScope, listMainThreadMessages, listSubchatsByTask, listSubchatMessages, putTaskScope } from './repo.js';
 import { networkPayload } from './peers.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
 import { createFakeIO } from './test/fakeIO.js';
@@ -195,7 +195,8 @@ describe('agent inbox handlers', () => {
       'Find a summer sublet near Georgia Tech, May–Aug, under $1200/mo',
     );
     const { memory } = createFakeMemory({
-      items: [
+      itemsByOwner: {
+        [FIXTURE_IDS.users.bob]: [
         {
           id: 'fact-room-1',
           userId: FIXTURE_IDS.users.bob,
@@ -223,8 +224,9 @@ describe('agent inbox handlers', () => {
           source: 'seed',
           createdAt: 3,
         },
-      ],
-      withheldCount: 2,
+        ],
+      },
+      withheldCountByOwner: { [FIXTURE_IDS.users.bob]: 2 },
     });
     const latestSubchatId = (messages: Array<{ role: string; content: string }>): string => {
       const toolMessage = [...messages].reverse().find(({ role }) => role === 'tool');
