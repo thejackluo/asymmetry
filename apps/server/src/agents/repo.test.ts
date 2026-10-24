@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { subchatRoom, userRoom } from '@asymmetry/shared';
 import {
   agentByUser,
@@ -108,6 +108,67 @@ describe('agent repository', () => {
     }
   });
 
+  it('orders messages and subchats by id when created_at timestamps tie', () => {
+    const db = createFixtureDb();
+    const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a room');
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    try {
+      const subchat = createSubchat(db, task.id, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const firstMain = insertMessage(db, {
+        taskId: task.id,
+        senderType: 'human',
+        senderId: FIXTURE_IDS.users.alice,
+        body: 'first',
+      });
+      const secondMain = insertMessage(db, {
+        taskId: task.id,
+        senderType: 'human',
+        senderId: FIXTURE_IDS.users.alice,
+        body: 'second',
+      });
+      const firstPeer = insertMessage(db, {
+        taskId: task.id,
+        subchatId: subchat.id,
+        senderType: 'agent',
+        senderId: FIXTURE_IDS.agents.bob,
+        body: 'first peer',
+      });
+      const secondPeer = insertMessage(db, {
+        taskId: task.id,
+        subchatId: subchat.id,
+        senderType: 'agent',
+        senderId: FIXTURE_IDS.agents.bob,
+        body: 'second peer',
+      });
+      sortRowsAgainstIdOrder(db, firstMain.id, secondMain.id);
+      sortRowsAgainstIdOrder(db, firstPeer.id, secondPeer.id);
+
+      db.prepare(
+        `INSERT INTO subchats (id, task_id, kind, status, outcome, summary, closed_at, created_at)
+         VALUES (?, ?, 'pair', 'open', NULL, NULL, NULL, ?)`,
+      ).run('z-subchat', task.id, Date.now());
+      db.prepare(
+        `INSERT INTO subchats (id, task_id, kind, status, outcome, summary, closed_at, created_at)
+         VALUES (?, ?, 'pair', 'open', NULL, NULL, NULL, ?)`,
+      ).run('a-subchat', task.id, Date.now());
+
+      expect(firstMain.createdAt).toBe(secondMain.createdAt);
+      expect(firstPeer.createdAt).toBe(secondPeer.createdAt);
+      expect(listMainThreadMessages(db, task.id).map(({ id }) => id))
+        .toEqual([firstMain.id, secondMain.id].sort((a, b) => a.localeCompare(b)));
+      expect(listSubchatMessages(db, subchat.id).map(({ id }) => id))
+        .toEqual([firstPeer.id, secondPeer.id].sort((a, b) => a.localeCompare(b)));
+      expect(listSubchatsByTask(db, task.id).map(({ id }) => id))
+        .toEqual([subchat.id, 'z-subchat', 'a-subchat'].sort((a, b) => a.localeCompare(b)));
+    } finally {
+      now.mockRestore();
+      db.close();
+    }
+  });
+
   it('updates agent status and maps users, agents, and outgoing trust edges', () => {
     const db = createFixtureDb();
     try {
@@ -124,3 +185,15 @@ describe('agent repository', () => {
     }
   });
 });
+
+function sortRowsAgainstIdOrder(
+  db: ReturnType<typeof createFixtureDb>,
+  firstId: string,
+  secondId: string,
+): void {
+  if (firstId.localeCompare(secondId) < 0) {
+    db.prepare('UPDATE messages SET id = ? WHERE id = ?').run(`temporary-${firstId}`, firstId);
+    db.prepare('UPDATE messages SET id = ? WHERE id = ?').run(firstId, secondId);
+    db.prepare('UPDATE messages SET id = ? WHERE id = ?').run(secondId, `temporary-${firstId}`);
+  }
+}

@@ -124,7 +124,7 @@ describe('agent runtime queues and loops', () => {
       const rows = db.prepare(
         "SELECT body FROM messages WHERE task_id = ? AND subchat_id IS NULL AND sender_type = 'agent'",
       ).all(task.id) as Array<{ body: string }>;
-      expect(rows).toEqual([{ body: 'model request timed out after 50ms' }]);
+      expect(rows).toEqual([{ body: 'model request timed out' }]);
     } finally {
       db.close();
     }

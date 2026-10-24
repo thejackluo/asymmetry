@@ -6,6 +6,8 @@ import { io as createClient, type Socket as ClientSocket } from 'socket.io-clien
 import { userRoom } from '@asymmetry/shared';
 import { EVENTS } from './events.js';
 import { registerAgents } from './index.js';
+import { createSubchat } from './repo.js';
+import { closeSubchatAndNotify } from './subchats.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
 import { createFakeMemory } from './test/fakeMemory.js';
 
@@ -95,6 +97,44 @@ describe('agent socket integration', () => {
       expect((humanMessage as { body: string }).body).toBe('Find a room near campus');
       await taskUpdatedPromise;
       expect(daveEvents).toEqual([]);
+
+      const subchat = createSubchat(db, task.id, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const closedEventPromise = waitForEvent(
+        alice,
+        EVENTS.SUBCHAT_CLOSED,
+        (payload) => (payload as { subchatId?: string }).subchatId === subchat.id,
+      );
+      expect(closeSubchatAndNotify(db, ioServer, subchat.id, 'done', 'demo completed')).toBe(true);
+      const closedEvent = await closedEventPromise as {
+        subchatId: string;
+        outcome: string;
+        summary: string;
+      };
+      const closedRows = db.prepare(
+        'SELECT * FROM subchats WHERE task_id = ? ORDER BY created_at, id',
+      ).all(task.id) as Array<{
+        id: string;
+        status: string;
+        outcome: string | null;
+        summary: string | null;
+        closed_at: number | null;
+      }>;
+      const closedRow = closedRows.find(({ id }) => id === subchat.id);
+      expect(closedRow).toBeDefined();
+      expect(closedRow).toMatchObject({
+        status: 'closed',
+        outcome: 'done',
+        summary: 'demo completed',
+        closed_at: expect.any(Number),
+      });
+      expect(closedEvent).toEqual({
+        subchatId: closedRow?.id,
+        outcome: closedRow?.outcome,
+        summary: closedRow?.summary,
+      });
     } finally {
       alice?.disconnect();
       dave?.disconnect();
