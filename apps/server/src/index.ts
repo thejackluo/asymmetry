@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import {
   userRoom,
   type Agent,
+  type DisclosureNotice,
   type Message,
   type Subchat,
   type Task,
@@ -55,7 +56,20 @@ interface SubchatRow {
   task_id: string;
   kind: Subchat['kind'];
   status: Subchat['status'];
+  outcome: Subchat['outcome'];
+  summary: string | null;
+  closed_at: number | null;
   created_at: number;
+}
+
+interface DisclosureRow {
+  id: string;
+  owner_user_id: string;
+  scope_json: string;
+  released_json: string;
+  withheld_count: number;
+  decision: DisclosureNotice['decision'];
+  owner_agent_id: string;
 }
 
 interface AgentRow {
@@ -77,6 +91,53 @@ const toMessage = (r: MessageRow): Message => ({
 const toAgent = (r: AgentRow): Agent => ({
   id: r.id, userId: r.user_id, name: r.name, status: r.status,
 });
+
+const toSubchat = (r: SubchatRow, participantAgentIds: string[]): Subchat => ({
+  id: r.id, taskId: r.task_id, kind: r.kind, status: r.status,
+  outcome: r.outcome, summary: r.summary, closedAt: r.closed_at,
+  participantAgentIds, createdAt: r.created_at,
+});
+
+const DECISIONS = new Set(['released', 'partial', 'denied']);
+
+const toDisclosureNotice = (
+  row: DisclosureRow,
+  taskId: string,
+  validSubchatIds: Set<string>,
+): DisclosureNotice | null => {
+  let scope: { taskId?: unknown; subchatId?: unknown };
+  let releasedIds: unknown;
+  try {
+    scope = JSON.parse(row.scope_json) as { taskId?: unknown; subchatId?: unknown };
+    releasedIds = JSON.parse(row.released_json);
+  } catch {
+    return null;
+  }
+  if (scope.taskId !== taskId) return null;
+  let subchatId: string | null = null;
+  if (scope.subchatId !== undefined && scope.subchatId !== null) {
+    if (typeof scope.subchatId !== 'string' || !validSubchatIds.has(scope.subchatId)) return null;
+    subchatId = scope.subchatId;
+  }
+  if (
+    !Array.isArray(releasedIds) ||
+    !releasedIds.every((id) => typeof id === 'string') ||
+    !Number.isInteger(row.withheld_count) ||
+    row.withheld_count < 0 ||
+    !DECISIONS.has(row.decision)
+  ) {
+    return null;
+  }
+  return {
+    id: row.id,
+    taskId,
+    subchatId,
+    ownerAgentId: row.owner_agent_id,
+    releasedCount: releasedIds.length,
+    withheldCount: row.withheld_count,
+    decision: row.decision,
+  };
+};
 
 const stubModeAllowed = (): boolean =>
   (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') &&
@@ -105,14 +166,6 @@ export function createServer(options: ServerOptions = {}): AsymmetryServer {
     const openai = options.openai ?? createOpenAI();
     const memory = createMemoryEngine(db, openai, io);
 
-    app.use(express.json());
-    app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-      if (err instanceof SyntaxError) {
-        res.status(400).json({ error: 'invalid request' });
-        return;
-      }
-      next(err);
-    });
     app.use((req, res, next) => {
       res.setHeader('Access-Control-Allow-Origin', frontendOrigin);
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -124,9 +177,17 @@ export function createServer(options: ServerOptions = {}): AsymmetryServer {
       }
       next();
     });
+    app.use(express.json({ limit: '256kb' }));
+    app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (err instanceof SyntaxError || (typeof err === 'object' && err !== null && 'status' in err && (err as { status: number }).status === 400)) {
+        res.status(400).json({ error: { code: 'BAD_INPUT', message: 'invalid request' } });
+        return;
+      }
+      next(err);
+    });
 
     app.get('/health', (_req, res) => {
-      res.json({ status: 'ok' });
+      res.json({ ok: true, service: 'asymmetry-api' });
     });
 
     registerAuth(app, db);
@@ -141,7 +202,7 @@ export function createServer(options: ServerOptions = {}): AsymmetryServer {
     app.get('/api/tasks/:id/messages', authed, (req, res) => {
       const task = get<TaskRow>(db, 'SELECT * FROM tasks WHERE id = ? AND user_id = ?', req.params.id, req.userId);
       if (!task) {
-        res.status(404).json({ error: 'not found' });
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'not found' } });
         return;
       }
       const messages = all<MessageRow>(
@@ -151,15 +212,23 @@ export function createServer(options: ServerOptions = {}): AsymmetryServer {
       ).map(toMessage);
       const subchatRows = all<SubchatRow>(db, 'SELECT * FROM subchats WHERE task_id = ? ORDER BY created_at, id', task.id);
       const participantStmt = db.prepare('SELECT agent_id FROM subchat_participants WHERE subchat_id = ?');
-      const subchats: Subchat[] = subchatRows.map((r) => ({
-        id: r.id,
-        taskId: r.task_id,
-        kind: r.kind,
-        status: r.status,
-        createdAt: r.created_at,
-        participantAgentIds: (participantStmt.all(r.id) as { agent_id: string }[]).map((p) => p.agent_id),
-      }));
-      res.json({ task: toTask(task), messages, subchats });
+      const subchats: Subchat[] = subchatRows.map((r) =>
+        toSubchat(r, (participantStmt.all(r.id) as { agent_id: string }[]).map((p) => p.agent_id)),
+      );
+      const disclosureRows = all<DisclosureRow>(
+        db,
+        `SELECT d.*, a.id AS owner_agent_id FROM disclosures d
+         JOIN agents a ON a.user_id = d.owner_user_id
+         WHERE CASE WHEN json_valid(d.scope_json)
+               THEN json_extract(d.scope_json, '$.taskId') END = ?
+         ORDER BY d.created_at, d.id`,
+        task.id,
+      );
+      const validSubchatIds = new Set(subchatRows.map((r) => r.id));
+      const disclosures = disclosureRows
+        .map((r) => toDisclosureNotice(r, task.id, validSubchatIds))
+        .filter((n): n is DisclosureNotice => n !== null);
+      res.json({ task: toTask(task), messages, subchats, disclosures });
     });
 
     app.get('/api/network', authed, (req, res) => {
@@ -199,10 +268,10 @@ export function createServer(options: ServerOptions = {}): AsymmetryServer {
     registerAgents(io, db, memory);
 
     app.use((_req, res) => {
-      res.status(404).json({ error: 'not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'not found' } });
     });
     app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-      res.status(500).json({ error: 'internal error' });
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'internal error' } });
     });
 
     io.use(socketAuth(db));

@@ -44,7 +44,9 @@ required once the approved requirements are clear.
 
 ## Runtime Notes (learned during implementation)
 
-- Runtime: Node 22+ and npm 10+ declared in manifest `engines`;
+- Runtime: developed and tested on Node 22.18 / npm 10. Manifests declare
+  supported ranges `^22.12 || ^24 || >=26` and npm `>=10`; a root `preinstall`
+  script prints an actionable error outside those ranges (no .npmrc policy).
   better-sqlite3 native builds are validated on Node 22 only.
 - Root commands: `npm run dev` (builds shared, runs server + web via
   concurrently), `npm run typecheck`, `npm test` (builds shared first).

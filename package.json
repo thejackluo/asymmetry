@@ -13,13 +13,14 @@
     "pretest": "npm run build -w @asymmetry/shared",
     "test": "npm test --workspaces --if-present",
     "seed": "npm run seed -w @asymmetry/server",
-    "typecheck": "npm run build -w @asymmetry/shared && npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run build -w @asymmetry/shared && npm run typecheck --workspaces --if-present",
+    "preinstall": "node -e \"const v=process.versions.node.split('.').map(Number);const ok=(v[0]===22&&v[1]>=12)||v[0]===24||v[0]>=26;if(!ok){console.error('asymmetry requires Node ^22.12 or ^24 or >=26; got '+process.version);process.exit(1)}const m=(process.env.npm_config_user_agent||'').match(/npm\\/(\\d+)/);if(m&&Number(m[1])<10){console.error('asymmetry requires npm >=10; got npm/'+m[1]);process.exit(1)}\""
   },
   "devDependencies": {
     "concurrently": "9.1.2"
   },
   "engines": {
-    "node": ">=22",
+    "node": "^22.12.0 || ^24.0.0 || >=26.0.0",
     "npm": ">=10"
   }
 }

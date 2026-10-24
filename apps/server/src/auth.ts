@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Express, NextFunction, Request, Response } from 'express';
 import type { Socket } from 'socket.io';
 import bcrypt from 'bcryptjs';
@@ -13,7 +13,28 @@ declare module 'express-serve-static-core' {
 
 const USERNAME_RE = /^[a-z0-9_-]{3,32}$/;
 const BCRYPT_MAX_BYTES = 72;
+const SHA256_PREFIX = 'bcrypt-sha256:';
 const INVALID_CREDENTIALS = 'invalid credentials';
+
+const sha256Hex = (password: string): string =>
+  createHash('sha256').update(password, 'utf8').digest('hex');
+
+const hashPassword = async (password: string): Promise<string> => {
+  if (Buffer.byteLength(password, 'utf8') <= BCRYPT_MAX_BYTES) {
+    return bcrypt.hash(password, 10);
+  }
+  return `${SHA256_PREFIX}${await bcrypt.hash(sha256Hex(password), 10)}`;
+};
+
+const verifyPassword = async (password: string, stored: string): Promise<boolean> => {
+  if (stored.startsWith(SHA256_PREFIX)) {
+    return bcrypt.compare(sha256Hex(password), stored.slice(SHA256_PREFIX.length));
+  }
+  if (Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) {
+    return false;
+  }
+  return bcrypt.compare(password, stored);
+};
 
 interface UserRow {
   id: string;
@@ -48,25 +69,21 @@ export function registerAuth(app: Express, db: Database): void {
       const username = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
       const password = typeof body?.password === 'string' ? body.password : '';
       if (!USERNAME_RE.test(username) || password.length < 4 || password.length > 128) {
-        res.status(400).json({ error: 'invalid request' });
-        return;
-      }
-      if (Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) {
-        res.status(400).json({ error: 'password exceeds 72-byte limit' });
+        res.status(400).json({ error: { code: 'BAD_INPUT', message: 'invalid request' } });
         return;
       }
 
       const existing = findUserByUsername(db, username);
       if (existing) {
-        if (!(await bcrypt.compare(password, existing.pass_hash))) {
-          res.status(401).json({ error: INVALID_CREDENTIALS });
+        if (!(await verifyPassword(password, existing.pass_hash))) {
+          res.status(401).json({ error: { code: 'UNAUTHORIZED', message: INVALID_CREDENTIALS } });
           return;
         }
         res.json({ token: createSession(db, existing.id), user: publicUser(existing) });
         return;
       }
 
-      const passHash = await bcrypt.hash(password, 10);
+      const passHash = await hashPassword(password);
       const now = Date.now();
       const registered = db.transaction((): { row: UserRow; token: string | null } => {
         const raced = findUserByUsername(db, username);
@@ -84,8 +101,8 @@ export function registerAuth(app: Express, db: Database): void {
       })();
 
       if (registered.token === null) {
-        if (!(await bcrypt.compare(password, registered.row.pass_hash))) {
-          res.status(401).json({ error: INVALID_CREDENTIALS });
+        if (!(await verifyPassword(password, registered.row.pass_hash))) {
+          res.status(401).json({ error: { code: 'UNAUTHORIZED', message: INVALID_CREDENTIALS } });
           return;
         }
         res.json({ token: createSession(db, registered.row.id), user: publicUser(registered.row) });
@@ -110,12 +127,12 @@ export function authMiddleware(db: Database) {
     const header = req.headers.authorization;
     const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : '';
     if (!token) {
-      res.status(401).json({ error: 'unauthorized' });
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'unauthorized' } });
       return;
     }
     const session = sessionUser(db, token);
     if (!session) {
-      res.status(401).json({ error: 'unauthorized' });
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'unauthorized' } });
       return;
     }
     req.userId = session.userId;

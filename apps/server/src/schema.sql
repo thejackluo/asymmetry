@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS task_scopes (
   purpose TEXT NOT NULL, fields_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS subchats (
   id TEXT PRIMARY KEY, task_id TEXT NOT NULL, kind TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL);
+  status TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL,
+  outcome TEXT, summary TEXT, closed_at INTEGER);
 CREATE TABLE IF NOT EXISTS subchat_participants (
   subchat_id TEXT NOT NULL, agent_id TEXT NOT NULL,
   PRIMARY KEY (subchat_id, agent_id));

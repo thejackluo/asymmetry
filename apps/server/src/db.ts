@@ -26,6 +26,16 @@ export function openDatabase(path: string = resolveDatabasePath()): Database {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     db.exec(readFileSync(schemaPath(), 'utf8'));
+    db.transaction(() => {
+      const existing = new Set(
+        (db.prepare('PRAGMA table_info(subchats)').all() as { name: string }[]).map((c) => c.name),
+      );
+      for (const column of ['outcome', 'summary', 'closed_at']) {
+        if (!existing.has(column)) {
+          db.exec(`ALTER TABLE subchats ADD COLUMN ${column} ${column === 'closed_at' ? 'INTEGER' : 'TEXT'}`);
+        }
+      }
+    })();
     return db;
   } catch (err) {
     db.close();

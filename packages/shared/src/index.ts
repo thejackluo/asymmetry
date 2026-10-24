@@ -50,6 +50,9 @@ export interface Subchat {
   kind: 'pair' | 'group';
   participantAgentIds: ID[];
   status: 'open' | 'closed';
+  outcome: 'done' | 'stuck' | null;
+  summary: string | null;
+  closedAt: number | null;
   createdAt: number;
 }
 
@@ -132,9 +135,26 @@ export const SERVER_EVENTS = {
 export type ClientEvent = (typeof CLIENT_EVENTS)[keyof typeof CLIENT_EVENTS];
 export type ServerEvent = (typeof SERVER_EVENTS)[keyof typeof SERVER_EVENTS];
 
+export type ErrorCode =
+  | 'BAD_INPUT'
+  | 'UNAUTHORIZED'
+  | 'NOT_FOUND'
+  | 'CONFLICT'
+  | 'INTERNAL_ERROR';
+
+export type CommandResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: { code: ErrorCode; message: string } };
+
 export interface ClientToServerEvents {
-  'task:create': (payload: { title: string }) => void;
-  'chat:send': (payload: { taskId: ID; body: string }) => void;
+  'task:create': (
+    payload: { title: string },
+    ack?: (result: CommandResult<Task>) => void,
+  ) => void;
+  'chat:send': (
+    payload: { taskId: ID; body: string },
+    ack?: (result: CommandResult<Message>) => void,
+  ) => void;
 }
 
 export interface ServerToClientEvents {
