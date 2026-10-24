@@ -28,7 +28,7 @@ const PEOPLE = [
 
 export function createFixtureDb(): Database {
   const db = new Database(':memory:');
-  db.exec(readFileSync(new URL('../../../schema.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../../schema.sql', import.meta.url), 'utf8'));
 
   const insertUser = db.prepare(
     `INSERT INTO users (id, username, display_name, pass_hash, agent_id, created_at)
