@@ -431,7 +431,7 @@ describe('trusted-context agent tools', () => {
     }
   });
 
-  it('keeps an owner report out of peer subchat closure payloads and rows', async () => {
+  it('keeps an owner report out of every peer event, closure payload, and row', async () => {
     const { db, ownerCtx, emissions } = setup();
     try {
       const bobSubchat = createSubchat(db, ownerCtx.taskId, [
@@ -461,12 +461,20 @@ describe('trusted-context agent tools', () => {
       expect(report.stop).toBe(true);
       expect(listMainThreadMessages(db, ownerCtx.taskId).some(({ body }) => body === summary)).toBe(true);
       const erinPayloads = emissions
-        .filter(({ event, payload }) => event === EVENTS.SUBCHAT_MESSAGE
-          && (payload as { subchatId?: string }).subchatId === erinSubchat.id)
-        .map(({ payload }) => JSON.stringify(payload))
+        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.erin))
+        .map(({ event, payload }) => `${event} ${JSON.stringify(payload)}`)
         .join('\n');
       expect(erinPayloads).not.toContain(sentinel);
       expect(JSON.stringify(listSubchatMessages(db, erinSubchat.id))).not.toContain(sentinel);
+      const erinClosure = emissions.find(({ room, event, payload }) =>
+        room === userRoom(FIXTURE_IDS.users.erin)
+        && event === EVENTS.SUBCHAT_CLOSED
+        && (payload as { subchatId?: string }).subchatId === erinSubchat.id);
+      expect(erinClosure?.payload).toEqual({
+        subchatId: erinSubchat.id,
+        outcome: 'done',
+        summary: 'Closed: the requesting agent finished the task.',
+      });
       expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(erinSubchat.id)).toEqual({
         summary: 'Closed: the requesting agent finished the task.',
       });
@@ -511,37 +519,87 @@ describe('trusted-context agent tools', () => {
     }
   });
 
-  it('derives the owner status from other active tasks', async () => {
-    for (const scenario of [
-      { expected: 'negotiating' as const, openSubchat: true },
-      { expected: 'clarifying' as const, openSubchat: false },
-    ]) {
-      const { db, ownerCtx } = setup();
-      try {
-        const otherTask = createTask(db, FIXTURE_IDS.users.alice, 'Another active task');
-        if (scenario.openSubchat) {
-          putTaskScope(db, {
-            taskId: otherTask.id,
-            purpose: 'another task',
-            fields: ['location_area'],
-          });
-          createSubchat(db, otherTask.id, [
-            FIXTURE_IDS.agents.alice,
-            FIXTURE_IDS.agents.bob,
-          ]);
-        }
+  it('keeps the owner negotiating while another scoped owned task remains active', async () => {
+    const { db, ownerCtx } = setup();
+    try {
+      const otherTask = createTask(db, FIXTURE_IDS.users.alice, 'Another scoped task');
+      putTaskScope(db, {
+        taskId: otherTask.id,
+        purpose: 'another task',
+        fields: ['location_area'],
+      });
 
-        await executeToolCall(ownerCtx, toolCall('report_to_human', {
-          taskId: ownerCtx.taskId,
-          status: 'done',
-          summary: 'The reported task is complete.',
-        }));
+      await executeToolCall(ownerCtx, toolCall('report_to_human', {
+        taskId: ownerCtx.taskId,
+        status: 'done',
+        summary: 'The reported task is complete.',
+      }));
 
-        expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.alice))
-          .toEqual({ status: scenario.expected });
-      } finally {
-        db.close();
-      }
+      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.alice))
+        .toEqual({ status: 'negotiating' });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('keeps an owner negotiating while its agent participates in another owner’s open subchat', async () => {
+    const { db, ownerCtx } = setup();
+    try {
+      const bobTask = createTask(db, FIXTURE_IDS.users.bob, 'Bob’s active task');
+      putTaskScope(db, {
+        taskId: bobTask.id,
+        purpose: 'Bob’s active task',
+        fields: ['price'],
+      });
+      createSubchat(db, bobTask.id, [
+        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.alice,
+      ]);
+
+      await executeToolCall(ownerCtx, toolCall('report_to_human', {
+        taskId: ownerCtx.taskId,
+        status: 'done',
+        summary: 'The reported task is complete.',
+      }));
+
+      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.alice))
+        .toEqual({ status: 'negotiating' });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('keeps the owner clarifying while another owned active task is unscoped', async () => {
+    const { db, ownerCtx } = setup();
+    try {
+      createTask(db, FIXTURE_IDS.users.alice, 'Another unscoped task');
+
+      await executeToolCall(ownerCtx, toolCall('report_to_human', {
+        taskId: ownerCtx.taskId,
+        status: 'done',
+        summary: 'The reported task is complete.',
+      }));
+
+      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.alice))
+        .toEqual({ status: 'clarifying' });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('uses the reported terminal status when the owner has no remaining work', async () => {
+    const { db, ownerCtx } = setup();
+    try {
+      await executeToolCall(ownerCtx, toolCall('report_to_human', {
+        taskId: ownerCtx.taskId,
+        status: 'done',
+        summary: 'The reported task is complete.',
+      }));
+
+      expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.alice))
+        .toEqual({ status: 'done' });
+    } finally {
+      db.close();
     }
   });
 

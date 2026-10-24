@@ -51,6 +51,36 @@ describe('agent runtime queues and loops', () => {
     }
   });
 
+  it('schedules a later owner wake after an earlier job throws', async () => {
+    const db = createFixtureDb();
+    const { io } = createFakeIO();
+    const task = createScopedTask(db);
+    const llm = routedLLM({
+      "Alice's Agent": [
+        { reply: 'This write will fail.' },
+        { reply: 'The later wake recovered.' },
+      ],
+    });
+    const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm });
+    try {
+      db.exec(`CREATE TRIGGER reject_first_message BEFORE INSERT ON messages
+        BEGIN SELECT RAISE(ABORT, 'owner write failed'); END`);
+      runtime.wakeOwner(task.id);
+      await runtime.idle();
+      expect(llm.calls).toHaveLength(1);
+
+      db.exec('DROP TRIGGER reject_first_message');
+      runtime.wakeOwner(task.id);
+      await runtime.idle();
+
+      expect(llm.calls).toHaveLength(2);
+      expect(listMainThreadMessages(db, task.id).map(({ body }) => body))
+        .toContain('The later wake recovered.');
+    } finally {
+      db.close();
+    }
+  });
+
   it('limits a peer to its subchat transcript and runs its memory tool with owner-bound identity', async () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();
