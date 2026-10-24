@@ -21,7 +21,7 @@ export default function Header({ connected }: { connected?: boolean }) {
       href={href}
       className={`text-sm transition ${
         pathname === href
-          ? 'font-medium text-blue-700'
+          ? 'font-medium text-[#0a84ff]'
           : 'text-neutral-600 hover:text-neutral-900'
       }`}
     >
@@ -30,7 +30,7 @@ export default function Header({ connected }: { connected?: boolean }) {
   );
 
   return (
-    <header className="flex h-12 items-center justify-between border-b border-neutral-200 bg-neutral-50 px-3 sm:px-4">
+    <header className="flex h-14 items-center justify-between border-b border-neutral-200 bg-white px-3 sm:px-5">
       <div className="flex min-w-0 items-center gap-3 sm:gap-6">
         <span className="shrink-0 text-sm font-semibold tracking-wide text-neutral-900">
           Asymmetry
@@ -40,11 +40,14 @@ export default function Header({ connected }: { connected?: boolean }) {
       </div>
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         {connected !== undefined && (
-          <span
-            className={`whitespace-nowrap text-xs ${connected ? 'text-emerald-600' : 'text-red-600'}`}
-            role="status"
-          >
-            {connected ? '● connected' : '● reconnecting'}
+          <span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-neutral-500" role="status">
+            <span
+              aria-hidden="true"
+              className={`size-1.5 rounded-full ${
+                connected ? 'bg-emerald-500' : 'bg-amber-500'
+              }`}
+            />
+            {connected ? 'connected' : 'reconnecting'}
           </span>
         )}
         <span className="max-w-24 truncate text-xs text-neutral-500">

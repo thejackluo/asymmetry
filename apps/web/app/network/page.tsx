@@ -49,11 +49,11 @@ export default function NetworkPage() {
   if (!user) return null;
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col bg-white">
       <Header connected={connected} />
       {loadError ? (
         <div className="flex flex-1 items-center justify-center">
-          <p className="font-mono text-xs text-red-400">
+          <p className="text-sm text-red-600">
             couldn&apos;t load the network — reconnecting will retry
           </p>
         </div>
@@ -62,14 +62,14 @@ export default function NetworkPage() {
           <NetworkGraph network={network} myAgentId={user.agentId} />
         ) : (
           <div className="flex flex-1 items-center justify-center">
-            <p className="font-mono text-xs text-zinc-600">
+            <p className="text-sm text-neutral-500">
               no agents on the network yet
             </p>
           </div>
         )
       ) : (
         <div className="flex flex-1 items-center justify-center">
-          <p className="font-mono text-xs text-zinc-600">loading network…</p>
+          <p className="text-sm text-neutral-500">Loading network…</p>
         </div>
       )}
     </div>

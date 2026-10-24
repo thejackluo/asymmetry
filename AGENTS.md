@@ -31,8 +31,9 @@ instead of claiming an arbitrary branch.
 
 ## Truthful Status
 
-The repo is currently a specification package, not a completed application.
-Plans and checklists are not evidence that tests, reviewers, or pollers ran.
+This repository contains a working application: a Next.js web client, a
+Node/Socket.IO server, an agent runtime, and a memory engine. Plans and
+checklists are not evidence that tests, reviewers, or pollers ran.
 Missing credentials, unavailable review models, or branch protection blocks
 must be reported as blockers. Do not fabricate passing checks or approvals.
 
@@ -52,8 +53,9 @@ required once the approved requirements are clear.
   concurrently), `npm run typecheck`, `npm test` (builds shared first).
 - `NODE_ENV` must be `development` or `test` for stub mode; `APP_MODE=demo`
   always rejects stubs even when `NODE_ENV=development`.
-- `apps/web` and `src/agents`, `src/memory` implementations are placeholders
-  owned by D4/D2/D3; `npm run seed` exits 1 (not implemented, owned by D3).
+- `apps/web`, `apps/server/src/agents`, and `apps/server/src/memory` contain
+  working implementations. `npm run seed` successfully creates the demo
+  users, trust edges, and memory items in the selected database.
 - The entrypoint loads the repo-root `.env` regardless of cwd;
   `ASYMMETRY_ENV_FILE` overrides that path. `DATABASE_PATH` selects the SQLite
   file — always point tests/dev at a disposable temp path, never the root

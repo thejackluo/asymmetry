@@ -18,16 +18,9 @@ import {
   partitionMessages,
   routeDisclosures,
 } from '@/lib/utils';
+import Avatar from './Avatar';
 import MessageBubble from './MessageBubble';
 import SubchatPane from './SubchatPane';
-
-const statusStyle: Record<AgentStatus, string> = {
-  idle: 'border-neutral-300 bg-white text-neutral-500',
-  clarifying: 'border-blue-200 bg-blue-50 text-blue-700',
-  negotiating: 'border-blue-200 bg-blue-50 text-blue-700',
-  done: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  stuck: 'border-amber-200 bg-amber-50 text-amber-700',
-};
 
 interface PendingSend {
   id: string;
@@ -53,6 +46,7 @@ export default function TaskChat({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [pendingSends, setPendingSends] = useState<PendingSend[]>([]);
+  const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   // Generation guard: a fetch started under task A must never merge its
@@ -215,12 +209,9 @@ export default function TaskChat({
 
   function send(e: React.FormEvent) {
     e.preventDefault();
-    const input = (e.target as HTMLFormElement).elements.namedItem(
-      'body',
-    ) as HTMLInputElement;
-    const body = input.value.trim();
+    const body = draft.trim();
     if (!body) return;
-    input.value = '';
+    setDraft('');
 
     const localId = `local-${Date.now()}-${pendingSends.length}`;
     setPendingSends((p) => [...p, { id: localId, body, state: 'sending' }]);
@@ -249,45 +240,47 @@ export default function TaskChat({
     timersRef.current.push(t);
   }
 
-  const taskStatusStyle: Record<Task['status'], string> = {
-    active: 'border-blue-200 bg-blue-50 text-blue-700',
-    done: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    stuck: 'border-amber-200 bg-amber-50 text-amber-700',
+  const taskStatus: Record<Task['status'], { label: string; color: string }> = {
+    active: {
+      label: 'searching your network…',
+      color: 'text-[#0a84ff]',
+    },
+    done: { label: 'done', color: 'text-emerald-700' },
+    stuck: { label: 'needs attention', color: 'text-amber-700' },
   };
-
-  const pill = !connected ? (
-    <span className="shrink-0 whitespace-nowrap rounded-full border border-amber-500/50 px-2 py-0.5 font-mono text-[10px] text-amber-400">
-      reconnecting…
-    </span>
-  ) : (
-    <span
-      className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 font-mono text-[10px] ${statusStyle[agentStatus]}`}
-    >
-      {agentStatus === 'idle'
-        ? 'agent idle'
-        : `agent ${agentStatus}${agentStatus === 'done' || agentStatus === 'stuck' ? '' : '…'}`}
-    </span>
-  );
+  const showTyping =
+    task.status === 'active'
+    && (agentStatus === 'clarifying' || agentStatus === 'negotiating');
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-2 border-b border-neutral-200 bg-white px-4 py-2">
-        <h2 className="min-w-0 truncate text-sm font-medium text-neutral-900">
-          {task.title}
-        </h2>
-        <div className="flex shrink-0 items-center gap-2">
-          <span
-            className={`whitespace-nowrap rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase ${taskStatusStyle[task.status]}`}
-          >
-            {task.status}
-          </span>
-          {pill}
+      <div className="flex min-h-[68px] items-center justify-between gap-3 border-b border-neutral-200 bg-white px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar name={task.title} />
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-neutral-900">
+              {task.title}
+            </h2>
+            <p className={`truncate text-xs ${taskStatus[task.status].color}`}>
+              {taskStatus[task.status].label}
+            </p>
+          </div>
         </div>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] ${
+            connected
+              ? 'bg-emerald-50 text-emerald-700'
+              : 'bg-amber-50 text-amber-700'
+          }`}
+          role="status"
+        >
+          {connected ? 'connected' : 'reconnecting…'}
+        </span>
       </div>
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto bg-white p-4"
+        className="flex-1 overflow-y-auto bg-[#eef1f5] px-4 py-5"
       >
         {loading && (
           <p className="text-xs text-neutral-400">Loading history…</p>
@@ -297,16 +290,39 @@ export default function TaskChat({
             Couldn&apos;t load history — reconnecting will retry.
           </p>
         )}
-        {main.map((m) => (
-          <MessageBubble key={m.id} message={m} agentName={agentName} />
-        ))}
+        {main.map((m, index) => {
+          const previous = main[index - 1];
+          const next = main[index + 1];
+          return (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              agentName={agentName}
+              showName={
+                !previous
+                || previous.senderId !== m.senderId
+                || previous.senderType !== m.senderType
+              }
+              showAvatar={
+                m.senderType === 'agent'
+                && (!next
+                  || next.senderId !== m.senderId
+                  || next.senderType !== m.senderType)
+              }
+            />
+          );
+        })}
         {disclosureRoutes.main.map((n) => (
           <div
             key={n.id}
-            className="my-1.5 border-l-2 border-amber-400 pl-2 text-xs text-amber-800"
+            className="my-2 flex flex-wrap gap-1.5"
           >
-            {agentName(n.ownerAgentId)} shared {n.releasedCount} · withheld{' '}
-            {n.withheldCount} — private or outside task scope ({n.decision})
+            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-medium text-emerald-800">
+              shared {n.releasedCount}
+            </span>
+            <span className="rounded-full bg-neutral-200 px-2.5 py-1 text-[10px] font-medium text-neutral-600">
+              withheld {n.withheldCount}
+            </span>
           </div>
         ))}
         {subchats.map((s) => (
@@ -316,8 +332,19 @@ export default function TaskChat({
             messages={bySubchat.get(s.id) ?? []}
             disclosures={disclosureRoutes.bySubchat.get(s.id) ?? []}
             agentName={agentName}
+            myAgentId={myAgentId}
           />
         ))}
+        {showTyping && (
+          <div className="mt-2 flex items-end gap-2" aria-label="Agent is typing">
+            <Avatar name={agentName(myAgentId ?? '')} size="md" />
+            <div className="flex items-center gap-1 rounded-[18px] rounded-bl-[4px] border border-[#e5e5ea] bg-white px-4 py-3">
+              <span className="size-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:-0.3s]" />
+              <span className="size-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:-0.15s]" />
+              <span className="size-1.5 animate-bounce rounded-full bg-neutral-400" />
+            </div>
+          </div>
+        )}
         {!loading && !loadError && main.length === 0 && subchats.length === 0 && (
           <p className="text-sm text-neutral-500">
             Say something — your agent is listening.
@@ -336,8 +363,11 @@ export default function TaskChat({
           </p>
         ))}
       </div>
-      <form onSubmit={send} className="border-t border-neutral-200 bg-white p-3">
-        <div className="flex gap-2">
+      <form
+        onSubmit={send}
+        className="sticky bottom-0 border-t border-neutral-200 bg-white px-3 py-3"
+      >
+        <div className="flex items-center gap-2">
           <label htmlFor="chat-body" className="sr-only">
             Message your agent
           </label>
@@ -346,15 +376,38 @@ export default function TaskChat({
             name="body"
             placeholder={connected ? 'Message your agent…' : 'Reconnecting…'}
             autoComplete="off"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
             disabled={!connected}
-            className="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-neutral-100 disabled:text-neutral-400"
+            className="min-w-0 flex-1 rounded-full border-0 bg-[#f2f2f7] px-4 py-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-[#0a84ff]/30 disabled:text-neutral-400"
           />
           <button
             type="submit"
-            disabled={!connected}
-            className="rounded-md bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 disabled:bg-neutral-300"
+            aria-label="Send"
+            disabled={!connected || !draft.trim()}
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#0a84ff] text-white transition hover:bg-[#0876e5] disabled:bg-neutral-300"
           >
-            Send
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="size-5"
+              fill="none"
+            >
+              <path
+                d="M4 12 20 4l-5.5 16-3-6-7.5-2Z"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+              />
+              <path
+                d="m11.5 14 4-4"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="1.8"
+              />
+            </svg>
+            <span className="sr-only">Send</span>
           </button>
         </div>
       </form>
