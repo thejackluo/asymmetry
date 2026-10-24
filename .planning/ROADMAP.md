@@ -1,6 +1,6 @@
 # ROADMAP.md — Asymmetry
 
-Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+Team: Jack / @thejackluo (Devin 1, coordinator); Bayzhan / @bayzhan8 (Devin 2); Jad / @jmb245 (Devin 3); Akash / @AkashSingirikonda (Devin 4).
 
 Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
 
@@ -41,8 +41,8 @@ extension points where D2/D3 plug in.
 **Requirements**: PLAT-01…09, AUTH-01…05
 **Success Criteria**:
  1. `POST /api/login` returns `{token, user}` for a new username
- 2. Socket client connects with that token and lands in its two rooms
- 3. `sqlite3 asymmetry.db ".tables"` shows all 10 contract tables
+ 2. Socket client connects with that token and joins only its authenticated user room
+ 3. Disposable SQLite database contains all 12 current contract tables
  4. `npm test` runs the auth smoke test green
  5. PR merged to `main` — team notified via issue comment "Phase 0 landed"
 **Plans**: 1 plan — `phases/01-foundation/01-01-PLAN.md`
@@ -107,7 +107,7 @@ via `[Dn]`-tagged issues.
 
 ```
 0:00 ─ Phase 1 (D1 solo)          ─ 0:25
-0:25 ─ Phases 2‖3‖4 (parallel)    ─ 2:05   ← 30-min push cadence in force
+0:25 ─ Phases 2‖3‖4 (parallel)    ─ 2:05   ← push checkpoints every 2-3 min
 2:05 ─ Phase 5 integration        ─ 2:45
 2:45 ─ demo hardening + rehearsal ─ 3:20+
 ```

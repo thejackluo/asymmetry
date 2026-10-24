@@ -1,6 +1,6 @@
 # Phase 2: Agent Runtime & A2A Messaging — Specification
 
-Owner: Bayzhan (Devin 2). Coordinator: Jack (Devin 1).
+Owner: Bayzhan / @bayzhan8 (Devin 2). Coordinator: Jack / @thejackluo (Devin 1).
 
 **Created:** 2026-10-24 · **Owner:** Devin 2 · **Requirements:** A2A-01…09 locked
 
@@ -35,22 +35,22 @@ one allowed inside `apps/server/src/agents/**`.
    - Target: A2A ping-pong works between two seeded agents
    - Acceptance: ≥3 `subchat:message` events then `subchat:closed` with summary
 
-4. **Runaway guard**: turn counter per subchat; at 12 messages, stop invoking
-   loops and force `report_to_human(stuck)`.
+4. **Runaway guard**: reserve turns per subchat before scheduling; at 12 agent
+   messages stop invoking loops and notify the originating agent to report stuck.
    - Current: nothing
    - Target: hard cap
    - Acceptance: test with a mock that always replies → halts at ≤12, task ends `stuck`
 
-5. **Status + reporting**: `agent:status` on transitions; `report_to_human`
-   sets task status + agent idle.
+5. **Status + reporting**: emit agent activity; only the originating agent
+   may report its task done/stuck, without hiding other active negotiations.
    - Acceptance: `agent:status` `negotiating` observed during subchat; task row flips
 
 6. **Concurrency**: inbound `info_request` while busy → new subchat, not a deadlock.
    - Acceptance: two concurrent subchats involving one agent both progress
 
-7. **Persona prompt**: system prompt per CONTRACTS §6/prompt file — owner name,
-   open goals, "ask only what the task requires", memory ONLY via tools.
-   - Acceptance: prompt builder unit-tested; memory content absent from prompt text
+7. **Persona prompt**: trusted identity plus current authorized scope; peer
+   contexts exclude unrelated goals and main-thread histories.
+   - Acceptance: prompt builder rejects private/unrelated context and peer instructions
 
 ## Boundaries
 

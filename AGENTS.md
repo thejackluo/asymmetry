@@ -1,6 +1,6 @@
 # Asymmetry Agent Instructions
 
-Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+Team: Jack / @thejackluo (Devin 1, coordinator); Bayzhan / @bayzhan8 (Devin 2); Jad / @jmb245 (Devin 3); Akash / @AkashSingirikonda (Devin 4).
 
 ## Required Startup
 
@@ -10,7 +10,7 @@ Read these files before implementing:
 2. `.planning/IMPLEMENTATION-DECISIONS.md` - binding technical decisions.
 3. `.planning/AUTONOMOUS-RUNBOOK.md` - collaboration, commits, review, merge.
 4. `CONTRACTS.md` - shared types, persistence, API, event shapes.
-5. Your `prompts/DEVIN-N.md`, phase SPEC, and executable phase PLAN.
+5. Your username-named kickoff file in `prompts/`, phase SPEC, and executable phase PLAN.
 
 Do not start another role's work. If your role is not specified, ask Jack
 instead of claiming an arbitrary branch.

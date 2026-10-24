@@ -1,6 +1,6 @@
 # REQUIREMENTS.md — Asymmetry
 
-Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+Team: Jack / @thejackluo (Devin 1, coordinator); Bayzhan / @bayzhan8 (Devin 2); Jad / @jmb245 (Devin 3); Akash / @AkashSingirikonda (Devin 4).
 
 **Defined:** 2026-10-24 · **Core value:** scoped-trust agent negotiation
 **Rule:** every requirement is falsifiable — a test or check proves PASS/FAIL.
@@ -13,8 +13,8 @@ Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devi
 - [ ] **PLAT-02**: `npm run dev` at root starts the server on `:3001` (and web on `:3000` once it exists) without errors
 - [ ] **PLAT-03**: `packages/shared` exports every type in CONTRACTS.md §1 verbatim-named (`User`, `Agent`, `TrustEdge`, `Task`, `Message`, `Subchat`, `MemoryItem`, `Goal`, `InfoScope`, `Disclosure`, `Classification`, `AgentStatus`, `SenderType`, `ID`)
 - [ ] **PLAT-04**: `packages/shared` exports socket event-name constants matching CONTRACTS.md §3 and the `MemoryEngine` interface + `stubMemoryEngine` from §6
-- [ ] **PLAT-05**: `apps/server/src/schema.sql` contains all 10 tables from CONTRACTS.md §5 verbatim; `db.ts` applies it idempotently on boot to `asymmetry.db`
-- [ ] **PLAT-06**: `index.ts` calls `registerMemory(app, db)` and `registerAgents(io, db, memory)`; stub implementations exist at `src/memory/index.ts` and `src/agents/index.ts` so the server boots before D2/D3 land
+- [ ] **PLAT-05**: `apps/server/src/schema.sql` contains all 12 tables from CONTRACTS.md §5, including canonical task scopes; `db.ts` applies it idempotently on boot to `asymmetry.db`
+- [ ] **PLAT-06**: `index.ts` constructs memory through `createMemoryEngine(db, openai, io)` and calls `registerMemory(app, db)` plus `registerAgents(io, db, memory)`; explicit dev/test stubs permit foundation boot, while demo mode requires the real engine
 - [ ] **PLAT-07**: `apps/server/package.json` preinstalls every server dep other Devins need: `express`, `socket.io`, `better-sqlite3`, `bcryptjs`, `uuid`, `openai`, `dotenv`, `tsx`, `typescript`, `vitest`, `supertest`, `@types/*`
 - [ ] **PLAT-08**: `.env.example` lists `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-4o-mini`, `PORT=3001`; `.env` is gitignored
 - [ ] **PLAT-09**: `npm run seed` executes `apps/server/src/seed.ts`; `npm test` runs all workspace tests
@@ -24,7 +24,7 @@ Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devi
 - [ ] **AUTH-01**: `POST /api/login` with an unknown username auto-registers: creates user + agent rows, bcrypt-hashes password, returns `{token, user}`
 - [ ] **AUTH-02**: `POST /api/login` with correct credentials returns a token; wrong password returns 401 with no user data
 - [ ] **AUTH-03**: Socket.IO handshake with `auth.token` succeeds and sets `socket.data.userId`; missing/bad token is rejected
-- [ ] **AUTH-04**: On socket connect, client is joined to `user:{userId}` and `agent:{agentId}` rooms
+- [ ] **AUTH-04**: On socket connect, the browser joins only its own `user:{userId}` room; agent inboxes are internal server routing, not browser subscriptions
 - [ ] **AUTH-05**: REST endpoints reject requests without `Authorization: Bearer <token>`
 
 ### MEM — Memory ingest (Phase 3 · Devin 3)
@@ -38,10 +38,10 @@ Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devi
 ### PERM — Permissioning & disclosure (Phase 3 · Devin 3)
 
 - [ ] **PERM-01**: `queryMemory(owner, requester, scope)` implements the full CONTRACTS §2 matrix: owner sees all; trusted sees `public`+`network`; stranger sees `public` only
-- [ ] **PERM-02**: Results are additionally filtered to items matching `scope.fields`/`purpose` (field_tags ∩ fields + keyword match)
+- [ ] **PERM-02**: Returned atomic facts match explicit allowed tags in persisted canonical task scope; purpose keywords cannot bypass the field allowlist or expand scope
 - [ ] **PERM-03**: Every `queryMemory` call writes exactly one `disclosures` row with released ids, withheld count, decision (`released`|`partial`|`denied`)
 - [ ] **PERM-04**: Withheld item content is never included in the tool response — only the count
-- [ ] **PERM-05**: `disclosure:logged` socket event emitted per query (see Changelog note in CONTRACTS.md — engine receives `io`)
+- [ ] **PERM-05**: Each evaluated query emits a DisclosureNotice only to its task/data owners, with exact taskId/subchatId and counts; never globally broadcast the audit row
 
 ### A2A — Agent runtime & A2A protocol (Phase 2 · Devin 2)
 
@@ -70,12 +70,12 @@ Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devi
 
 ### SEED — Demo data (Phase 3 · Devin 3)
 
-- [ ] **SEED-01**: `npm run seed` is idempotent — wipes and recreates CONTRACTS.md §7 exactly (4 users pw `demo`, agents, 5 trust edges, ≥7 classified memory items with field_tags)
+- [ ] **SEED-01**: `npm run seed` additively creates CONTRACTS.md §7 fixtures with stable IDs (Alice/Bob/Carol/Dave/Erin, pw `demo`, five trust edges, atomic tagged facts); repeated runs do not duplicate or delete existing data
 - [ ] **SEED-02**: Demo path (PROJECT.md §Demo Script) completes: alice's task → subchat with bob's agent → partial disclosure (withheldCount ≥2) → done report
 
 ### OPS — Autonomous workflow (all Devins)
 
-- [ ] **OPS-01**: Each Devin commits+pushes to `devin-N` every ≤30 min
+- [ ] **OPS-01**: Each Devin commits and pushes meaningful checkpoints to its role branch every 2-3 minutes while actively editing; no empty commits
 - [ ] **OPS-02**: Each Devin opens a draft PR in its first session and keeps the body current (summary, contract sections, verification output)
 - [ ] **OPS-03**: Every PR is reviewed by a different model; comments are addressed before merge
 - [ ] **OPS-04**: Devins poll `gh issue list` + project board every ~5 min and respond where tagged

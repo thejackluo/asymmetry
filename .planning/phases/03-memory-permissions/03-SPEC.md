@@ -1,6 +1,6 @@
 # Phase 3: Memory, Classification & Permissioning — Specification
 
-Owner: Jad (Devin 3). Coordinator: Jack (Devin 1).
+Owner: Jad / @jmb245 (Devin 3). Coordinator: Jack / @thejackluo (Devin 1).
 
 **Created:** 2026-10-24 · **Owner:** Devin 3 · **Requirements:** MEM-01…05, PERM-01…05, SEED-01…02 locked
 
@@ -30,18 +30,18 @@ from tool responses, so no prompt injection can leak it.
    - Acceptance: task text containing "find X under $Y" yields an open Goal row
 
 4. **queryMemory**: §2 matrix (owner=all / trusted=public+network / stranger=public)
-   → scope filter (field_tags ∩ scope.fields + purpose keywords) → disclosures row.
+   → explicit tag allowlist from persisted canonical task scope → disclosure row.
    - Acceptance: all 9 matrix cells pass as table-driven tests; `partial`
      returns only releasable items + correct withheldCount
 
-5. **Disclosure audit**: every query → disclosures row + `disclosure:logged`
-   emit (engine takes `io` — see CONTRACTS Changelog entry).
-   - Acceptance: row exists per call; event observed on socket
+5. **Disclosure audit**: every evaluated query writes one audit row and sends
+   a DisclosureNotice only to the task/data owners.
+   - Acceptance: notice routes to exact task/subchat; an unrelated client receives nothing
 
-6. **Seed**: `seed.ts` wipes + recreates §7 exactly — users pw `demo`, agents,
-   5 trust edges, ≥7 pre-classified memory items with field_tags.
-   - Acceptance: idempotent (`npm run seed` twice → same counts); demo path
-     query returns expected partial disclosure
+6. **Seed**: additive stable fixtures for five users including public peer
+   Erin, password demo, five original trust edges, and atomic tagged facts.
+   - Acceptance: repeated seed preserves counts and unrelated data; a fresh
+     disposable database supports the expected partial disclosure
 
 ## Boundaries
 

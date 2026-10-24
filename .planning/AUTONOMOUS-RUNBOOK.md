@@ -1,6 +1,6 @@
 # Autonomous Execution Runbook
 
-Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+Team: Jack / @thejackluo (Devin 1, coordinator); Bayzhan / @bayzhan8 (Devin 2); Jad / @jmb245 (Devin 3); Akash / @AkashSingirikonda (Devin 4).
 
 This is the operational checklist every person's Devin executes.
 Technical decisions remain in IMPLEMENTATION-DECISIONS.md and CONTRACTS.md.
@@ -78,6 +78,8 @@ P1 for core-path failure; P2 for nonblocking polish.
 - Before a session stops, post its last SHA, task status, and next action.
 
 ## 5. Two-To-Three-Minute Checkpoints
+
+Repository-owner author identity: use `Jack Luo <30420522+thejackluo@users.noreply.github.com>` for authorized project commits as requested by Jack. This session pushes through `@thejackluo`. Do not use Bayzhan/Jad/Akash as commit authors solely because they own a task. Never copy or share Jack's credentials; another operator without authorized account access must report the publishing blocker rather than impersonate an account. Git author metadata and authenticated push identity are separate checks.
 
 - Start the cadence when active edits begin; no empty heartbeat commits.
 - Review the diff and stage explicit owned paths, not blind `git add -A`.

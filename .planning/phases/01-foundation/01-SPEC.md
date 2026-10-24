@@ -1,6 +1,6 @@
 # Phase 1: Foundation & Contracts — Specification
 
-Owner: Jack (Devin 1). Coordinator: Jack (Devin 1).
+Owner: Jack / @thejackluo (Devin 1). Coordinator: Jack / @thejackluo (Devin 1).
 
 **Created:** 2026-10-24 · **Owner:** Devin 1 · **Requirements:** PLAT-01…09, AUTH-01…05 locked
 
@@ -27,22 +27,22 @@ are blocked until this merges.
 2. **Shared contract package** `@asymmetry/shared`
    - Current: types exist only as prose in CONTRACTS.md
    - Target: compilable TS exports of every §1 type, §3 event constants, §6 `MemoryEngine` + `stubMemoryEngine`
-   - Acceptance: `import { MemoryEngine, Message } from '@asymmetry/shared'` compiles in apps/server; `stubMemoryEngine().queryMemory(...)` resolves ≥2 items
+   - Acceptance: shared imports compile; the explicit dev/test stub returns one authorized fact without returning withheld private content
 
 3. **SQLite layer**
    - Current: nothing
    - Target: `schema.sql` = CONTRACTS §5 DDL verbatim; `db.ts` opens `asymmetry.db`, applies schema idempotently (`CREATE TABLE IF NOT EXISTS` wrapper or guard), exports typed helpers
-   - Acceptance: `sqlite3 asymmetry.db ".tables"` lists all 10 tables after boot
+   - Acceptance: a disposable database contains all 12 current contract tables after boot
 
 4. **Auth (REST + socket)**
    - Current: nothing
-   - Target: `POST /api/login` auto-registers (bcrypt) → `{token, user}`; sessions table; `Authorization: Bearer` middleware; socket handshake auth → `socket.data.userId` + auto-join `user:{id}`/`agent:{id}`
+   - Target: login/session middleware authenticates REST and socket traffic; browsers auto-join only their own user room, never internal agent inboxes
    - Acceptance: unknown username → 200 + token; wrong password → 401; socket connect without token → error; with token → connect + rooms joined (smoke test proves it)
 
 5. **Extension points + REST stubs**
    - Current: nothing
-   - Target: `index.ts` boots Express+Socket.IO, mounts §4 REST (real queries where trivial, `[]` otherwise), calls `registerMemory(app,db)` and `registerAgents(io,db,memory)`; no-op stubs exist at `src/memory/index.ts`, `src/agents/index.ts`
-   - Acceptance: server boots with stubs; D2/D3 later replace stub bodies only — index.ts untouched (grep their PR diffs to confirm)
+   - Target: index.ts composes createMemoryEngine(db,openai,io), authenticated REST, registerMemory and registerAgents; temporary exports have the final signatures
+   - Acceptance: foundation boots in explicit dev/test mode; real modules replace temporary implementations without D2/D3 editing D1's composition
 
 6. **Test infra + deps for downstream Devins**
    - Current: nothing
@@ -71,6 +71,6 @@ test harness, `.env.example`, git hygiene.
 - [ ] `npm install && npm run dev` boots server on :3001
 - [ ] Login auto-registers and returns token (curl output in PR)
 - [ ] Socket auth + room join proven by `auth.smoke.test.ts`
-- [ ] All 10 tables exist
+- [ ] All 12 current contract tables exist
 - [ ] `@asymmetry/shared` imports compile
 - [ ] `npm test` green; PR approved by cross-model review

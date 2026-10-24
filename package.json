@@ -1,0 +1,21 @@
+{
+  "name": "asymmetry",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "predev": "npm run build -w @asymmetry/shared",
+    "dev": "concurrently -n server,web \"npm run dev -w @asymmetry/server\" \"npm run dev -w @asymmetry/web --if-present\"",
+    "build": "npm run build -w @asymmetry/shared && npm run build --workspaces --if-present",
+    "pretest": "npm run build -w @asymmetry/shared",
+    "test": "npm test --workspaces --if-present",
+    "seed": "npm run seed -w @asymmetry/server",
+    "typecheck": "npm run build -w @asymmetry/shared && npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "9.1.2"
+  }
+}

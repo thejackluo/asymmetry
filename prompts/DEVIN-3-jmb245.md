@@ -1,6 +1,6 @@
 # DEVIN 3 — Memory, Classification & Permissioning (Phase 3, the trust layer)
 
-Owner: Jad (Devin 3). Coordinator: Jack (Devin 1).
+Owner: Jad / @jmb245 (Devin 3). Coordinator: Jack / @thejackluo (Devin 1).
 
 GitHub: `@jmb245`. Team routing: Jack `@thejackluo` (D1); Bayzhan `@bayzhan8` (D2); Jad `@jmb245` (D3); Akash `@AkashSingirikonda` (D4).
 
