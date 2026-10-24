@@ -8,6 +8,7 @@ import {
   insertMessage,
   listMainThreadMessages,
   listSubchatMessages,
+  listSubchatsByTask,
   putTaskScope,
 } from './repo.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
@@ -26,6 +27,187 @@ function createScopedTask(db: ReturnType<typeof createFixtureDb>, title = 'Find 
 }
 
 describe('agent runtime queues and loops', () => {
+  it('deduplicates repeated owner contact attempts and deterministically reports released facts', async () => {
+    const db = createFixtureDb();
+    const { io } = createFakeIO();
+    const task = createScopedTask(db);
+    const { memory } = createFakeMemory({
+      itemsByOwner: {
+        [FIXTURE_IDS.users.bob]: [
+          {
+            id: 'bob-price',
+            userId: FIXTURE_IDS.users.bob,
+            content: 'Rent is $950/mo.',
+            classification: 'network',
+            fieldTags: ['price'],
+            source: 'seed',
+            createdAt: 1,
+          },
+          {
+            id: 'bob-location',
+            userId: FIXTURE_IDS.users.bob,
+            content: 'Room is 0.4mi from Georgia Tech.',
+            classification: 'network',
+            fieldTags: ['location_area'],
+            source: 'seed',
+            createdAt: 2,
+          },
+        ],
+      },
+    });
+    let bobSubchatId: string | undefined;
+    const ownerCalls = [
+      llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] }),
+      (messages: LLMMessage[]) => {
+        const lastTool = [...messages].reverse().find(({ role }) => role === 'tool');
+        if (!lastTool) {
+          throw new Error('open_subchat result was not provided to the owner');
+        }
+        bobSubchatId = (JSON.parse(lastTool.content) as { id?: string }).id;
+        if (!bobSubchatId) {
+          throw new Error('subchat id was not present in the open result');
+        }
+        return {
+          toolCalls: [{
+            id: 'send-first-request',
+            name: 'send_subchat_message',
+            args: { subchatId: bobSubchatId },
+          }],
+        };
+      },
+      { reply: 'Waiting for Bob.' },
+      () => ({
+        toolCalls: [
+          {
+            id: 'reopen-bob-1',
+            name: 'open_subchat',
+            args: { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] },
+          },
+          {
+            id: 'resend-bob-1',
+            name: 'send_subchat_message',
+            args: { subchatId: bobSubchatId },
+          },
+          {
+            id: 'reopen-bob-2',
+            name: 'open_subchat',
+            args: { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] },
+          },
+          {
+            id: 'resend-bob-2',
+            name: 'send_subchat_message',
+            args: { subchatId: bobSubchatId },
+          },
+        ],
+      }),
+    ];
+    const llm = routedLLM({
+      "Alice's Agent": ownerCalls,
+      "Bob's Agent": [
+        llmTool('query_memory', {
+          ownerUserId: FIXTURE_IDS.users.bob,
+          scope: { fields: ['price', 'location_area'] },
+        }),
+        { reply: 'I found a place.' },
+      ],
+    });
+    const runtime = createAgentRuntime({ io, db, memory, llm });
+    try {
+      runtime.wakeOwner(task.id);
+      await runtime.idle();
+
+      const subchats = listSubchatsByTask(db, task.id);
+      expect(subchats).toHaveLength(1);
+      expect(subchats[0]?.status).toBe('closed');
+      expect(subchats[0]?.outcome).toBe('done');
+      expect(subchats[0]?.summary).toBe('Closed: the peer agent answered.');
+      const report = listMainThreadMessages(db, task.id)
+        .find(({ body }) => body.startsWith("Here's what I found in your network:"))?.body ?? '';
+      expect(report).toContain("$950/mo.");
+      expect(report).toContain('0.4mi from Georgia Tech.');
+      expect(getTask(db, task.id)?.status).toBe('done');
+      expect(llm.calls.length).toBeLessThan(30);
+      expect(llm.calls.some(({ route, messages }) => route === "Alice's Agent"
+        && messages.some(({ role, content }) => role === 'tool'
+          && content === 'Error: subchat is closed'))).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('forces a final report when peers close without an owner report', async () => {
+    const db = createFixtureDb();
+    const { io } = createFakeIO();
+    const task = createScopedTask(db);
+    const subchat = createSubchat(db, task.id, [FIXTURE_IDS.agents.alice, FIXTURE_IDS.agents.bob]);
+    const { memory } = createFakeMemory({
+      itemsByOwner: {
+        [FIXTURE_IDS.users.bob]: [{
+          id: 'bob-price-forced-report',
+          userId: FIXTURE_IDS.users.bob,
+          content: '$950/mo.',
+          classification: 'network',
+          fieldTags: ['price'],
+          source: 'seed',
+          createdAt: 1,
+        }],
+      },
+    });
+    const llm = routedLLM({
+      "Alice's Agent": [{ reply: 'I will not call report_to_human.' }],
+      "Bob's Agent": [
+        llmTool('query_memory', {
+          ownerUserId: FIXTURE_IDS.users.bob,
+          scope: { fields: ['price'] },
+        }),
+        { reply: 'I found a room.' },
+      ],
+    });
+    const runtime = createAgentRuntime({ io, db, memory, llm });
+    try {
+      runtime.runPeer(subchat.id, FIXTURE_IDS.agents.bob);
+      await runtime.idle();
+
+      expect(getTask(db, task.id)?.status).toBe('done');
+      expect(listMainThreadMessages(db, task.id).some(({ body }) =>
+        body.startsWith("Here's what I found in your network:")
+        && body.includes('$950/mo.'))).toBe(true);
+      expect(listSubchatsByTask(db, task.id)[0]?.summary)
+        .toBe('Closed: the peer agent answered.');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('stops the task with the fixed report when no peer facts were released', async () => {
+    const db = createFixtureDb();
+    const { io } = createFakeIO();
+    const task = createScopedTask(db);
+    const subchat = createSubchat(db, task.id, [FIXTURE_IDS.agents.alice, FIXTURE_IDS.agents.bob]);
+    const llm = routedLLM({
+      "Alice's Agent": [{ reply: 'I will not call report_to_human.' }],
+      "Bob's Agent": [{ reply: 'I do not have an authorized match.' }],
+    });
+    const runtime = createAgentRuntime({
+      io,
+      db,
+      memory: createFakeMemory().memory,
+      llm,
+    });
+    try {
+      runtime.runPeer(subchat.id, FIXTURE_IDS.agents.bob);
+      await runtime.idle();
+
+      expect(getTask(db, task.id)?.status).toBe('stuck');
+      expect(listMainThreadMessages(db, task.id).some(({ body }) =>
+        body === "I couldn't find a matching option in your network yet.")).toBe(true);
+      expect(listSubchatsByTask(db, task.id)[0]?.summary)
+        .toBe('Closed: the peer agent answered.');
+    } finally {
+      db.close();
+    }
+  });
+
   it('keeps peer injection in user-role owner history and serializes coalesced owner wakes', async () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();
@@ -285,7 +467,7 @@ describe('agent runtime queues and loops', () => {
       expect(getTask(db, task.id)?.status).toBe('stuck');
       expect(db.prepare(
         "SELECT body FROM messages WHERE task_id = ? AND sender_type = 'agent' ORDER BY created_at DESC LIMIT 1",
-      ).get(task.id)).toEqual({ body: 'tool iteration cap reached (8)' });
+      ).get(task.id)).toEqual({ body: "I couldn't find a matching option in your network yet." });
     } finally {
       db.close();
     }

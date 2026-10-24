@@ -154,6 +154,37 @@ describe('trusted-context agent tools', () => {
     }
   });
 
+  it('reuses an existing peer subchat in any state and rejects sends after closure', async () => {
+    const { db, ownerCtx } = setup();
+    try {
+      const openArgs = {
+        taskId: ownerCtx.taskId,
+        agentIds: [FIXTURE_IDS.agents.bob],
+      };
+      const opened = await executeToolCall(ownerCtx, toolCall('open_subchat', openArgs));
+      const subchatId = (JSON.parse(opened.content) as { id: string }).id;
+      const expected = `Already contacted Bob in subchat ${subchatId}; wait for its result.`;
+
+      const duplicateOpen = await executeToolCall(ownerCtx, toolCall('open_subchat', openArgs));
+      expect(duplicateOpen.content).toBe(expected);
+      expect(db.prepare('SELECT COUNT(*) AS count FROM subchats WHERE task_id = ?')
+        .get(ownerCtx.taskId)).toEqual({ count: 1 });
+
+      db.prepare("UPDATE subchats SET status = 'closed' WHERE id = ?").run(subchatId);
+      const closedDuplicate = await executeToolCall(ownerCtx, toolCall('open_subchat', openArgs));
+      expect(closedDuplicate.content).toBe(expected);
+
+      const before = listSubchatMessages(db, subchatId);
+      const closedSend = await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
+        subchatId,
+      }));
+      expect(closedSend.content).toBe('Error: subchat is closed');
+      expect(listSubchatMessages(db, subchatId)).toEqual(before);
+    } finally {
+      db.close();
+    }
+  });
+
   it('rejects spoofed memory owners and enforces canonical scope and requester identity', async () => {
     const { db, ownerCtx, calls, memory, scope } = setup();
     try {
