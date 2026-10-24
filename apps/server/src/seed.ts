@@ -78,6 +78,12 @@ export function seed(db: Database): SeedResult {
         .get(u.username) as { id: string; agent_id: string } | undefined;
       let userId: string;
       let agentId: string;
+      if (existing && existing.id !== fixtureUserId(u.key)) {
+        throw new Error(
+          `username "${u.username}" already belongs to a non-fixture account; ` +
+            'seed into a fresh DATABASE_PATH instead of granting demo trust to a real account',
+        );
+      }
       if (existing) {
         userId = existing.id;
         agentId = existing.agent_id;

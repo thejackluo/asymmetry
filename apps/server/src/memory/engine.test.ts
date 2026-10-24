@@ -20,8 +20,9 @@ describe('permission matrix (9 cells, real trust rows)', () => {
     for (const c of ['public', 'network', 'private']) {
       factIds[c] = addFact(db, ids.owner.userId, `${c} fact`, c, ['price']);
     }
-    for (const w of ['owner', 'trusted', 'stranger'] as Who[]) {
-      addTask(db, `t-${w}`, ids[w].userId, ['price']);
+    addTask(db, 't-owner', ids.owner.userId, ['price']);
+    for (const w of ['trusted', 'stranger'] as Who[]) {
+      addTask(db, `t-${w}`, ids[w].userId, ['price'], { id: `sc-${w}`, agents: [ids.owner.agentId, ids[w].agentId] });
     }
   });
 
@@ -43,6 +44,7 @@ describe('permission matrix (9 cells, real trust rows)', () => {
       taskId: `t-${who}`,
       purpose: 'p',
       fields: ['price'],
+      ...(who === 'owner' ? {} : { subchatId: `sc-${who}` }),
     });
     expect(res.items.some((i) => i.id === factIds[cls])).toBe(expected);
     expect(res.disclosure.released.includes(factIds[cls])).toBe(expected);
@@ -54,6 +56,7 @@ describe('permission matrix (9 cells, real trust rows)', () => {
       taskId: 't-stranger',
       purpose: 'p',
       fields: ['price'],
+      subchatId: 'sc-stranger',
     });
     expect(res.items.map((i) => i.classification)).toEqual(['public']);
   });
@@ -155,11 +158,12 @@ describe('scope, disclosure accounting, notices', () => {
     const o = addUser(solo, 'o');
     const r = addUser(solo, 'r');
     addFact(solo, o.userId, 'pub price', 'public', ['price']);
-    addTask(solo, 'tt', r.userId, ['price']);
+    addTask(solo, 'tt', r.userId, ['price'], { id: 'sc', agents: [o.agentId, r.agentId] });
     const res = await createMemoryEngine(solo, fakeOpenAI('{}').client).queryMemory(o.userId, r.userId, {
       taskId: 'tt',
       purpose: '',
       fields: ['price'],
+      subchatId: 'sc',
     });
     expect(res.disclosure.decision).toBe('released');
     expect(res.withheldCount).toBe(0);
@@ -188,6 +192,48 @@ describe('scope, disclosure accounting, notices', () => {
     const engine = createMemoryEngine(db, fakeOpenAI('{}').client);
     await expect(
       engine.queryMemory(bob.userId, alice.userId, { taskId: 'noscope', purpose: '', fields: ['price'] }),
+    ).rejects.toBeInstanceOf(MemoryAccessError);
+  });
+
+  it('group: network fact withheld when any observer (Carol) is untrusted', async () => {
+    addTask(db, 'tg', alice.userId, ['price'], { id: 'sc-g', agents: [alice.agentId, bob.agentId, carol.agentId] });
+    addFact(db, bob.userId, 'PUBLIC price note', 'public', ['price']);
+    const engine = createMemoryEngine(db, fakeOpenAI('{}').client);
+    const g = { taskId: 'tg', purpose: '', fields: ['price'], subchatId: 'sc-g' };
+    const res = await engine.queryMemory(bob.userId, alice.userId, g);
+    expect(res.items.map((i) => i.content)).toEqual(['PUBLIC price note']);
+    expect(JSON.stringify(res)).not.toContain('$950');
+    trust(db, bob.userId, carol.userId);
+    const both = await engine.queryMemory(bob.userId, alice.userId, g);
+    expect(both.items.map((i) => i.content)).toEqual(['$950/mo', 'PUBLIC price note']);
+    const viaCarol = await engine.queryMemory(bob.userId, carol.userId, g);
+    expect(viaCarol.items.map((i) => i.content)).toEqual(['$950/mo', 'PUBLIC price note']);
+  });
+
+  it('owner-self read inside a group is limited by the other observers', async () => {
+    addTask(db, 'tb', bob.userId, ['price'], { id: 'sc-b', agents: [bob.agentId, carol.agentId] });
+    const engine = createMemoryEngine(db, fakeOpenAI('{}').client);
+    const res = await engine.queryMemory(bob.userId, bob.userId, { taskId: 'tb', purpose: '', fields: ['price'], subchatId: 'sc-b' });
+    expect(res.items).toEqual([]);
+  });
+
+  it('peer read without subchat fails closed', async () => {
+    const engine = createMemoryEngine(db, fakeOpenAI('{}').client);
+    await expect(engine.queryMemory(bob.userId, alice.userId, scope({ subchatId: undefined }))).rejects.toBeInstanceOf(
+      MemoryAccessError,
+    );
+  });
+
+  it('requester who is not a subchat participant is rejected', async () => {
+    trust(db, bob.userId, carol.userId);
+    const engine = createMemoryEngine(db, fakeOpenAI('{}').client);
+    await expect(engine.queryMemory(bob.userId, carol.userId, scope())).rejects.toBeInstanceOf(MemoryAccessError);
+  });
+
+  it('owner read without subchat requires the owner to own the task', async () => {
+    const engine = createMemoryEngine(db, fakeOpenAI('{}').client);
+    await expect(
+      engine.queryMemory(bob.userId, bob.userId, { taskId: 't', purpose: '', fields: ['price'] }),
     ).rejects.toBeInstanceOf(MemoryAccessError);
   });
 

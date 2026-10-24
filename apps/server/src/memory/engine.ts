@@ -130,7 +130,6 @@ export function createMemoryEngine(db: Database, openai: OpenAI, io?: Server): M
       | { id: string; user_id: string }
       | undefined;
     if (!task) throw new MemoryAccessError('unknown task');
-    if (task.user_id !== requesterUserId) throw new MemoryAccessError('requester does not own the task');
 
     const scopeRow = db.prepare('SELECT fields_json FROM task_scopes WHERE task_id = ?').get(task.id) as
       | { fields_json: string }
@@ -142,32 +141,44 @@ export function createMemoryEngine(db: Database, openai: OpenAI, io?: Server): M
       throw new MemoryAccessError('requested fields exceed canonical task scope');
     }
 
-    if (scope.subchatId !== undefined) {
+    let observers: ID[] = [];
+    if (scope.subchatId === undefined) {
+      if (ownerUserId !== requesterUserId || task.user_id !== ownerUserId) {
+        throw new MemoryAccessError('peer reads require a subchat; owner reads require an owned task');
+      }
+    } else {
       const subchat = db.prepare('SELECT task_id FROM subchats WHERE id = ?').get(scope.subchatId) as
         | { task_id: string }
         | undefined;
       if (!subchat || subchat.task_id !== task.id) throw new MemoryAccessError('subchat does not belong to task');
-      const participants = new Set(
-        (
-          db.prepare('SELECT agent_id FROM subchat_participants WHERE subchat_id = ?').all(scope.subchatId) as {
-            agent_id: string;
-          }[]
-        ).map((p) => p.agent_id),
-      );
-      if (!participants.has(ownerAgentId) || !participants.has(requesterAgentId)) {
-        throw new MemoryAccessError('owner or requester is not a subchat participant');
+      const participants = db
+        .prepare(
+          `SELECT p.agent_id, a.user_id FROM subchat_participants p
+           LEFT JOIN agents a ON a.id = p.agent_id WHERE p.subchat_id = ?`,
+        )
+        .all(scope.subchatId) as { agent_id: string; user_id: string | null }[];
+      const agentIds = new Set(participants.map((p) => p.agent_id));
+      const taskOwnerAgentId = agentOf(task.user_id);
+      if (
+        !agentIds.has(ownerAgentId) ||
+        !agentIds.has(requesterAgentId) ||
+        !taskOwnerAgentId ||
+        !agentIds.has(taskOwnerAgentId)
+      ) {
+        throw new MemoryAccessError('owner, requester, and task owner must all be subchat participants');
       }
+      if (participants.some((p) => p.user_id === null)) {
+        throw new MemoryAccessError('subchat has an unknown participant');
+      }
+      observers = [...new Set(participants.map((p) => p.user_id as string))].filter((u) => u !== ownerUserId);
     }
 
-    const relation: keyof typeof ALLOWED_CLASSES =
-      ownerUserId === requesterUserId
-        ? 'owner'
-        : db
-              .prepare('SELECT 1 FROM trust_edges WHERE owner_user_id = ? AND trusted_user_id = ?')
-              .get(ownerUserId, requesterUserId)
-          ? 'trusted'
-          : 'stranger';
-    const allowedClasses = ALLOWED_CLASSES[relation];
+    const trusts = db.prepare('SELECT 1 FROM trust_edges WHERE owner_user_id = ? AND trusted_user_id = ?');
+    const allowedClasses = new Set<Classification>(ALLOWED_CLASSES.owner);
+    for (const observer of observers) {
+      const permitted = ALLOWED_CLASSES[trusts.get(ownerUserId, observer) ? 'trusted' : 'stranger'];
+      for (const c of [...allowedClasses]) if (!permitted.has(c)) allowedClasses.delete(c);
+    }
     const requestedSet = new Set(requested);
 
     const rows = db

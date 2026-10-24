@@ -56,15 +56,14 @@ describe('seed', () => {
     expect(edges).not.toContain(`${users.dave.userId}>${users.alice.userId}`);
   });
 
-  it('reuses an existing account with a seed username instead of failing', () => {
+  it('refuses to grant demo trust to a pre-existing non-fixture account and changes nothing', () => {
     const db = tempDb();
     db.prepare(
       "INSERT INTO users (id, username, display_name, pass_hash, agent_id, created_at) VALUES ('pre','alice','Alice','h','pre-agent',1)",
     ).run();
     db.prepare("INSERT INTO agents (id, user_id, name) VALUES ('pre-agent','pre','A')").run();
-    const { users } = seed(db);
-    expect(users.alice).toEqual({ userId: 'pre', agentId: 'pre-agent' });
-    expect(count(db, 'users')).toBe(5);
+    expect(() => seed(db)).toThrow(/non-fixture account/);
+    expect([count(db, 'users'), count(db, 'trust_edges'), count(db, 'memory_items')]).toEqual([1, 0, 0]);
   });
 
   it('Bob has separate private address/phone and atomic network room facts', () => {
@@ -88,7 +87,14 @@ describe('seed', () => {
       id: 'sc',
       agents: [alice.agentId, bob.agentId],
     });
-    addTask(db, 'civic', alice.userId, ['vehicle', 'mileage', 'title_status', 'price']);
+    addTask(db, 'civic', alice.userId, ['vehicle', 'mileage', 'title_status', 'price'], {
+      id: 'sc-dave',
+      agents: [alice.agentId, dave.agentId],
+    });
+    db.prepare("INSERT INTO subchats (id, task_id, kind, status, created_at) VALUES ('sc-erin','t','discovery','open',1)").run();
+    for (const a of [alice.agentId, erin.agentId]) {
+      db.prepare("INSERT INTO subchat_participants (subchat_id, agent_id) VALUES ('sc-erin', ?)").run(a);
+    }
     const engine = createMemoryEngine(db, fakeOpenAI('{}').client);
 
     const money = await engine.queryMemory(bob.userId, alice.userId, {
@@ -98,7 +104,7 @@ describe('seed', () => {
       subchatId: 'sc',
     });
     expect(money.items.map((i) => i.fieldTags[0]).sort()).toEqual(['dates', 'location_area', 'price']);
-    expect(money.withheldCount).toBeGreaterThanOrEqual(2);
+    expect(money.withheldCount).toBe(3);
     expect(money.disclosure.decision).toBe('partial');
     expect(JSON.stringify(money)).not.toMatch(/726 Spring|404-555/);
 
@@ -106,6 +112,7 @@ describe('seed', () => {
       taskId: 't',
       purpose: 'sublet',
       fields: ['location_area'],
+      subchatId: 'sc-erin',
     });
     expect(erinRes.items).toHaveLength(1);
     expect(erinRes.items[0].classification).toBe('public');
@@ -114,6 +121,7 @@ describe('seed', () => {
       taskId: 'civic',
       purpose: 'buy a car',
       fields: ['vehicle', 'mileage', 'title_status', 'price'],
+      subchatId: 'sc-dave',
     });
     expect(civic.items).toEqual([]);
     expect(civic.disclosure.decision).toBe('denied');

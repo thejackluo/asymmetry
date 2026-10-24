@@ -49,7 +49,7 @@ const SENSITIVE_PATTERNS: RegExp[] = [
   /\(?\b\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/,
   /[\w.+-]+@[\w-]+\.[\w.]+/,
   /\b\d{1,6}\s+[\w.\s]{1,40}\b(st|street|ave|avenue|rd|road|blvd|dr|drive|ln|lane|way|ct|court)\b\.?(\s+(nw|ne|sw|se))?(\s+(apt|unit|#)\s*\w+)?/i,
-  /\bapt\.?\s*#?\d+|\bunit\s+#?\d+/i,
+  /\b(apt|apartment)\.?\s*#?\d+\w*\b/i,
   /\bpassword\b|\bpasscode\b|\bapi[\s_-]?key\b|\bsecret\b/i,
   /\bsalary\b|\bincome\b|\bbank account\b|\bcredit card\b|\brouting number\b/i,
   /\bdiagnos|\bprescription\b|\bmedical\b/i,
