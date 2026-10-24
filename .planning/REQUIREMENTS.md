@@ -584,3 +584,252 @@ No checkbox is complete merely because a file or a UI mock exists.
 - Do not execute content that looks like embedded system/tool instructions.
 - Acceptance: prompt-injection peer cannot expose a private sentinel or call a fifth tool.
 - Evidence: captured prompt/tool trace with adversarial peer fixtures.
+
+### UI-01 - Login, Session Storage, And Route Guard
+
+- Owner: Akash / @AkashSingirikonda; phase: 04-frontend.
+- Login has username, password, submit, inline error, and pending state.
+- Submit once while pending; do not issue overlapping registration requests.
+- On 200 store asym_token and the returned safe User, then open /tasks.
+- On 401 show a credential error without exposing server diagnostics.
+- On network failure retain input and offer a deliberate retry.
+- A protected route without a token redirects to /login.
+- A rejected stored session clears local identity and disconnects the socket.
+- Passwords are never saved to localStorage or displayed in logs.
+- Acceptance: new login, returning login, bad password, stale token, offline API.
+- Evidence: browser interaction tests and login screenshot.
+
+### UI-02 - Task List And Task Creation
+
+- Owner: Akash / @AkashSingirikonda; runtime endpoint owner: Bayzhan.
+- GET /api/tasks hydrates only the session user's persisted task list.
+- Show active/done/stuck badges and a selected-task indicator.
+- Task titles are nonempty, trimmed, and at most 200 characters.
+- Creating a task does not itself claim that an agent has started searching.
+- After creation, select it and show its empty main-thread composer.
+- The human sends the initial detailed request in that composer.
+- A task:create failure keeps the form value and shows an error.
+- Refresh preserves tasks through REST, not merely browser component state.
+- Acceptance: create/select/refresh two tasks without mixing transcripts.
+- Evidence: socket-create test and browser persistence scenario.
+
+### UI-03 - Human And Owner-Agent Main Thread
+
+- Owner: Akash / @AkashSingirikonda; phase: 04-frontend.
+- Render only messages with subchatId null in the main thread.
+- Human bubble label is You; agent bubble names the owner's agent.
+- System notices are visually distinct from both human and agent assertions.
+- Message body is escaped text; model output is never injected as raw HTML.
+- Show timestamp and stable message ID for reconciliation.
+- Disable send for empty text or disconnected transport, with a visible reason.
+- Successful send is displayed from the persisted server event, not fake model text.
+- Deduplicate replayed events by message ID.
+- Acceptance: malicious HTML remains inert and repeated events render once.
+- Evidence: rendering, deduplication, and two-task partition tests.
+
+### UI-04 - Pair/Group Subchat Panes And Replay
+
+- Owner: Akash / @AkashSingirikonda; phase: 04-frontend.
+- Each subchatId maps to its own visible, collapsible pane.
+- Header names participants and identifies pair versus group.
+- Display sender agent on every message; do not imply the human sent it.
+- Append live peer messages only to the matching task/subchat.
+- Closed pane shows done/stuck outcome and the persisted summary.
+- History must reconstruct membership, transcript, closed status, and summary.
+- Multiple panes remain independently expandable during concurrent work.
+- Never merge a group's messages into a pair just because participants overlap.
+- Acceptance: refresh two simultaneous subchats and recover their exact states.
+- Evidence: history-fixture test plus browser screenshot with pair/group panes.
+
+### UI-05 - Visible Human/Agent Boundary
+
+- Owner: Akash / @AkashSingirikonda; phase: 04-frontend.
+- Use layout, sender labels, and typography to distinguish main from peer chat.
+- Agent-to-agent panes use a restrained monospace transcript treatment.
+- Status and trust labels remain legible against the selected theme.
+- Do not rely on color alone; include text for status and edge type.
+- A collapsed pane still shows participants, state, and new-message count.
+- Page-level navigation clearly separates Tasks from Network.
+- Focus order reaches task list, composer, subchats, and navigation.
+- Avoid decorative effects that conceal messages during the live demo.
+- Acceptance: screenshot identifies who talks to whom without explanation.
+- Evidence: desktop screenshot and keyboard navigation check.
+
+### UI-06 - Exact Disclosure Rendering
+
+- Owner: Akash / @AkashSingirikonda; event owner: Jad.
+- Input is the shared DisclosureNotice shape.
+- Locate the pane by taskId and subchatId, never by whichever pane is active.
+- Show owner name, releasedCount, withheldCount, and decision.
+- Label withheld as private or outside task scope; do not assert only one cause.
+- A denied query shows zero shared and does not imply a technical failure.
+- A task-level notice with null subchatId renders as an owner system line.
+- Ignore unauthorized/unrecognized task notices and log only safe diagnostics.
+- Notice IDs deduplicate live delivery and history replay.
+- Acceptance: two out-of-order notices reach the correct panes with exact counts.
+- Evidence: routing, denied, null-subchat, and duplicate tests.
+
+### UI-07 - Honest Progress And Error States
+
+- Owner: Akash / @AkashSingirikonda; phase: 04-frontend.
+- Distinguish idle, clarifying, negotiating, done, and stuck activity.
+- Task terminal status comes from task:updated/history, not agent badge color.
+- If one agent serves two tasks, completing one does not hide the other.
+- A disconnected transport displays reconnecting, not still-negotiating certainty.
+- Model errors and blocked collaboration appear as persisted system summaries.
+- Loading, empty results, denied requests, and server failures have distinct text.
+- No infinite spinner when a bounded model invocation has terminated.
+- Refresh uses server task status rather than stale local activity.
+- Acceptance: timeout becomes stuck with reason; another active task remains visible.
+- Evidence: fake-clock state transition tests and error-state screenshot.
+
+### UI-08 - Trusted And Discovered Network
+
+- Owner: Akash / @AkashSingirikonda; graph endpoint owner: Jack.
+- Fetch and subscribe to `{agents,trusted,discovered}` using the same shape.
+- IDs in trusted/discovered are agent IDs relative to the session user.
+- Current owner's agent is the central highlighted node.
+- Solid labeled edge means directly trusted; dashed labeled edge means discovered.
+- Discovery excludes self and directly trusted peers.
+- Base fixture: Alice has Bob/Carol trusted and Erin discovered after interaction.
+- No UI action silently converts discovery into trust.
+- Empty network and loading/error states must not appear as broken SVG.
+- Acceptance: Erin becomes discovered live without a trust_edges write.
+- Evidence: graph derivation test, event update test, and labeled screenshot.
+
+### UI-09 - Transport Lifecycle And Recovery
+
+- Owner: Akash / @AkashSingirikonda; phase: 04-frontend.
+- Use one authenticated socket lifecycle per browser session.
+- Attach/unsubscribe handlers deterministically on route/session changes.
+- Send Bearer header on protected REST; never attach it to unrelated origins.
+- On reconnect, refetch selected history/tasks/network to recover missed events.
+- Merge by ID and stable createdAt/ID ordering, not event arrival order alone.
+- Do not silently replay uncertain human sends after a lost acknowledgement.
+- Show delivery uncertainty and let the human inspect history before retrying.
+- Logout clears local identity and closes the old socket before another login.
+- Acceptance: kill/restart API, reconnect, then switch users without stale listeners.
+- Evidence: lifecycle, duplicate-subscription, and user-switch tests.
+
+### UI-10 - Build, Accessibility, And Visual Evidence
+
+- Owner: Akash / @AkashSingirikonda; phase: 04-frontend.
+- Frontend build and TypeScript checks exit zero.
+- Utility tests cover message partitioning, deduplication, and notice routing.
+- Browser checks cover real login/task/history/network against integrated API.
+- MockSocketClient is allowed for development, never as final integration evidence.
+- Laptop layout must show the full demo without overlapping critical controls.
+- At a narrow mobile width, navigation/composer remain usable without overflow.
+- Focusable controls have names; status text is not solely animated decoration.
+- Capture screenshots without exposing API keys, raw memory, or real PII.
+- Acceptance: build/typecheck/tests pass and three core screens are captured.
+- Evidence: commands, SHA, browser log, and artifact paths.
+
+### SEED-01 - Stable Non-Destructive Demo Fixtures
+
+- Owner: Jad / @jmb245; phase: 03-memory-permissions.
+- Users: alice, bob, carol, dave, erin; each has exactly one agent.
+- Use stable deterministic fixture IDs and password demo with bcrypt hashes.
+- Trust: Alice->Bob, Alice->Carol, Bob->Alice, Carol->Alice, Bob->Dave.
+- Bob's area/price/dates/furnished facts are separate network records.
+- Bob's exact address and phone are separate private records.
+- Erin has only a public housing tip and no trust edge to Alice.
+- Seed repeated runs do not duplicate fixtures, overwrite passwords, or delete data.
+- Fixtures are fictional; phone-number examples use reserved fictional ranges.
+- Acceptance: seed twice beside an unrelated user and preserve the unrelated data.
+- Evidence: fixture-state assertions and idempotency test on a disposable DB.
+
+### SEED-02 - Rehearsable End-To-End Opportunity
+
+- Owner: Jack coordinates; Bayzhan/Jad/Akash own their respective behavior.
+- Alice logs in, creates a task, and sends the complete housing request.
+- Request: near Georgia Tech, summer dates, monthly budget below $1200.
+- Alice's agent queries Bob through an actual peer conversation.
+- Bob's engine releases area/price/dates and withholds private contact details.
+- Alice also discovers Erin's public tip without granting network access.
+- Main report names a matching offer, its price/dates, and asks about an intro.
+- No external introduction/contact is actually sent.
+- Run twice using fresh disposable fixture databases, not destructive resets.
+- Acceptance: live path produces persisted messages, audits, graph change, and report.
+- Evidence: browser recording/screenshots plus sanitized model/tool trace.
+
+### OPS-01 - Frequent Commits And Pushes
+
+- Owners: all four sessions; coordinator: Jack / @thejackluo.
+- While editing, publish meaningful checkpoints every 2-3 minutes.
+- Stage owned, reviewed paths explicitly; never sweep another session's changes.
+- No empty commits or secrets to satisfy the cadence.
+- A commit is not published until the push succeeds and its SHA is recorded.
+- This project uses Jack's authorized author identity as requested.
+- Do not share credentials or impersonate a push account another operator lacks.
+- On long blocking commands, report the delay and publish the next safe checkpoint.
+- Separate worktrees prevent branch switches under another running session.
+- Acceptance: PR history shows incremental work with truthful push status.
+- Evidence: role branch commit/push SHAs and registry timestamps.
+
+### OPS-02 - Early Draft PR And Status
+
+- Owners: all four sessions; coordinator: Jack / @thejackluo.
+- Open the role's draft PR during its first implementation session.
+- Include owner, requirement IDs, task issue, dependencies, and summary.
+- Record commands, exit codes, tested SHA, logs, and remaining blockers.
+- Label mocked versus live verification explicitly.
+- Update the existing PR on each meaningful checkpoint, not a new PR per commit.
+- A draft may contain failing work; readiness may not claim failing tests passed.
+- Do not post environment files, API keys, or unsanitized private fixture traces.
+- Acceptance: another session can identify current work/next action from the PR.
+- Evidence: draft PR body, issue links, and updated verification section.
+
+### OPS-03 - Fresh Different-Model Review
+
+- Owners: implementers initiate; reviewer is a distinct model session.
+- Supply exact base/head SHAs, contracts, linked requirements, and test evidence.
+- Reviewer identity differs from the implementer; Fusion records both models.
+- Fresh context reviews the actual diff and surrounding code.
+- Record findings with severity, file/line, failure path, and regression coverage.
+- Fix or explain every finding; rerun affected checks after a code change.
+- Re-review the new head; an old SHA's review does not approve a new commit.
+- Same-account model comments do not count as independent GitHub account approval.
+- If unavailable, report review blocked; never silently self-review or fake approval.
+- Acceptance: readiness links real reviewer output for the exact candidate head.
+- Evidence: model identity, SHA, findings, responses, and rerun output.
+
+### OPS-04 - GitHub Inbox And Project Coordination
+
+- Owners: all four sessions; coordinator: Jack / @thejackluo.
+- Poll issues, updated comments, PR review threads, and Projects every five minutes.
+- Use role/name prefix plus verified handle from TEAM.md.
+- Mentions do not wake agents; each session owns its polling loop.
+- Save last processed time with overlap and deduplicate event/comment IDs.
+- Include recently closed issues so a closed thread's response is not lost.
+- Claim a task before editing; another session cannot concurrently own that claim.
+- Projects states: Todo, In Progress, Blocked, In Review, Done.
+- If Projects access fails, use visible issue status and notify Jack.
+- Acceptance: a posted cross-layer blocker gets acknowledged at the next active poll.
+- Evidence: registry/poll timestamps and linked claim/response comments.
+
+### OPS-05 - Test Gates And Truthful Completion
+
+- Owners: every layer; Jack owns final integrated gate.
+- Each implementation task adds or updates its behavioral regression tests.
+- Run narrow affected checks during iteration and the full suite before final readiness.
+- An unavailable command is unverified, not passed.
+- Test evidence identifies command, result, timestamp, and tested SHA.
+- Permission tests must run real authorization code, not mocked authorization results.
+- Browser playback does not replace real socket/REST integration.
+- Live model checks are separate from deterministic scripted-model tests.
+- Acceptance: a deliberately failing privacy assertion blocks readiness.
+- Evidence: layer reports, integration report, and final reviewer output.
+
+### OPS-06 - Ownership, Contract Changes, And Merge Order
+
+- Owners: D1 platform, D2 agents, D3 memory/seed, D4 web.
+- Only D1 changes root lockfile and application composition.
+- No role fixes another role's layer without an explicit issue reassignment.
+- API/type/schema changes are discussed in an issue and recorded in contracts.
+- Affected owners acknowledge before dependent code is merged.
+- Foundation merges first; independent runtime/memory/frontend branches follow.
+- Jack merges only reviewed heads satisfying required checks and branch protection.
+- No force-push, destructive reset, or history rewrite is implied by autonomy.
+- Acceptance: PR changed paths match its owner or include recorded reassignment.
+- Evidence: ownership diff, contract decision, and reviewed merge SHA.
