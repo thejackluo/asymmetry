@@ -396,21 +396,24 @@ describe('foundation smoke', () => {
   it('stub mode rejects demo/production', () => {
     const savedMode = process.env.APP_MODE;
     const savedEnv = process.env.NODE_ENV;
+    const savedKey = process.env.OPENAI_API_KEY;
     const restore = (key: string, value: string | undefined): void => {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     };
     try {
+      delete process.env.OPENAI_API_KEY;
       process.env.APP_MODE = 'demo';
       expect(() => stubMemoryEngine()).toThrow();
-      expect(() => createServer({ databasePath: join(dir, 'demo.db') })).toThrow();
+      expect(() => createServer({ databasePath: join(dir, 'demo.db') })).toThrow('OPENAI_API_KEY is required outside development/test stub mode');
       delete process.env.APP_MODE;
       process.env.NODE_ENV = 'production';
       expect(() => stubMemoryEngine()).toThrow();
-      expect(() => createServer({ databasePath: join(dir, 'prod.db') })).toThrow();
+      expect(() => createServer({ databasePath: join(dir, 'prod.db') })).toThrow('OPENAI_API_KEY is required outside development/test stub mode');
     } finally {
       restore('APP_MODE', savedMode);
       restore('NODE_ENV', savedEnv);
+      restore('OPENAI_API_KEY', savedKey);
     }
   });
 
@@ -495,19 +498,18 @@ describe('foundation smoke', () => {
     expect(notFound.body.error.code).toBe('NOT_FOUND');
   });
 
-  it('seed placeholder exits nonzero marked unimplemented', () => {
-    let failed = true;
-    try {
+  it('real seed is additive and idempotent on a disposable DB', () => {
+    const seedPath = join(dir, 'seed.db');
+    const runSeed = () =>
       execFileSync('npx', ['tsx', 'src/seed.ts'], {
         cwd: fileURLToPath(new URL('..', import.meta.url)),
+        env: { ...process.env, DATABASE_PATH: seedPath },
         stdio: 'pipe',
-      });
-      failed = false;
-    } catch (err) {
-      const e = err as { status?: number; stderr?: Buffer };
-      expect(e.status).toBe(1);
-      expect(String(e.stderr)).toContain('not implemented');
-    }
-    expect(failed).toBe(true);
+      }).toString();
+    const first = runSeed();
+    expect(first).toContain('created users=5 trust_edges=5 memory_items=18');
+    const second = runSeed();
+    expect(second).toContain('created users=0 trust_edges=0 memory_items=0');
+    expect(second).toContain('totals users=5 trust_edges=5 memory_items=18');
   });
 });
