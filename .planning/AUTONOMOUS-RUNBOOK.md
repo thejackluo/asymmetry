@@ -216,6 +216,27 @@ At the end of the active build window, each owner posts:
 
 Jack runs integrated verification and the live demo rehearsal.
 
+## 10a. Submission Deadline And Test-Driven Rule
+
+Hard deadline: **5:00 PM ET, 2026-10-24**, on the GT Hacker House dashboard
+(https://www.gthackerhouse.com/events/devin-hackathon/dashboard).
+
+| Time (ET) | Gate |
+|-----------|------|
+| 15:30 | All four layers merged to `main` (D1 first, then D3/D2/D4) |
+| 16:15 | Integrated base demo passes on `main` (automated, Jack's rehearsal) |
+| 16:30 | Freeze: bug fixes only; capture screenshots/recording |
+| 16:45 | Human operator submits |
+
+Prioritize the base housing demo over stretch goals. If a gate slips, cut
+scope; never move the deadline.
+
+Test-driven (operator request): failing test first, then code. Every
+requirement and bug fix has an automated regression test. Bug reports carry a
+failing test or exact repro. Evidence = command + exit code + SHA. Manual
+checks are not evidence. Mocked LLM and disposable DB in tests; live-OpenAI
+smoke runs are labelled separately.
+
 ## 11. Keep Working Until The Project Is Done
 
 Operator request: all Devins keep working until the whole project is done.
