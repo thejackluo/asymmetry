@@ -88,8 +88,13 @@ export default function TasksPage() {
   return (
     <div className="flex h-screen flex-col">
       <Header connected={connected} />
-      <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-3">
-        <aside className="border-r border-zinc-800 md:col-span-1">
+      <div className="flex flex-1 overflow-hidden">
+        {/* desktop: ~280px list beside chat; mobile: one or the other */}
+        <aside
+          className={`w-full border-r border-neutral-200 md:block md:w-[280px] md:shrink-0 ${
+            selectedId ? 'hidden md:block' : ''
+          }`}
+        >
           <TaskList
             tasks={tasks}
             selectedId={selectedId}
@@ -99,18 +104,30 @@ export default function TasksPage() {
             }
           />
         </aside>
-        <section className="md:col-span-2">
+        <section
+          className={`flex-1 ${selectedId ? 'block' : 'hidden'} md:block`}
+        >
           {selected ? (
-            <TaskChat
-              task={selected}
-              myAgentId={user.agentId}
-              agentName={agentName}
-              connected={connected}
-            />
+            <div className="flex h-full flex-col">
+              <button
+                onClick={() => setSelectedId(null)}
+                className="border-b border-neutral-200 bg-neutral-50 px-3 py-2 text-left text-sm text-blue-700 md:hidden"
+              >
+                ← Back to tasks
+              </button>
+              <div className="min-h-0 flex-1">
+                <TaskChat
+                  task={selected}
+                  myAgentId={user.agentId}
+                  agentName={agentName}
+                  connected={connected}
+                />
+              </div>
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center">
-              <p className="text-sm text-zinc-600">
-                create or select a task to talk to your agent.
+              <p className="text-sm text-neutral-400">
+                Create or select a task to talk to your agent.
               </p>
             </div>
           )}

@@ -2,8 +2,9 @@
 
 import type { Agent, NetworkPayload } from '@/lib/types';
 
-// Hand-rolled SVG: own agent at center, peers on a ring.
-// solid edge = trusted, dashed+glow = discovered (derived, not stored).
+// Plain canvas: own agent center, peers on a ring.
+// Solid edge = trusted, dashed = discovered. Text list below is the
+// accessible equivalent of the graph relationships.
 export default function NetworkGraph({
   network,
   myAgentId,
@@ -16,10 +17,10 @@ export default function NetworkGraph({
   const me = agents.find((a) => a.id === myAgentId);
 
   const W = 720;
-  const H = 520;
+  const H = 440;
   const cx = W / 2;
   const cy = H / 2;
-  const R = Math.min(W, H) / 2 - 90;
+  const R = Math.min(W, H) / 2 - 80;
 
   const pos = new Map<string, { x: number; y: number }>();
   peers.forEach((a, i) => {
@@ -39,7 +40,7 @@ export default function NetworkGraph({
         viewBox={`0 0 ${W} ${H}`}
         className="max-h-full w-full max-w-3xl"
         role="img"
-        aria-label="agent network graph"
+        aria-label={`Agent network: ${trusted.length} trusted, ${discovered.length} discovered`}
       >
         {peers.map((a) => {
           const p = pos.get(a.id)!;
@@ -52,100 +53,76 @@ export default function NetworkGraph({
               y1={cy}
               x2={p.x}
               y2={p.y}
-              stroke={kind === 'trusted' ? '#34d399' : '#f59e0b'}
-              strokeWidth={kind === 'trusted' ? 2 : 1.5}
-              strokeDasharray={kind === 'discovered' ? '6 6' : undefined}
-              opacity={kind === 'trusted' ? 0.7 : 0.9}
-              className={kind === 'discovered' ? 'animate-pulse' : undefined}
+              stroke={kind === 'trusted' ? '#2563eb' : '#94a3b8'}
+              strokeWidth={kind === 'trusted' ? 1.5 : 1}
+              strokeDasharray={kind === 'discovered' ? '5 5' : undefined}
+              opacity={0.8}
             />
           );
         })}
         {peers.map((a) => {
           const p = pos.get(a.id)!;
           const kind = edgeFor(a);
-          const color = kind === 'trusted' ? '#34d399' : '#f59e0b';
           return (
             <g key={a.id} transform={`translate(${p.x},${p.y})`}>
               <circle
-                r={34}
-                fill="#18181b"
-                stroke={kind ? color : '#3f3f46'}
-                strokeWidth={2}
+                r={30}
+                fill="#ffffff"
+                stroke={kind === 'trusted' ? '#2563eb' : kind === 'discovered' ? '#94a3b8' : '#d4d4d4'}
+                strokeWidth={1.5}
               />
               <text
                 textAnchor="middle"
-                dy={-2}
-                fill="#e4e4e7"
+                dy={4}
+                fill="#171717"
                 fontSize={11}
-                fontFamily="monospace"
-              >
-                🤖
-              </text>
-              <text
-                textAnchor="middle"
-                dy={14}
-                fill="#a1a1aa"
-                fontSize={10}
-                fontFamily="monospace"
+                fontFamily="sans-serif"
               >
                 {a.name.split(' ')[0]}
               </text>
               <text
                 textAnchor="middle"
-                y={52}
-                fill={kind === 'discovered' ? '#f59e0b' : '#71717a'}
+                y={44}
+                fill="#525252"
                 fontSize={10}
-                fontFamily="monospace"
+                fontFamily="sans-serif"
               >
                 {kind ?? 'known'}
               </text>
             </g>
           );
         })}
-        {/* own agent at center */}
         <g transform={`translate(${cx},${cy})`}>
-          <circle
-            r={44}
-            fill="#052e22"
-            stroke="#34d399"
-            strokeWidth={3}
-            className="animate-pulse"
-            style={{ animationDuration: '3s' }}
-          />
-          <circle r={44} fill="none" stroke="#34d399" strokeWidth={1} opacity={0.3}>
-            <animate attributeName="r" from="44" to="60" dur="2s" repeatCount="indefinite" />
-            <animate attributeName="opacity" from="0.4" to="0" dur="2s" repeatCount="indefinite" />
-          </circle>
+          <circle r={38} fill="#eff6ff" stroke="#2563eb" strokeWidth={2} />
           <text
             textAnchor="middle"
-            dy={-2}
-            fill="#34d399"
-            fontSize={13}
-            fontFamily="monospace"
-            fontWeight="bold"
+            dy={4}
+            fill="#1d4ed8"
+            fontSize={12}
+            fontFamily="sans-serif"
+            fontWeight={600}
           >
-            🤖
-          </text>
-          <text
-            textAnchor="middle"
-            dy={14}
-            fill="#a7f3d0"
-            fontSize={10}
-            fontFamily="monospace"
-          >
-            {me?.name ?? 'you'}
+            {me?.name ?? 'You'}
           </text>
         </g>
       </svg>
-      <div className="mt-4 flex items-center gap-6 font-mono text-xs text-zinc-500">
+      <div className="mt-3 flex items-center gap-6 text-xs text-neutral-500">
         <span>
-          <span className="text-emerald-400">——</span> trusted ({trusted.length})
+          <span className="text-blue-600">——</span> trusted ({trusted.length})
         </span>
         <span>
-          <span className="text-amber-400">┄┄</span> discovered (
+          <span className="text-slate-400">- - -</span> discovered (
           {discovered.length})
         </span>
       </div>
+      {/* accessible text equivalent of the graph */}
+      <ul className="sr-only">
+        {peers.map((a) => (
+          <li key={`l-${a.id}`}>
+            {a.name}: {edgeFor(a) ?? 'known'}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

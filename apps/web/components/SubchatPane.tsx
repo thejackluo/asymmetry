@@ -1,19 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import type {
-  DisclosureNotice,
-  Message,
-  Subchat,
-} from '@/lib/types';
+import type { DisclosureNotice, Message, Subchat } from '@/lib/types';
 import { formatTime } from '@/lib/utils';
 
 type FeedEntry =
   | { kind: 'message'; message: Message }
   | { kind: 'disclosure'; notice: DisclosureNotice };
 
-// Collapsible, terminal-styled pane for agent↔agent traffic — deliberately
-// machine-looking (mono, green-on-dark) so it's unmistakable vs human chat.
+// Collapsible "Agent conversation" region — A2A traffic stays visually
+// distinct but reads as product UI, not a terminal window.
 export default function SubchatPane({
   subchat,
   messages,
@@ -29,7 +25,7 @@ export default function SubchatPane({
 
   const title =
     subchat.kind === 'group'
-      ? `group · ${subchat.participantAgentIds.length} agents`
+      ? `${subchat.participantAgentIds.length} agents`
       : subchat.participantAgentIds.map(agentName).join(' ↔ ');
 
   const feed: FeedEntry[] = [
@@ -46,67 +42,61 @@ export default function SubchatPane({
 
   const outcome = subchat.outcome;
   const isClosed = subchat.status === 'closed' || outcome !== null;
+  const stateText = isClosed ? (outcome ?? 'done') : 'open';
 
   return (
-    <div className="mb-4 overflow-hidden rounded-lg border border-emerald-500/40 bg-black/60">
+    <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50">
       <button
         onClick={() => setOpen((o) => !o)}
-        aria-label={open ? 'collapse subchat' : 'expand subchat'}
-        className="flex w-full items-center justify-between bg-emerald-500/10 px-3 py-2 text-left"
+        aria-expanded={open}
+        aria-label={`Agent conversation: ${title}, ${stateText}`}
+        className="flex w-full items-center justify-between px-3 py-2 text-left"
       >
-        <span className="font-mono text-xs text-emerald-300 a2a-glow">
-          🤖↔🤖 {title} — {isClosed ? 'closed' : 'negotiating'}
+        <span className="text-xs font-medium text-neutral-700">
+          Agent conversation · {title} — {stateText}
         </span>
-        <span className="font-mono text-xs text-emerald-500/70">
-          {open ? '−' : '+'}
-        </span>
+        <span className="text-xs text-neutral-400">{open ? '−' : '+'}</span>
       </button>
       {open && (
-        <div className="max-h-72 overflow-y-auto px-3 py-2">
+        <div className="max-h-72 overflow-y-auto border-t border-neutral-100 px-3 py-2">
           {feed.map((entry) =>
             entry.kind === 'message' ? (
-              <div key={entry.message.id} className="mb-1.5 font-mono text-xs">
-                <span className="text-emerald-600">
+              <div key={entry.message.id} className="mb-1.5 text-xs">
+                <span className="text-neutral-500">
                   [{formatTime(entry.message.createdAt)}]{' '}
                   {agentName(entry.message.senderId)}:
                 </span>{' '}
-                <span className="text-emerald-200">{entry.message.body}</span>
+                <span className="text-neutral-800">{entry.message.body}</span>
               </div>
             ) : (
               <div
                 key={entry.notice.id}
-                className="my-1.5 border-l-2 border-amber-500/60 pl-2 font-mono text-xs text-amber-300"
+                className="my-1.5 border-l-2 border-amber-400 pl-2 text-xs text-amber-800"
               >
-                🔒 {agentName(entry.notice.ownerAgentId)} shared{' '}
+                {agentName(entry.notice.ownerAgentId)} shared{' '}
                 {entry.notice.releasedCount} · withheld{' '}
-                {entry.notice.withheldCount} (private · outside task
-                scope) — {entry.notice.decision}
+                {entry.notice.withheldCount} — private or outside task scope
+                ({entry.notice.decision})
               </div>
             ),
           )}
           {feed.length === 0 && (
-            <p className="font-mono text-xs text-emerald-700">
-              waiting for agents…
-            </p>
+            <p className="text-xs text-neutral-400">Waiting for agents…</p>
           )}
         </div>
       )}
-      {isClosed && (
-        <div className="border-t border-emerald-500/30 px-3 py-2">
+      {isClosed && subchat.summary && (
+        <div className="border-t border-neutral-100 px-3 py-2">
           <span
-            className={`mr-2 inline-block rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase ${
+            className={`mr-2 inline-block rounded border px-1.5 py-0.5 text-[10px] uppercase ${
               outcome === 'stuck'
-                ? 'border-amber-500/50 bg-amber-500/15 text-amber-300'
-                : 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-700'
             }`}
           >
             {outcome ?? 'done'}
           </span>
-          {subchat.summary && (
-            <span className="font-mono text-xs text-zinc-400">
-              {subchat.summary}
-            </span>
-          )}
+          <span className="text-xs text-neutral-600">{subchat.summary}</span>
         </div>
       )}
     </div>

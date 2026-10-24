@@ -19,10 +19,10 @@ export default function Header({ connected }: { connected?: boolean }) {
   const link = (href: string, label: string) => (
     <Link
       href={href}
-      className={`font-mono text-sm transition ${
+      className={`text-sm transition ${
         pathname === href
-          ? 'text-emerald-400'
-          : 'text-zinc-500 hover:text-zinc-300'
+          ? 'font-medium text-blue-700'
+          : 'text-neutral-600 hover:text-neutral-900'
       }`}
     >
       {label}
@@ -30,31 +30,31 @@ export default function Header({ connected }: { connected?: boolean }) {
   );
 
   return (
-    <header className="flex h-12 items-center justify-between border-b border-zinc-800 px-4">
+    <header className="flex h-12 items-center justify-between border-b border-neutral-200 bg-neutral-50 px-4">
       <div className="flex items-center gap-6">
-        <span className="font-mono text-sm font-bold tracking-widest text-emerald-400">
-          ASYMMETRY
+        <span className="text-sm font-semibold tracking-wide text-neutral-900">
+          Asymmetry
         </span>
-        {link('/tasks', 'tasks')}
-        {link('/network', 'network')}
+        {link('/tasks', 'Tasks')}
+        {link('/network', 'Network')}
       </div>
       <div className="flex items-center gap-3">
         {connected !== undefined && (
           <span
-            className={`inline-block h-2 w-2 rounded-full ${
-              connected ? 'bg-emerald-400' : 'bg-red-500'
-            }`}
-            title={connected ? 'socket connected' : 'socket disconnected'}
-          />
+            className={`text-xs ${connected ? 'text-emerald-600' : 'text-red-600'}`}
+            role="status"
+          >
+            {connected ? '● connected' : '● reconnecting'}
+          </span>
         )}
-        <span className="font-mono text-xs text-zinc-500">
+        <span className="text-xs text-neutral-500">
           {user ? `@${user.username}` : ''}
         </span>
         <button
           onClick={logout}
-          className="font-mono text-xs text-zinc-500 transition hover:text-red-400"
+          className="text-xs text-neutral-500 transition hover:text-neutral-900"
         >
-          logout
+          Log out
         </button>
       </div>
     </header>

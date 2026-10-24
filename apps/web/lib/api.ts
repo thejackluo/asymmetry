@@ -1,6 +1,6 @@
 import type { NetworkPayload, Task, TaskHistory, User } from './types';
 import { isMockMode, mockApi } from './mock';
-import { getToken } from './auth';
+import { clearSession, getToken } from './auth';
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -28,10 +28,14 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     let message = `${res.status}`;
     try {
       const body = await res.json();
-      if (body?.error) message = body.error;
+      // contract error shape: {error: {code, message}}
+      if (body?.error?.message) message = body.error.message;
+      else if (typeof body?.error === 'string') message = body.error;
     } catch {
       // keep status message
     }
+    // Stale session: clear identity so guards route back to login.
+    if (res.status === 401) clearSession();
     throw new ApiError(res.status, message);
   }
   return (await res.json()) as T;

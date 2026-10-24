@@ -16,11 +16,11 @@ import MessageBubble from './MessageBubble';
 import SubchatPane from './SubchatPane';
 
 const statusStyle: Record<AgentStatus, string> = {
-  idle: 'border-zinc-600 text-zinc-400',
-  clarifying: 'border-sky-500/50 text-sky-400',
-  negotiating: 'border-emerald-500/50 text-emerald-400',
-  done: 'border-emerald-500/50 text-emerald-300',
-  stuck: 'border-amber-500/50 text-amber-400',
+  idle: 'border-neutral-300 bg-white text-neutral-500',
+  clarifying: 'border-blue-200 bg-blue-50 text-blue-700',
+  negotiating: 'border-blue-200 bg-blue-50 text-blue-700',
+  done: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  stuck: 'border-amber-200 bg-amber-50 text-amber-700',
 };
 
 interface PendingSend {
@@ -79,6 +79,13 @@ export default function TaskChat({
             (s) => prev.find((x) => x.id === s.id) ?? s,
           ),
         );
+        if (h.disclosures) {
+          setDisclosures((prev) =>
+            [...prev, ...h.disclosures!].filter(
+              (d, i, arr) => arr.findIndex((x) => x.id === d.id) === i,
+            ),
+          );
+        }
         setLoadError(false);
       })
       .catch(() => setLoadError(true))
@@ -92,6 +99,7 @@ export default function TaskChat({
         if (cancelled) return;
         setMessages(h.messages);
         setSubchats(h.subchats);
+        if (h.disclosures) setDisclosures(h.disclosures);
       })
       .catch(() => {
         if (!cancelled) setLoadError(true);
@@ -173,8 +181,19 @@ export default function TaskChat({
     [disclosures, task.id],
   );
 
+  // Follow new output only while the reader is already near the bottom —
+  // never yank the view away from someone scrolling up (UI-10/a11y).
+  const pinnedToBottom = useRef(true);
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    pinnedToBottom.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  };
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    if (pinnedToBottom.current) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    }
   }, [messages, subchats.length, disclosures.length]);
 
   function send(e: React.FormEvent) {
@@ -220,17 +239,23 @@ export default function TaskChat({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-        <h2 className="truncate text-sm text-zinc-300">{task.title}</h2>
+      <div className="flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-2">
+        <h2 className="truncate text-sm font-medium text-neutral-900">
+          {task.title}
+        </h2>
         {pill}
       </div>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto bg-white p-4"
+      >
         {loading && (
-          <p className="font-mono text-xs text-zinc-600">loading history…</p>
+          <p className="text-xs text-neutral-400">Loading history…</p>
         )}
         {loadError && (
-          <p className="font-mono text-xs text-red-400">
-            couldn&apos;t load history — reconnecting will retry
+          <p className="text-xs text-red-600">
+            Couldn&apos;t load history — reconnecting will retry.
           </p>
         )}
         {main.map((m) => (
@@ -239,10 +264,10 @@ export default function TaskChat({
         {disclosureRoutes.main.map((n) => (
           <div
             key={n.id}
-            className="my-1.5 border-l-2 border-amber-500/60 pl-2 font-mono text-xs text-amber-300"
+            className="my-1.5 border-l-2 border-amber-400 pl-2 text-xs text-amber-800"
           >
-            🔒 {agentName(n.ownerAgentId)} shared {n.releasedCount} · withheld{' '}
-            {n.withheldCount} (private · outside task scope) — {n.decision}
+            {agentName(n.ownerAgentId)} shared {n.releasedCount} · withheld{' '}
+            {n.withheldCount} — private or outside task scope ({n.decision})
           </div>
         ))}
         {subchats.map((s) => (
@@ -255,32 +280,40 @@ export default function TaskChat({
           />
         ))}
         {!loading && !loadError && main.length === 0 && subchats.length === 0 && (
-          <p className="text-sm text-zinc-600">
-            say something — your agent is listening.
+          <p className="text-sm text-neutral-500">
+            Say something — your agent is listening.
           </p>
         )}
         {pendingSends.map((s) => (
-          <p key={s.id} className="font-mono text-xs italic text-zinc-500">
+          <p
+            key={s.id}
+            className={`text-xs italic ${
+              s.state === 'sending' ? 'text-neutral-400' : 'text-amber-700'
+            }`}
+          >
             {s.state === 'sending'
-              ? `sending… “${s.body}”`
-              : `⚠ not delivered: “${s.body}” — check history before resending`}
+              ? `Sending… “${s.body}”`
+              : `Not delivered yet: “${s.body}” — check history before resending.`}
           </p>
         ))}
       </div>
-      <form onSubmit={send} className="border-t border-zinc-800 p-3">
+      <form onSubmit={send} className="border-t border-neutral-200 bg-white p-3">
         <div className="flex gap-2">
+          <label htmlFor="chat-body" className="sr-only">
+            Message your agent
+          </label>
           <input
+            id="chat-body"
             name="body"
-            placeholder="message your agent…"
-            aria-label="message your agent"
+            placeholder="Message your agent…"
             autoComplete="off"
-            className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500"
+            className="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           />
           <button
             type="submit"
-            className="rounded bg-emerald-500/90 px-4 font-mono text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400"
+            className="rounded-md bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700"
           >
-            send
+            Send
           </button>
         </div>
       </form>

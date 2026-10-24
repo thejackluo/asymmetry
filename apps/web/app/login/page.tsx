@@ -1,90 +1,86 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { login, ApiError } from '@/lib/api';
-import { getToken, setSession } from '@/lib/auth';
+import { useState } from 'react';
+import { ApiError, login } from '@/lib/api';
+import { setSession } from '@/lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(false);
 
-  useEffect(() => {
-    if (getToken()) router.replace('/tasks');
-  }, [router]);
-
-  async function onSubmit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setBusy(true);
+    const f = e.currentTarget.elements as HTMLFormControlsCollection;
+    const username = (f.namedItem('username') as HTMLInputElement).value.trim();
+    const password = (f.namedItem('password') as HTMLInputElement).value;
+    if (!username || !password) return;
     setError(null);
+    setPending(true);
     try {
-      const { token, user } = await login(username.trim(), password);
+      const { token, user } = await login(username, password);
       setSession(token, user);
-      router.push('/tasks');
+      router.replace('/tasks');
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 401
-          ? 'wrong password'
-          : 'could not reach server — try again',
+          ? 'Wrong username or password.'
+          : 'Could not reach the server — try again.',
       );
-    } finally {
-      setBusy(false);
+      setPending(false);
     }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="font-mono text-3xl font-bold tracking-widest text-emerald-400 a2a-glow">
-            ASYMMETRY
-          </div>
-          <p className="mt-2 text-sm text-zinc-500">
-            your agent asks around. you get opportunities.
-          </p>
-        </div>
-        <form
-          onSubmit={onSubmit}
-          className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-6 shadow-xl"
-        >
-          <label className="block text-xs font-medium uppercase tracking-wider text-zinc-500">
-            username
+    <main className="flex min-h-screen items-center justify-center bg-neutral-50 p-4">
+      <div className="w-full max-w-sm rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
+        <h1 className="text-lg font-semibold text-neutral-900">Asymmetry</h1>
+        <p className="mt-1 text-sm text-neutral-500">
+          Sign in to work with your agent.
+        </p>
+        <form onSubmit={submit} className="mt-5 space-y-3">
+          <div>
+            <label
+              htmlFor="username"
+              className="mb-1 block text-sm font-medium text-neutral-700"
+            >
+              Username
+            </label>
             <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              autoFocus
+              id="username"
+              name="username"
               autoComplete="username"
-              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-100 outline-none focus:border-emerald-500"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             />
-          </label>
-          <label className="mt-4 block text-xs font-medium uppercase tracking-wider text-zinc-500">
-            password
+          </div>
+          <div>
+            <label
+              htmlFor="password"
+              className="mb-1 block text-sm font-medium text-neutral-700"
+            >
+              Password
+            </label>
             <input
+              id="password"
+              name="password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
               autoComplete="current-password"
-              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-100 outline-none focus:border-emerald-500"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             />
-          </label>
+          </div>
           {error && (
-            <p className="mt-3 font-mono text-xs text-red-400">error: {error}</p>
+            <p role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
           )}
           <button
             type="submit"
-            disabled={busy}
-            className="mt-6 w-full rounded bg-emerald-500/90 py-2 font-mono text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400 disabled:opacity-50"
+            disabled={pending}
+            className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-60"
           >
-            {busy ? 'connecting…' : 'enter'}
+            {pending ? 'Signing in…' : 'Sign in'}
           </button>
-          <p className="mt-3 text-center text-xs text-zinc-600">
-            new usernames auto-register
-          </p>
         </form>
       </div>
     </main>

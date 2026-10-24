@@ -28,7 +28,15 @@ export type {
 } from '@asymmetry/shared';
 
 import { CLIENT_EVENTS, SERVER_EVENTS } from '@asymmetry/shared';
-import type { Agent, AgentStatus, ID, Message, Subchat, Task } from '@asymmetry/shared';
+import type {
+  Agent,
+  AgentStatus,
+  DisclosureNotice,
+  ID,
+  Message,
+  Subchat,
+  Task,
+} from '@asymmetry/shared';
 
 // CONTRACTS.md §3 socket event names — single map for convenience.
 export const EVT = { ...CLIENT_EVENTS, ...SERVER_EVENTS } as const;
@@ -45,6 +53,7 @@ export interface TaskHistory {
   task: Task;
   messages: Message[];
   subchats: Subchat[];
+  disclosures?: DisclosureNotice[];
 }
 
 export interface TaskUpdatedPayload {
