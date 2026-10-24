@@ -5,7 +5,6 @@ import type {
   DisclosureNotice,
   Message,
   Subchat,
-  SubchatClosedPayload,
 } from '@/lib/types';
 import { formatTime } from '@/lib/utils';
 
@@ -19,13 +18,11 @@ export default function SubchatPane({
   subchat,
   messages,
   disclosures,
-  closure,
   agentName,
 }: {
   subchat: Subchat;
   messages: Message[];
   disclosures: DisclosureNotice[];
-  closure: SubchatClosedPayload | null;
   agentName: (agentId: string) => string;
 }) {
   const [open, setOpen] = useState(true);
@@ -47,13 +44,14 @@ export default function SubchatPane({
   });
   // Notices carry no timestamp — they append in arrival order after messages.
 
-  const outcome = closure?.outcome ?? null;
+  const outcome = subchat.outcome;
   const isClosed = subchat.status === 'closed' || outcome !== null;
 
   return (
     <div className="mb-4 overflow-hidden rounded-lg border border-emerald-500/40 bg-black/60">
       <button
         onClick={() => setOpen((o) => !o)}
+        aria-label={open ? 'collapse subchat' : 'expand subchat'}
         className="flex w-full items-center justify-between bg-emerald-500/10 px-3 py-2 text-left"
       >
         <span className="font-mono text-xs text-emerald-300 a2a-glow">
@@ -81,8 +79,8 @@ export default function SubchatPane({
               >
                 🔒 {agentName(entry.notice.ownerAgentId)} shared{' '}
                 {entry.notice.releasedCount} · withheld{' '}
-                {entry.notice.withheldCount} (out of scope) —{' '}
-                {entry.notice.decision}
+                {entry.notice.withheldCount} (private · outside task
+                scope) — {entry.notice.decision}
               </div>
             ),
           )}
@@ -104,9 +102,9 @@ export default function SubchatPane({
           >
             {outcome ?? 'done'}
           </span>
-          {closure?.summary && (
+          {subchat.summary && (
             <span className="font-mono text-xs text-zinc-400">
-              {closure.summary}
+              {subchat.summary}
             </span>
           )}
         </div>

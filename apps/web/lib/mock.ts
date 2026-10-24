@@ -11,7 +11,7 @@ import type {
   User,
 } from './types';
 import { EVT } from './types';
-import type { SocketClient } from './socket';
+import type { Ack, SocketClient } from './socket';
 
 // Mock mode: localStorage `asym_socket_mode=mock` beats env; env beats default.
 export function isMockMode(): boolean {
@@ -82,6 +82,9 @@ const seedSubchats: Subchat[] = [
     kind: 'pair',
     participantAgentIds: ['a-alice', 'a-bob'],
     status: 'open',
+    outcome: null,
+    summary: null,
+    closedAt: null,
     createdAt: NOW - 3_300_000,
   },
 ];
@@ -159,7 +162,8 @@ export class MockSocketClient implements SocketClient {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   connect(_token: string): void {
-    // nothing to do — mock needs no network
+    // Behave like a live transport: pages gate 'reconnecting…' on this.
+    this.after(50, () => this.fire('connect', {}));
   }
 
   on<T>(event: string, cb: (payload: T) => void): () => void {
@@ -172,12 +176,14 @@ export class MockSocketClient implements SocketClient {
     return () => set.delete(cb as Handler);
   }
 
-  emit(event: string, payload: unknown): void {
+  emit(event: string, payload: unknown, ack?: Ack): void {
     if (event === EVT.TASK_CREATE) {
       this.handleTaskCreate((payload as { title: string }).title);
     } else if (event === EVT.CHAT_SEND) {
       this.handleChatSend(payload as { taskId: string; body: string });
     }
+    // Contract ack: delivery confirmed once the server accepted the send.
+    if (ack) this.after(120, () => ack({ ok: true, data: payload }));
   }
 
   disconnect(): void {
@@ -225,6 +231,9 @@ export class MockSocketClient implements SocketClient {
       kind: 'pair',
       participantAgentIds: ['a-alice', 'a-bob'],
       status: 'open',
+      outcome: null,
+      summary: null,
+      closedAt: null,
       createdAt: Date.now(),
     };
 

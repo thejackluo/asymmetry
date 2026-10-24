@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Message } from './types';
-import { mergeMessages, partitionMessages } from './utils';
+import type { DisclosureNotice, Message } from './types';
+import { mergeMessages, partitionMessages, routeDisclosures } from './utils';
 
 const msg = (id: string, subchatId: string | null): Message => ({
   id,
@@ -31,6 +31,54 @@ describe('partitionMessages', () => {
     const { main, bySubchat } = partitionMessages([]);
     expect(main).toEqual([]);
     expect(bySubchat.size).toBe(0);
+  });
+});
+
+const notice = (
+  id: string,
+  taskId: string,
+  subchatId: string | null,
+): DisclosureNotice => ({
+  id,
+  taskId,
+  subchatId,
+  ownerAgentId: 'a-bob',
+  releasedCount: 3,
+  withheldCount: 2,
+  decision: 'partial',
+});
+
+describe('routeDisclosures', () => {
+  it('routes by explicit taskId + subchatId, never the active pane', () => {
+    const { bySubchat } = routeDisclosures(
+      [notice('d1', 't1', 'sc-b'), notice('d2', 't1', 'sc-a')],
+      't1',
+    );
+    // out-of-order arrival still lands in the right pane
+    expect(bySubchat.get('sc-a')?.map((n) => n.id)).toEqual(['d2']);
+    expect(bySubchat.get('sc-b')?.map((n) => n.id)).toEqual(['d1']);
+  });
+
+  it('null-subchatId notices become main-thread system lines', () => {
+    const { main, bySubchat } = routeDisclosures(
+      [notice('d1', 't1', null), notice('d2', 't1', 'sc-a')],
+      't1',
+    );
+    expect(main.map((n) => n.id)).toEqual(['d1']);
+    expect(bySubchat.get('sc-a')?.map((n) => n.id)).toEqual(['d2']);
+  });
+
+  it('dedupes notice ids and ignores notices for other tasks', () => {
+    const { main, bySubchat } = routeDisclosures(
+      [
+        notice('d1', 't1', 'sc-a'),
+        notice('d1', 't1', 'sc-a'), // replay duplicate
+        notice('d2', 't2', 'sc-a'), // different task
+      ],
+      't1',
+    );
+    expect(main).toEqual([]);
+    expect(bySubchat.get('sc-a')?.map((n) => n.id)).toEqual(['d1']);
   });
 });
 

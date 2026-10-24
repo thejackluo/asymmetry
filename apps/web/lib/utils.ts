@@ -1,4 +1,4 @@
-import type { Message } from './types';
+import type { DisclosureNotice, Message } from './types';
 
 export interface PartitionedMessages {
   main: Message[];
@@ -30,6 +30,37 @@ export function mergeMessages(existing: Message[], incoming: Message[]): Message
     if (!seen.has(m.id)) merged.push(m);
   }
   return merged.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export interface RoutedDisclosures {
+  /** null-subchatId notices → owner system line on the main thread */
+  main: DisclosureNotice[];
+  /** notices addressed to a specific subchat pane */
+  bySubchat: Map<string, DisclosureNotice[]>;
+}
+
+// Each notice lands in its explicit conversation (taskId + subchatId),
+// never whichever pane happens to be active (UI-06). Notices for other
+// tasks are ignored; IDs dedupe live delivery against history replay.
+export function routeDisclosures(
+  notices: DisclosureNotice[],
+  taskId: string,
+): RoutedDisclosures {
+  const seen = new Set<string>();
+  const main: DisclosureNotice[] = [];
+  const bySubchat = new Map<string, DisclosureNotice[]>();
+  for (const n of notices) {
+    if (n.taskId !== taskId || seen.has(n.id)) continue;
+    seen.add(n.id);
+    if (n.subchatId === null) {
+      main.push(n);
+    } else {
+      const list = bySubchat.get(n.subchatId) ?? [];
+      list.push(n);
+      bySubchat.set(n.subchatId, list);
+    }
+  }
+  return { main, bySubchat };
 }
 
 export function formatTime(ts: number): string {

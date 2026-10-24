@@ -3,16 +3,20 @@
 import { io, type Socket } from 'socket.io-client';
 import { isMockMode, MockSocketClient } from './mock';
 import { API_URL } from './api';
+import type { CommandResult } from '@asymmetry/shared';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type EventHandler = (payload: any) => void;
+
+// CONTRACTS §3: client events take an optional ack receiving CommandResult.
+export type Ack = (result: CommandResult<unknown>) => void;
 
 // Thin wrapper so every page works against the backend or the mock with zero
 // code changes — the demo can run end-to-end before D1/D2 land.
 export interface SocketClient {
   connect(token: string): void;
   on<T>(event: string, cb: (payload: T) => void): () => void;
-  emit(event: string, payload: unknown): void;
+  emit(event: string, payload: unknown, ack?: Ack): void;
   disconnect(): void;
 }
 
@@ -48,8 +52,13 @@ export class RealSocketClient implements SocketClient {
     };
   }
 
-  emit(event: string, payload: unknown): void {
-    this.socket?.emit(event, payload);
+  emit(event: string, payload: unknown, ack?: Ack): void {
+    if (ack) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.socket?.emit(event, payload, ack as any);
+    } else {
+      this.socket?.emit(event, payload);
+    }
   }
 
   disconnect(): void {

@@ -38,8 +38,23 @@ export default function TasksPage() {
 
     const socket = getSocket();
     socket.connect(token);
+    const refresh = () => {
+      getTasks()
+        .then((ts) => {
+          setTasks(ts);
+          if (ts.length && !selectedRef.current) setSelectedId(ts[0].id);
+        })
+        .catch(() => {});
+      getNetwork()
+        .then((n) => setAgents(n.agents))
+        .catch(() => {});
+    };
     const unsubs = [
-      socket.on('connect', () => setConnected(true)),
+      // Refetch on (re)connect — recovers any events missed while down.
+      socket.on('connect', () => {
+        setConnected(true);
+        refresh();
+      }),
       socket.on('disconnect', () => setConnected(false)),
       socket.on(EVT.TASK_CREATED, (t: Task) => {
         setTasks((prev) => (prev.some((x) => x.id === t.id) ? prev : [...prev, t]));
@@ -55,15 +70,7 @@ export default function TasksPage() {
       }),
     ];
 
-    getTasks()
-      .then((ts) => {
-        setTasks(ts);
-        if (ts.length && !selectedRef.current) setSelectedId(ts[0].id);
-      })
-      .catch(() => {});
-    getNetwork()
-      .then((n) => setAgents(n.agents))
-      .catch(() => {});
+    refresh();
 
     return () => unsubs.forEach((u) => u());
   }, [router]);
@@ -98,6 +105,7 @@ export default function TasksPage() {
               task={selected}
               myAgentId={user.agentId}
               agentName={agentName}
+              connected={connected}
             />
           ) : (
             <div className="flex h-full items-center justify-center">

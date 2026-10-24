@@ -15,6 +15,7 @@ export default function NetworkPage() {
   const user = useStoredUser();
   const [network, setNetwork] = useState<NetworkPayload | null>(null);
   const [connected, setConnected] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -24,14 +25,23 @@ export default function NetworkPage() {
     }
     const socket = getSocket();
     socket.connect(token);
+    const refresh = () => {
+      getNetwork()
+        .then((n) => {
+          setNetwork(n);
+          setLoadError(false);
+        })
+        .catch(() => setLoadError(true));
+    };
     const unsubs = [
-      socket.on('connect', () => setConnected(true)),
+      socket.on('connect', () => {
+        setConnected(true);
+        refresh();
+      }),
       socket.on('disconnect', () => setConnected(false)),
       socket.on(EVT.NETWORK_UPDATED, (n: NetworkPayload) => setNetwork(n)),
     ];
-    getNetwork()
-      .then(setNetwork)
-      .catch(() => {});
+    refresh();
     return () => unsubs.forEach((u) => u());
   }, [router]);
 
@@ -40,8 +50,22 @@ export default function NetworkPage() {
   return (
     <div className="flex h-screen flex-col">
       <Header connected={connected} />
-      {network ? (
-        <NetworkGraph network={network} myAgentId={user.agentId} />
+      {loadError ? (
+        <div className="flex flex-1 items-center justify-center">
+          <p className="font-mono text-xs text-red-400">
+            couldn&apos;t load the network — reconnecting will retry
+          </p>
+        </div>
+      ) : network ? (
+        network.agents.length > 0 ? (
+          <NetworkGraph network={network} myAgentId={user.agentId} />
+        ) : (
+          <div className="flex flex-1 items-center justify-center">
+            <p className="font-mono text-xs text-zinc-600">
+              no agents on the network yet
+            </p>
+          </div>
+        )
       ) : (
         <div className="flex flex-1 items-center justify-center">
           <p className="font-mono text-xs text-zinc-600">loading network…</p>
