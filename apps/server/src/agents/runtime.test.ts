@@ -496,6 +496,141 @@ describe('agent runtime queues and loops', () => {
     }
   });
 
+  it('closes unanswered subchats without a request before finalizing owner text', async () => {
+    const db = createFixtureDb();
+    const { io } = createFakeIO();
+    const task = createScopedTask(db);
+    const bobFacts: MemoryItem[] = [{
+      id: 'bob-area',
+      userId: FIXTURE_IDS.users.bob,
+      content: 'The room is near campus.',
+      classification: 'network',
+      fieldTags: ['location_area'],
+      source: 'seed',
+      createdAt: 1,
+    }];
+    const { memory, calls } = createFakeMemory({
+      itemsByOwner: { [FIXTURE_IDS.users.bob]: bobFacts },
+      withheldCountByOwner: { [FIXTURE_IDS.users.bob]: 2 },
+    });
+    let ownerCalls = 0;
+    let bobCalls = 0;
+    const finalSummary = 'I found a room from Bob.';
+    const llm: LLMClient = {
+      async chat(messages) {
+        const system = messages.find(({ role }) => role === 'system')?.content ?? '';
+        if (system.includes("You are Alice's Agent,")) {
+          ownerCalls += 1;
+          if (ownerCalls === 1) {
+            return {
+              toolCalls: [
+                {
+                  id: 'open-bob',
+                  name: 'open_subchat',
+                  args: { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] },
+                },
+                {
+                  id: 'open-dave',
+                  name: 'open_subchat',
+                  args: { taskId: task.id, agentIds: [FIXTURE_IDS.agents.dave] },
+                },
+              ],
+            };
+          }
+          if (ownerCalls === 2) {
+            const opened = messages
+              .filter(({ role }) => role === 'tool')
+              .flatMap(({ content }) => {
+                try {
+                  const parsed = JSON.parse(content) as {
+                    id?: string;
+                    participantAgentIds?: string[];
+                  };
+                  return parsed.id && parsed.participantAgentIds ? [parsed] : [];
+                } catch {
+                  return [];
+                }
+              });
+            const bobSubchat = opened.find(({ participantAgentIds }) =>
+              participantAgentIds?.includes(FIXTURE_IDS.agents.bob));
+            if (!bobSubchat?.id) {
+              throw new Error('owner did not receive Bob subchat ID');
+            }
+            return {
+              toolCalls: [{
+                id: 'ask-bob',
+                name: 'send_subchat_message',
+                args: { subchatId: bobSubchat.id },
+              }],
+            };
+          }
+          for (let attempt = 0; attempt < 20; attempt += 1) {
+            const bobSubchat = listSubchatsByTask(db, task.id).find(({ participantAgentIds }) =>
+              participantAgentIds.includes(FIXTURE_IDS.agents.bob));
+            if (bobSubchat?.status === 'closed') {
+              break;
+            }
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          }
+          const bobSubchat = listSubchatsByTask(db, task.id).find(({ participantAgentIds }) =>
+            participantAgentIds.includes(FIXTURE_IDS.agents.bob));
+          if (bobSubchat?.status !== 'closed') {
+            throw new Error('Bob subchat did not close before owner reply');
+          }
+          return { reply: finalSummary };
+        }
+
+        if (system.includes("You are Bob's Agent,")) {
+          bobCalls += 1;
+          if (bobCalls === 1) {
+            return {
+              toolCalls: [{
+                id: 'bob-query',
+                name: 'query_memory',
+                args: {
+                  ownerUserId: FIXTURE_IDS.users.bob,
+                  scope: { fields: ['location_area', 'price', 'dates'] },
+                },
+              }],
+            };
+          }
+          return { reply: 'I found a room near campus.' };
+        }
+
+        throw new Error(`unexpected model route: ${system.slice(0, 80)}`);
+      },
+    };
+    const runtime = createAgentRuntime({ io, db, memory, llm });
+    try {
+      runtime.wakeOwner(task.id);
+      await runtime.idle();
+
+      const subchats = listSubchatsByTask(db, task.id);
+      const bobSubchat = subchats.find(({ participantAgentIds }) =>
+        participantAgentIds.includes(FIXTURE_IDS.agents.bob));
+      const daveSubchat = subchats.find(({ participantAgentIds }) =>
+        participantAgentIds.includes(FIXTURE_IDS.agents.dave));
+      expect(getTask(db, task.id)?.status).toBe('done');
+      expect(bobSubchat).toMatchObject({ status: 'closed', outcome: 'done' });
+      expect(daveSubchat).toMatchObject({
+        status: 'closed',
+        outcome: 'stuck',
+        summary: 'Closed: no request was sent.',
+      });
+      expect(bobSubchat).toBeDefined();
+      expect(daveSubchat).toBeDefined();
+      expect(listSubchatMessages(db, bobSubchat!.id)).toHaveLength(2);
+      expect(listSubchatMessages(db, daveSubchat!.id)).toHaveLength(0);
+      expect(calls.queryMemory).toHaveLength(1);
+      expect(listMainThreadMessages(db, task.id)
+        .filter(({ senderId, body }) => senderId === FIXTURE_IDS.agents.alice && body.startsWith(finalSummary)))
+        .toHaveLength(1);
+      expect(ownerCalls).toBe(3);
+    } finally {
+      db.close();
+    }
+  });
+
   it('enforces the eight-iteration ceiling and deterministic task-wide thirty-call budget', async () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();
@@ -552,6 +687,13 @@ describe('agent runtime queues and loops', () => {
       FIXTURE_IDS.agents.alice,
       FIXTURE_IDS.agents.bob,
     ]);
+    insertMessage(db, {
+      taskId: task.id,
+      subchatId: subchat.id,
+      senderType: 'agent',
+      senderId: FIXTURE_IDS.agents.alice,
+      body: 'Please return the requested details.',
+    });
     const llm = routedLLM({
       "Alice's Agent": Array.from({ length: 30 }, () => ({ reply: 'I am waiting for Bob.' })),
     });

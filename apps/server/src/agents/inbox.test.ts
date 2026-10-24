@@ -255,7 +255,7 @@ describe('agent inbox handlers', () => {
     }
   });
 
-  it('A2A-07: transitions clarifying → negotiating → done after canonical scope is derived', async () => {
+  it('A2A-07: closes a peer thread with no request after canonical scope is derived', async () => {
     const db = createFixtureDb();
     const { io, emissions } = createFakeIO();
     const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a summer room');
@@ -267,13 +267,7 @@ describe('agent inbox handlers', () => {
       "Alice's Agent": [
         llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] }),
         { reply: 'I reached out to Bob and am waiting for a response.' },
-        llmTool('report_to_human', {
-          taskId: task.id,
-          status: 'done',
-          summary: 'I found a room and can propose a warm introduction.',
-        }),
       ],
-      "Bob's Agent": [{ reply: 'I found a room that is available this summer.' }],
     });
     const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm });
     try {
@@ -284,26 +278,25 @@ describe('agent inbox handlers', () => {
       await runtime.idle();
 
       expect(getTaskScope(db, task.id)?.fields).toEqual(['location_area', 'price', 'dates']);
-      expect(getTask(db, task.id)?.status).toBe('active');
-      const subchat = db.prepare('SELECT id FROM subchats WHERE task_id = ?')
-        .get(task.id) as { id: string };
-      runtime.runPeer(subchat.id, FIXTURE_IDS.agents.bob);
-      await runtime.idle();
-
-      expect(getTask(db, task.id)?.status).toBe('done');
+      expect(getTask(db, task.id)?.status).toBe('stuck');
+      const subchat = db.prepare('SELECT status, outcome, summary FROM subchats WHERE task_id = ?')
+        .get(task.id) as { status: string; outcome: string; summary: string };
+      expect(subchat).toEqual({
+        status: 'closed',
+        outcome: 'stuck',
+        summary: 'Closed: no request was sent.',
+      });
       expect(emissions
         .filter(({ event, payload }) => event === EVENTS.AGENT_STATUS
           && (payload as { agentId?: string }).agentId === FIXTURE_IDS.agents.alice)
         .map(({ payload }) => (payload as { status: string }).status)).toEqual([
         'clarifying',
         'negotiating',
-        'done',
+        'stuck',
       ]);
       expect(llm.calls.map(({ route }) => route)).toEqual([
         'scope',
         "Alice's Agent",
-        "Alice's Agent",
-        "Bob's Agent",
         "Alice's Agent",
       ]);
     } finally {

@@ -310,6 +310,23 @@ export function createAgentRuntime({
       }
 
       if (typeof result.reply === 'string' && result.reply.trim().length > 0) {
+        const openSubchats = listSubchatsByTask(db, taskId);
+        for (const subchat of openSubchats) {
+          if (subchat.status !== 'open') {
+            continue;
+          }
+          const ownerSentRequest = listSubchatMessages(db, subchat.id)
+            .some(({ senderId }) => senderId === ownerAgent.id);
+          if (!ownerSentRequest) {
+            closeSubchatAndNotify(
+              db,
+              io,
+              subchat.id,
+              'stuck',
+              'Closed: no request was sent.',
+            );
+          }
+        }
         const subchats = listSubchatsByTask(db, taskId);
         if (subchats.length > 0 && subchats.every(({ status }) => status === 'closed')) {
           await executeToolCall({ ...ctx, allowOpenSubchatReport: true }, {
