@@ -2,6 +2,8 @@
 
 Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
 
+All sessions start with `AGENTS.md` and `.planning/AUTONOMOUS-RUNBOOK.md`; independent reviewers read `.planning/REVIEW-INSTRUCTIONS.md`.
+
 Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
 
 Personal AI agents ("digital twins") that negotiate across a trusted network
@@ -11,9 +13,8 @@ intros — while sharing only what each task strictly requires.
 This repo is spec-first under a **simplified GSD** loop:
 
 ```
-PLAN ──(complete — .planning/)──► EXECUTE ──► SHIP
-                                 phase       push every 2-3min · draft PR ·
-                                 plans       cross-model review
+PLAN: discussion + specs
+  -> EXECUTE: phase plans + tests + push every 2-3min + PR + review + ship
 ```
 
 ## Read order

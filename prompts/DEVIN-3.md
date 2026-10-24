@@ -11,6 +11,8 @@ across a trusted network. You build the differentiator: memory classified
 public/network/private (fail-closed) and scoped, audited disclosure — agents
 only ever see what a task strictly requires.
 
+Mandatory execution loop: read `.planning/AUTONOMOUS-RUNBOOK.md` and use `.planning/REVIEW-INSTRUCTIONS.md` for fresh different-model review of each pushed candidate SHA. Claim tasks, poll issues/comments/Projects every five minutes, commit and push meaningful checkpoints every 2-3 minutes, run the phase checks, fix findings, and send the reviewed SHA to Jack for merge. Report missing review capability as blocked; never fabricate approval.
+
 ## Your spec (read in this order)
 1. `.planning/OPERATING-RULES.md` — cadence, PRs, review, comms (binds you)
 2. `.planning/PROJECT.md` — charter + demo script

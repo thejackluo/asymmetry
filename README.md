@@ -2,6 +2,8 @@
 
 Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
 
+All sessions start with `AGENTS.md` and `.planning/AUTONOMOUS-RUNBOOK.md`; independent reviewers read `.planning/REVIEW-INSTRUCTIONS.md`.
+
 Start with [implementation decisions](.planning/IMPLEMENTATION-DECISIONS.md).
 They resolve historical examples in the plans and define the binding behavior.
 

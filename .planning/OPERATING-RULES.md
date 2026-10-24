@@ -10,18 +10,16 @@ in each `prompts/DEVIN-*.md`, but this file is canonical.
 ## Workflow (simplified GSD)
 
 ```
-PLAN ──(done — everything in .planning/)──► EXECUTE ──► SHIP
-                                          │              │
-                                    your phase plan   push · PR ·
-                                    + verify tasks    cross-review
+PLAN (discussion + specs)
+  -> EXECUTE (implementation + tests + push + PR + cross-model review + ship)
 ```
 
 - **PLAN**: finished. `.planning/` + `CONTRACTS.md` are your complete spec.
   Do not re-derive requirements — execute them.
 - **EXECUTE**: work your `phases/NN-*/NN-01-PLAN.md` tasks in order; run each
   task's `<verify>`; check every `<acceptance_criteria>`.
-- **SHIP**: continuous — cadence pushes, draft PR, cross-model review. There
-  is no human gate until demo rehearsal.
+- **Ship is inside Execute**, not a third planning/approval stage.
+  Follow AUTONOMOUS-RUNBOOK.md for commits, collaboration, review, and merge.
 
 ## Cadence & branches
 
@@ -41,8 +39,8 @@ PLAN ──(done — everything in .planning/)──► EXECUTE ──► SHIP
 ## Review (cross-model, mandatory)
 
 - A **different model** reviews your PR — never self-review.
-- Every review comment is a work item: fix and push, or reply only if it
-  conflicts with CONTRACTS.md (cite the section).
+- Every review comment is a work item: fix and push, or explain a grounded
+  technical disagreement with contract and behavioral evidence.
 - When reviewing another Devin's PR: check contract conformance, owned-path
   containment, and whether pasted verification is real.
 - Merge only after approval + your checks green. Merge order: D1 Phase-0 PR
@@ -56,8 +54,8 @@ PLAN ──(done — everything in .planning/)──► EXECUTE ──► SHIP
 - **GitHub Projects = task board.** Keep your own cards' status current.
 - **Poll every ~5 minutes** while working: `gh issue list` + your project
   column. Respond wherever you're tagged.
-- **Addressing**: tag the GitHub *username* of the human whose Devin(s) should
-  respond — every Devin that human runs sees it; the `[Dn]` prefix says who acts.
+- **Addressing**: use verified handles in TEAM.md and the role prefix.
+  Sessions must poll updated comments; mentions do not automatically wake them.
 - **Blocked on another layer?** File an issue, tag the owner, keep building on
   your fallback (D2 → `stubMemoryEngine`; D4 → mock `SocketClient`; D3 → mock
   io emit). Never sit idle.
@@ -66,7 +64,9 @@ PLAN ──(done — everything in .planning/)──► EXECUTE ──► SHIP
 
 ## Testing
 
-- You write and run tests for **your** layer only; paste output in the PR.
+- You write and run tests for your layer; paste output in the PR.
+- Jack owns the integrated cross-layer test gate; layer tests alone are
+  insufficient to establish demo readiness.
 - vitest is preinstalled by D1 — add `*.test.ts` inside your owned dirs only.
 - Do not modify `apps/server/package.json` (D1 owns it). Missing dep? File
   a `[D1]` issue — or use what's already there (D1 preinstalls the shared set).
