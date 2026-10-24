@@ -99,9 +99,16 @@ export default function TasksPage() {
             tasks={tasks}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            onCreate={(title) =>
-              getSocket().emit(EVT.TASK_CREATE, { title })
-            }
+            onCreate={(title, done) => {
+              let settled = false;
+              getSocket().emit(EVT.TASK_CREATE, { title }, (result) => {
+                settled = true;
+                done(!!result?.ok);
+              });
+              setTimeout(() => {
+                if (!settled) done(false);
+              }, 5000);
+            }}
           />
         </aside>
         <section

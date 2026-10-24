@@ -199,9 +199,16 @@ export default function TaskChat({
     setPendingSends((p) => [...p, { id: localId, body, state: 'sending' }]);
 
     // Ack = server confirmed persistence; the human echo renders it.
-    // No silent replay — a missing ack surfaces as delivery uncertainty.
-    getSocket().emit(EVT.CHAT_SEND, { taskId: task.id, body }, () => {
-      setPendingSends((p) => p.filter((x) => x.id !== localId));
+    // No silent replay — a missing ack surfaces as delivery uncertainty,
+    // and a rejection (ok:false) is surfaced, not silently dropped.
+    getSocket().emit(EVT.CHAT_SEND, { taskId: task.id, body }, (result) => {
+      setPendingSends((p) =>
+        result?.ok
+          ? p.filter((x) => x.id !== localId)
+          : p.map((x) =>
+              x.id === localId ? { ...x, state: 'failed' } : x,
+            ),
+      );
     });
     const t = setTimeout(() => {
       setPendingSends((p) =>
