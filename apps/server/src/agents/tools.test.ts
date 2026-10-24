@@ -9,6 +9,7 @@ import {
   type RuntimeHooks,
   type TrustedCtx,
 } from './tools.js';
+import { mockLLM } from './llm.js';
 import {
   createSubchat,
   createTask,
@@ -710,11 +711,24 @@ describe('trusted-context agent tools', () => {
       expect(ownerQuery.content).toContain('OWNER-ONLY-SENTINEL');
 
       const ownerReport = 'I found a place, want an intro?';
-      await executeToolCall({ ...ownerCtx, memory }, toolCall('report_to_human', {
-        taskId: ownerCtx.taskId,
-        status: 'done',
-        summary: ownerReport,
-      }));
+      const ownerModel = mockLLM([{
+        toolCalls: [{
+          id: 'owner-report',
+          name: 'report_to_human',
+          args: {
+            taskId: ownerCtx.taskId,
+            status: 'done',
+            summary: ownerReport,
+          },
+        }],
+      }]);
+      const ownerResult = await ownerModel.chat([], OWNER_AGENT_TOOLS);
+      const reportCall = ownerResult.toolCalls?.[0];
+      expect(reportCall).toBeDefined();
+      if (!reportCall) {
+        throw new Error('owner report tool call was not returned');
+      }
+      await executeToolCall({ ...ownerCtx, memory }, reportCall);
 
       const report = listMainThreadMessages(db, ownerCtx.taskId)
         .find(({ body }) => body.startsWith(ownerReport))?.body ?? '';

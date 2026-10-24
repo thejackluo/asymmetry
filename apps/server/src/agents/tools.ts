@@ -28,6 +28,18 @@ export interface RuntimeHooks {
   wakeOwner(taskId: ID, note?: string): void;
   reportOwnerFailure(taskId: ID, reason: string): Promise<void>;
   runPeer(subchatId: ID, agentId: ID): void;
+  recordPeerFacts?(
+    taskId: ID,
+    ownerAgentName: string,
+    facts: Array<{ id: ID; text: string }>,
+  ): void;
+  takePeerFacts?(taskId: ID): ReleasedPeerFact[];
+}
+
+export interface ReleasedPeerFact {
+  id: ID;
+  ownerAgentName: string;
+  text: string;
 }
 
 export interface TrustedCtx {
@@ -209,6 +221,16 @@ async function queryMemory(ctx: TrustedCtx, args: Args): Promise<string> {
   } catch {
     return 'Error: no data available for this request';
   }
+  if (ctx.mode === 'peer' && result.items.length > 0) {
+    const ownerAgent = agentByUser(ctx.db, actingOwner.id);
+    if (ownerAgent) {
+      ctx.rt.recordPeerFacts?.(
+        ctx.taskId,
+        ownerAgent.name,
+        result.items.map(({ id, content }) => ({ id, text: content })),
+      );
+    }
+  }
   return JSON.stringify({
     facts: result.items.map((item) => item.content),
     withheldCount: result.withheldCount,
@@ -320,6 +342,27 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
   return JSON.stringify(message);
 }
 
+function releasedFactsAppendix(ctx: TrustedCtx): string {
+  const releasedFacts = ctx.rt.takePeerFacts?.(ctx.taskId) ?? [];
+  const factsById = new Map<ID, ReleasedPeerFact>();
+  for (const fact of releasedFacts) {
+    factsById.set(fact.id, fact);
+  }
+  if (factsById.size === 0) {
+    return '';
+  }
+
+  const factsByAgent = new Map<string, string[]>();
+  for (const fact of factsById.values()) {
+    const facts = factsByAgent.get(fact.ownerAgentName) ?? [];
+    facts.push(fact.text);
+    factsByAgent.set(fact.ownerAgentName, facts);
+  }
+  return `\n\nShared with you:\n${[...factsByAgent]
+    .map(([ownerAgentName, facts]) => `- ${ownerAgentName}: ${facts.join('; ')}`)
+    .join('\n')}`;
+}
+
 async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
   if (ctx.mode === 'peer') {
     return "only the task owner's agent can finish this task";
@@ -343,11 +386,12 @@ async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
     return 'Error: task owner context is invalid';
   }
 
+  const report = `${args.summary}${releasedFactsAppendix(ctx)}`;
   const message = insertMessage(ctx.db, {
     taskId: ctx.taskId,
     senderType: 'agent',
     senderId: ctx.actingAgentId,
-    body: args.summary,
+    body: report,
   });
   emitMainMessage(ctx.io, ctx.taskOwnerUserId, message);
 
