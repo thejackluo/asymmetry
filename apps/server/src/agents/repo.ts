@@ -250,7 +250,7 @@ export function insertMessage(db: Database, input: InsertMessageInput): Message 
 export function listMainThreadMessages(db: Database, taskId: ID): Message[] {
   return (
     db.prepare(
-      'SELECT * FROM messages WHERE task_id = ? AND subchat_id IS NULL ORDER BY created_at, id',
+      'SELECT * FROM messages WHERE task_id = ? AND subchat_id IS NULL ORDER BY created_at, rowid',
     ).all(taskId) as MessageRow[]
   ).map(messageFromRow);
 }
@@ -258,14 +258,14 @@ export function listMainThreadMessages(db: Database, taskId: ID): Message[] {
 export function listSubchatMessages(db: Database, subchatId: ID): Message[] {
   return (
     db.prepare(
-      'SELECT * FROM messages WHERE subchat_id = ? ORDER BY created_at, id',
+      'SELECT * FROM messages WHERE subchat_id = ? ORDER BY created_at, rowid',
     ).all(subchatId) as MessageRow[]
   ).map(messageFromRow);
 }
 
 export function listSubchatsByTask(db: Database, taskId: ID): Subchat[] {
   const rows = db.prepare(
-    'SELECT id, task_id, kind, status, created_at FROM subchats WHERE task_id = ? ORDER BY created_at, id',
+    'SELECT id, task_id, kind, status, created_at FROM subchats WHERE task_id = ? ORDER BY created_at, rowid',
   ).all(taskId) as Array<{
     id: ID;
     task_id: ID;

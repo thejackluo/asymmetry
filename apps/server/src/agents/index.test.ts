@@ -56,8 +56,9 @@ describe('agent socket integration', () => {
       await Promise.all([connect(alice), connect(dave)]);
 
       const daveEvents: string[] = [];
-      dave.on(EVENTS.TASK_CREATED, () => daveEvents.push(EVENTS.TASK_CREATED));
-      dave.on(EVENTS.CHAT_MESSAGE, () => daveEvents.push(EVENTS.CHAT_MESSAGE));
+      for (const event of Object.values(EVENTS)) {
+        dave.on(event, () => daveEvents.push(event));
+      }
       const createdPromise = waitForEvent(alice, EVENTS.TASK_CREATED);
       alice.emit(EVENTS.TASK_CREATE, { title: '  Find a room  ' });
       const task = await createdPromise as { id: string; title: string };

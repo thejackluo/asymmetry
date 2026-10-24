@@ -232,12 +232,17 @@ describe('agent runtime queues and loops', () => {
     const releases = new Map<string, (value: { reply: string }) => void>();
     let started = 0;
     let bothStarted!: () => void;
+    let ownerCalls = 0;
     const bothStartedPromise = new Promise<void>((resolve) => {
       bothStarted = resolve;
     });
     const llm: LLMClient = {
       async chat(messages: LLMMessage[], _tools: ToolSpec[]) {
         const system = messages.find(({ role }) => role === 'system')?.content ?? '';
+        if (system.includes("You are Alice's Agent,")) {
+          ownerCalls += 1;
+          return { reply: 'I received the peer updates.' };
+        }
         const agent = system.includes("Bob's Agent") ? 'bob' : 'carol';
         started += 1;
         if (started === 2) {
@@ -259,6 +264,7 @@ describe('agent runtime queues and loops', () => {
       await runtime.idle();
       expect(listSubchatMessages(db, bobChat.id).at(-1)?.body).toBe('Bob is progressing.');
       expect(listSubchatMessages(db, carolChat.id).at(-1)?.body).toBe('Carol is progressing.');
+      expect(ownerCalls).toBeGreaterThan(0);
     } finally {
       db.close();
     }
