@@ -95,7 +95,7 @@ export function openAILLM({
   return {
     async chat(messages, tools, opts) {
       const apiMessages = messages.map(toOpenAIMessage);
-      const apiTools: OpenAI.Chat.Completions.ChatCompletionFunctionTool[] = tools.map((tool) => ({
+      const apiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = tools.map((tool) => ({
         type: 'function',
         function: {
           name: tool.name,
