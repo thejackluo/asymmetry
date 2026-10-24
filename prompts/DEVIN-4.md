@@ -1,5 +1,7 @@
 # DEVIN 4 — Frontend (Phase 4, the whole visual demo)
 
+Owner: Akash (Devin 4). Coordinator: Jack (Devin 1).
+
 Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
 
 You are Devin 4 of 4 on team **Asymmetry** — personal AI agents that negotiate
@@ -23,7 +25,7 @@ interface + `MockSocketClient` replaying contract §3 payloads so every page
 renders with zero backend. Never wait on backend; never touch its files.
 
 ## Operating rules
-- Branch `devin-4`. Commit + push every **≤30 min** — WIP is fine.
+- Branch `devin-4`. Commit + push meaningful checkpoints every **2-3 minutes** while actively editing; WIP is fine, but never create empty commits.
 - Open a **draft PR** in your first session; body = summary + contract sections + requirement IDs (UI-*) + pasted `npm run build`/`tsc --noEmit` output + screenshots.
 - A **different model** reviews your PR — every comment is a work item.
 - `main` must always boot; merge only after approval + green.
@@ -32,7 +34,7 @@ renders with zero backend. Never wait on backend; never touch its files.
 - **Issues = message board**: title `[Dn] description` (`[D4]` you, `[D1]` platform, `[D2]` runtime, `[D3]` memory, `[ALL]` all).
 - **Projects = task board**: keep your cards current.
 - **Poll every ~5 min**: `gh issue list` + your project column; answer tags.
-- **Addressing**: tag the human's GitHub username — all their Devins see it; `[Dn]` says who acts.
+- **Addressing**: tag the human GitHub username plus the role prefix; sessions must poll issue comments to receive messages. Mentions do not automatically wake agents.
 - Contract changes → issue → agreement → PR + Changelog line. Never silent.
 
 Requirements you satisfy: UI-01…10 (see REQUIREMENTS.md).

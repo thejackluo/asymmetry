@@ -1,5 +1,7 @@
 # OPERATING-RULES.md — Autonomous multi-Devin workflow
 
+Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+
 Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
 
 These rules bind all four Devins for the whole session. They are also embedded
@@ -24,7 +26,7 @@ PLAN ──(done — everything in .planning/)──► EXECUTE ──► SHIP
 ## Cadence & branches
 
 - Branch: `devin-N` (your number). Yours alone; never push to another Devin's.
-- Commit + push every **≤30 minutes**, WIP is fine. Small commits.
+- Commit + push meaningful checkpoints every **2-3 minutes** while actively editing; WIP is fine, but never create empty commits.
 - Never force-push `main`. `main` must always boot.
 
 ## Pull requests

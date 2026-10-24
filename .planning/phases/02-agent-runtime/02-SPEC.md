@@ -1,5 +1,7 @@
 # Phase 2: Agent Runtime & A2A Messaging — Specification
 
+Owner: Bayzhan (Devin 2). Coordinator: Jack (Devin 1).
+
 **Created:** 2026-10-24 · **Owner:** Devin 2 · **Requirements:** A2A-01…09 locked
 
 ## Goal

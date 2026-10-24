@@ -1,5 +1,7 @@
 # Phase 5: Integration & Demo Hardening — Specification
 
+Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+
 **Created:** 2026-10-24 · **Owner:** all Devins · **Requirements:** SEED-02 + project DoD
 
 ## Goal

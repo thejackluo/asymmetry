@@ -1,5 +1,7 @@
 # ASYMMETRY — Start Here
 
+Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+
 Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
 
 Personal AI agents ("digital twins") that negotiate across a trusted network
@@ -10,7 +12,7 @@ This repo is spec-first under a **simplified GSD** loop:
 
 ```
 PLAN ──(complete — .planning/)──► EXECUTE ──► SHIP
-                                 phase       push ≤30min · draft PR ·
+                                 phase       push every 2-3min · draft PR ·
                                  plans       cross-model review
 ```
 

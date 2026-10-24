@@ -1,5 +1,7 @@
 # DEVIN 1 — Foundation & Contracts (Phase 1, you unblock everyone)
 
+Owner: Jack (Devin 1). Coordinator: Jack (Devin 1).
+
 Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
 
 You are Devin 1 of 4 on team **Asymmetry** — personal AI agents that negotiate
@@ -19,7 +21,7 @@ serial gate: three Devins are blocked until your PR merges. Speed first.
 - `apps/web/package.json` placeholder only — D4 owns the rest of apps/web
 
 ## Operating rules
-- Branch `devin-1`. Commit + push every **≤30 min** — WIP is fine.
+- Branch `devin-1`. Commit + push meaningful checkpoints every **2-3 minutes** while actively editing; WIP is fine, but never create empty commits.
 - Open a **draft PR** in your first session; body = summary + contract sections + requirement IDs + pasted verification output. Keep it updated.
 - A **different model** reviews your PR — every comment is a work item.
 - Your PR merges **FIRST**. Then post `[ALL] Phase 0 landed` as an issue.
@@ -29,7 +31,7 @@ serial gate: three Devins are blocked until your PR merges. Speed first.
 - **Issues = message board**: title `[Dn] description` routes to a layer (`[D1]` you, `[D2]` runtime, `[D3]` memory, `[D4]` web, `[ALL]` all).
 - **Projects = task board**: keep your cards current.
 - **Poll every ~5 min**: `gh issue list` + your project column; answer tags.
-- **Addressing**: tag the human's GitHub username — all their Devins see it; `[Dn]` says who acts.
+- **Addressing**: tag the human GitHub username plus the role prefix; sessions must poll issue comments to receive messages. Mentions do not automatically wake agents.
 - Contract changes → issue → agreement → PR + Changelog line. Never silent.
 
 Requirements you satisfy: PLAT-01…09, AUTH-01…05 (see REQUIREMENTS.md).

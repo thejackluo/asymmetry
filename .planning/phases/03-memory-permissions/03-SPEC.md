@@ -1,5 +1,7 @@
 # Phase 3: Memory, Classification & Permissioning — Specification
 
+Owner: Jad (Devin 3). Coordinator: Jack (Devin 1).
+
 **Created:** 2026-10-24 · **Owner:** Devin 3 · **Requirements:** MEM-01…05, PERM-01…05, SEED-01…02 locked
 
 ## Goal

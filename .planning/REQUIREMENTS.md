@@ -1,5 +1,7 @@
 # REQUIREMENTS.md — Asymmetry
 
+Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+
 **Defined:** 2026-10-24 · **Core value:** scoped-trust agent negotiation
 **Rule:** every requirement is falsifiable — a test or check proves PASS/FAIL.
 

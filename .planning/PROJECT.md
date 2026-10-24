@@ -1,5 +1,7 @@
 # PROJECT.md — Asymmetry
 
+Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+
 > GSD project charter. Last updated: 2026-10-24 (spec freeze).
 
 ## What This Is
@@ -82,7 +84,7 @@ Full list with IDs in `.planning/REQUIREMENTS.md`. Summary:
 | K5 | Devins own disjoint path trees; `index.ts` has fixed extension points (`registerAgents`, `registerMemory`) | Eliminates the biggest parallel-merge hazard |
 | K6 | Auto-register on login (no signup flow) | One less page; demo onboarding friction = 0 |
 | K7 | "Discovered" edges derived, not stored | One less write path; always consistent with subchat history |
-| K8 | Simplified GSD: Plan (specs, this dir) → Execute (phase plans) → Ship (autonomous PR + cross-model review) | No human gates during the hackathon |
+| K8 | Simplified GSD: Plan (discussion and specs) → Execute (phase plans, tests, autonomous PRs, cross-model review, and ship) | No human gates during the hackathon |
 
 ## Demo Script (win condition — verbatim path)
 

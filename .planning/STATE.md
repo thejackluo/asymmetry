@@ -1,5 +1,7 @@
 # STATE.md — Asymmetry project memory
 
+Team: Jack (Devin 1, coordinator); Bayzhan (Devin 2); Jad (Devin 3); Akash (Devin 4).
+
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-10-24)
@@ -27,7 +29,7 @@ Progress: [░░░░░░░░░░] 0%
 
 - 2026-10-24: Stack locked — npm-workspaces monorepo (Next.js + Node/Socket.IO + SQLite + shared TS pkg)
 - 2026-10-24: Agent runtime = hybrid (chat completions + function calling for memory/subchat/report tools)
-- 2026-10-24: GSD installed locally (`.claude/`, v1.42.3); simplified loop adopted: Plan → Execute → Ship
+- 2026-10-24: GSD installed locally (`.claude/`, v1.42.3); simplified loop adopted: Plan → Execute (including tests, review, and ship)
 - 2026-10-24: `.planning/` is committed to git — it IS the spec the Devins execute against
 
 ## Open Questions

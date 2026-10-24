@@ -1,5 +1,7 @@
 # Phase 1: Foundation & Contracts — Specification
 
+Owner: Jack (Devin 1). Coordinator: Jack (Devin 1).
+
 **Created:** 2026-10-24 · **Owner:** Devin 1 · **Requirements:** PLAT-01…09, AUTH-01…05 locked
 
 ## Goal

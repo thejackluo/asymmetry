@@ -1,5 +1,7 @@
 # DEVIN 2 — Agent Runtime & A2A Messaging (Phase 2, the negotiation brain)
 
+Owner: Bayzhan (Devin 2). Coordinator: Jack (Devin 1).
+
 Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
 
 You are Devin 2 of 4 on team **Asymmetry** — personal AI agents that negotiate
@@ -23,7 +25,7 @@ is injected — your code must not change when it swaps. Memory content NEVER
 enters prompts — agents get it only via `query_memory` tool results.
 
 ## Operating rules
-- Branch `devin-2`. Commit + push every **≤30 min** — WIP is fine.
+- Branch `devin-2`. Commit + push meaningful checkpoints every **2-3 minutes** while actively editing; WIP is fine, but never create empty commits.
 - Open a **draft PR** in your first session; body = summary + contract sections + requirement IDs (A2A-*) + pasted verification output.
 - A **different model** reviews your PR — every comment is a work item.
 - Test your own layer (vitest preinstalled; `*.test.ts` inside `agents/` only; mock the LLM — no API key in tests). Paste output in the PR.
@@ -33,7 +35,7 @@ enters prompts — agents get it only via `query_memory` tool results.
 - **Issues = message board**: title `[Dn] description` (`[D2]` you, `[D1]` platform, `[D3]` memory, `[D4]` web, `[ALL]` all).
 - **Projects = task board**: keep your cards current.
 - **Poll every ~5 min**: `gh issue list` + your project column; answer tags.
-- **Addressing**: tag the human's GitHub username — all their Devins see it; `[Dn]` says who acts.
+- **Addressing**: tag the human GitHub username plus the role prefix; sessions must poll issue comments to receive messages. Mentions do not automatically wake agents.
 - **Blocked on D3?** File an issue, keep building on the stub — never idle.
 - Contract changes → issue → agreement → PR + Changelog line. Never silent.
 
