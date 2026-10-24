@@ -21,11 +21,11 @@ interface SeedFact {
 export const SEED_PASSWORD = 'demo';
 
 export const SEED_USERS: SeedUser[] = [
-  { key: 'alice', username: 'alice', displayName: 'Alice' },
-  { key: 'bob', username: 'bob', displayName: 'Bob' },
-  { key: 'carol', username: 'carol', displayName: 'Carol' },
-  { key: 'dave', username: 'dave', displayName: 'Dave' },
-  { key: 'erin', username: 'erin', displayName: 'Erin' },
+  { key: 'alice', username: 'bayzhan', displayName: 'Bayzhan' },
+  { key: 'bob', username: 'jack', displayName: 'Jack' },
+  { key: 'carol', username: 'jad', displayName: 'Jad' },
+  { key: 'dave', username: 'aziz', displayName: 'Aziz' },
+  { key: 'erin', username: 'akash', displayName: 'Akash' },
 ];
 
 export const SEED_TRUST: [string, string][] = [

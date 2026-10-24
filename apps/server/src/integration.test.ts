@@ -240,10 +240,10 @@ afterEach(async () => {
 
 describe('integration: real runtime + memory + seed', () => {
   it('pair release, observer isolation, refresh replay, discovered peer', async () => {
-    const alice = await login('alice');
-    const bob = await login('bob');
-    const erin = await login('erin');
-    const carol = await login('carol');
+    const alice = await login('bayzhan');
+    const bob = await login('jack');
+    const erin = await login('akash');
+    const carol = await login('jad');
     const aliceC = await connectClient(alice.token);
     const bobC = await connectClient(bob.token);
     const erinC = await connectClient(erin.token);
@@ -276,16 +276,16 @@ describe('integration: real runtime + memory + seed', () => {
             ),
           };
         }
-        const bobReplies = subchatReplies(messages, "Bob's Agent");
-        const erinReplies = subchatReplies(messages, "Erin's Agent");
+        const bobReplies = subchatReplies(messages, "Jack's Agent");
+        const erinReplies = subchatReplies(messages, "Akash's Agent");
         if (bobReplies.length > 0 && erinReplies.length > 0) {
-          const synthesis = `Peer answers received. ${bobReplies[bobReplies.length - 1].split('\n').pop()} Proposing a warm introduction to Bob.`;
+          const synthesis = `Peer answers received. ${bobReplies[bobReplies.length - 1].split('\n').pop()} Proposing a warm introduction to Jack.`;
           return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'done', summary: synthesis })] };
         }
         return { reply: 'Waiting for peer updates.' };
       }
-      if (sys.includes("Bob's Agent")) return peerQueryThenReply(SEED_IDS.bob.userId, answered.bob)(messages);
-      if (sys.includes("Erin's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, answered.erin)(messages);
+      if (sys.includes("Jack's Agent")) return peerQueryThenReply(SEED_IDS.bob.userId, answered.bob)(messages);
+      if (sys.includes("Akash's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, answered.erin)(messages);
       throw new Error(`adapter: unexpected invocation: ${sys.slice(0, 120)}`);
     });
 
@@ -387,10 +387,10 @@ describe('integration: real runtime + memory + seed', () => {
     aliceC.socket.close(); bobC.socket.close(); erinC.socket.close(); carolC.socket.close();
   }, 60_000);
 
-  it('untrusted group observer blocks Bob network facts', async () => {
-    const alice = await login('alice');
-    const bob = await login('bob');
-    const carol = await login('carol');
+  it('untrusted group observer blocks Jack network facts', async () => {
+    const alice = await login('bayzhan');
+    const bob = await login('jack');
+    const carol = await login('jad');
     const aliceC = await connectClient(alice.token);
     const bobC = await connectClient(bob.token);
     const carolC = await connectClient(carol.token);
@@ -410,15 +410,15 @@ describe('integration: real runtime + memory + seed', () => {
           state.sent = true;
           return { toolCalls: [tc('req', 'send_subchat_message', { subchatId: subchats[0].id, body: 'Share what you can within scope.' })] };
         }
-        const bobReplies = subchatReplies(messages, "Bob's Agent");
-        const carolReplies = subchatReplies(messages, "Carol's Agent");
+        const bobReplies = subchatReplies(messages, "Jack's Agent");
+        const carolReplies = subchatReplies(messages, "Jad's Agent");
         if (bobReplies.length > 0 && carolReplies.length > 0) {
           return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'stuck', summary: 'No authorized match available from trusted peers.' })] };
         }
         return { reply: 'Waiting.' };
       }
-      if (sys.includes("Bob's Agent")) return peerQueryThenReply(SEED_IDS.bob.userId, answered.bob)(messages);
-      if (sys.includes("Carol's Agent")) {
+      if (sys.includes("Jack's Agent")) return peerQueryThenReply(SEED_IDS.bob.userId, answered.bob)(messages);
+      if (sys.includes("Jad's Agent")) {
         answered.carol.done = true;
         return { reply: 'Acknowledged.' };
       }
@@ -466,8 +466,8 @@ describe('integration: real runtime + memory + seed', () => {
   }, 60_000);
 
   it('bounded ping-pong reaches stuck without deadlock', async () => {
-    const alice = await login('alice');
-    const bob = await login('bob');
+    const alice = await login('bayzhan');
+    const bob = await login('jack');
     const aliceC = await connectClient(alice.token);
     const bobC = await connectClient(bob.token);
 
@@ -490,7 +490,7 @@ describe('integration: real runtime + memory + seed', () => {
         }
         return { toolCalls: [tc(`ping-${runtimeCalls.length}`, 'send_subchat_message', { subchatId: subchats[0].id, body: 'ping' })] };
       }
-      if (sys.includes("Bob's Agent")) {
+      if (sys.includes("Jack's Agent")) {
         return { reply: 'pong' };
       }
       throw new Error(`adapter: unexpected invocation: ${sys.slice(0, 120)}`);
@@ -537,9 +537,9 @@ describe('integration: real runtime + memory + seed', () => {
   }, 90_000);
 
   it("owner model cannot relay one peer's authorized facts to an untrusted peer", async () => {
-    const alice = await login('alice');
-    const bob = await login('bob');
-    const erin = await login('erin');
+    const alice = await login('bayzhan');
+    const bob = await login('jack');
+    const erin = await login('akash');
     const aliceC = await connectClient(alice.token);
     const bobC = await connectClient(bob.token);
     const erinC = await connectClient(erin.token);
@@ -552,8 +552,8 @@ describe('integration: real runtime + memory + seed', () => {
       const sys = messages[0]?.content ?? '';
       if (sys.includes('Available peer directory')) {
         const subchats = parseSubchatsFromResults(messages);
-        const bobReplies = subchatReplies(messages, "Bob's Agent");
-        const erinReplies = subchatReplies(messages, "Erin's Agent");
+        const bobReplies = subchatReplies(messages, "Jack's Agent");
+        const erinReplies = subchatReplies(messages, "Akash's Agent");
         if (!state.openedBob) {
           state.openedBob = true;
           return { toolCalls: [tc('open-bob', 'open_subchat', { agentIds: [SEED_IDS.bob.agentId], taskId: currentTaskId })] };
@@ -563,7 +563,7 @@ describe('integration: real runtime + memory + seed', () => {
           return { toolCalls: [tc('req-bob', 'send_subchat_message', { subchatId: subchats[subchats.length - 1].id, body: 'Please share what you can within scope: location_area, price, dates.' })] };
         }
         if (bobReplies.length === 0) {
-          return { reply: 'Waiting for Bob.' };
+          return { reply: 'Waiting for Jack.' };
         }
         if (!state.openedErin) {
           state.openedErin = true;
@@ -581,10 +581,10 @@ describe('integration: real runtime + memory + seed', () => {
         if (erinReplies.length > 0) {
           return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'done', summary: 'Peer exchange completed.' })] };
         }
-        return { reply: 'Waiting for Erin.' };
+        return { reply: 'Waiting for Akash.' };
       }
-      if (sys.includes("Bob's Agent")) return peerQueryThenReply(SEED_IDS.bob.userId, bobAnswered)(messages);
-      if (sys.includes("Erin's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, erinAnswered)(messages);
+      if (sys.includes("Jack's Agent")) return peerQueryThenReply(SEED_IDS.bob.userId, bobAnswered)(messages);
+      if (sys.includes("Akash's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, erinAnswered)(messages);
       throw new Error('adapter: unexpected invocation');
     });
 
@@ -612,7 +612,7 @@ describe('integration: real runtime + memory + seed', () => {
 
     const erinSocketPayloads = JSON.stringify(erinC.events);
     const erinModelInputs = JSON.stringify(
-      runtimeCalls.filter((c) => String(c.messages[0]?.content ?? '').includes("Erin's Agent")).map((c) => c.messages),
+      runtimeCalls.filter((c) => String(c.messages[0]?.content ?? '').includes("Akash's Agent")).map((c) => c.messages),
     );
     expect(hasSentinel(erinSocketPayloads + erinModelInputs, BOB_NETWORK_SENTINELS)).toBe(false);
 
@@ -625,8 +625,8 @@ describe('integration: real runtime + memory + seed', () => {
   }, 60_000);
 
   it('private owner note in explanatory scope purpose never enters peer context', async () => {
-    const alice = await login('alice');
-    const erin = await login('erin');
+    const alice = await login('bayzhan');
+    const erin = await login('akash');
     const aliceC = await connectClient(alice.token);
     const erinC = await connectClient(erin.token);
 
@@ -652,13 +652,13 @@ describe('integration: real runtime + memory + seed', () => {
           state.sent = true;
           return { toolCalls: [tc('req', 'send_subchat_message', { subchatId: subchats[0].id, body: 'Share what you can within scope.' })] };
         }
-        const erinReplies = subchatReplies(messages, "Erin's Agent");
+        const erinReplies = subchatReplies(messages, "Akash's Agent");
         if (erinReplies.length > 0) {
           return { toolCalls: [tc('report', 'report_to_human', { taskId: currentTaskId, status: 'done', summary: 'Peer exchange completed.' })] };
         }
-        return { reply: 'Waiting for Erin.' };
+        return { reply: 'Waiting for Akash.' };
       }
-      if (sys.includes("Erin's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, erinAnswered)(messages);
+      if (sys.includes("Akash's Agent")) return peerQueryThenReply(SEED_IDS.erin.userId, erinAnswered)(messages);
       throw new Error('adapter: unexpected invocation');
     });
 
@@ -686,7 +686,7 @@ describe('integration: real runtime + memory + seed', () => {
 
     const erinSocketPayloads = JSON.stringify(erinC.events);
     const erinModelInputs = JSON.stringify(
-      runtimeCalls.filter((c) => String(c.messages[0]?.content ?? '').includes("Erin's Agent")).map((c) => c.messages),
+      runtimeCalls.filter((c) => String(c.messages[0]?.content ?? '').includes("Akash's Agent")).map((c) => c.messages),
     );
     const foreignHist = await request(base).get(`/api/tasks/${currentTaskId}/messages`).set('Authorization', `Bearer ${erin.token}`);
     expect(foreignHist.status).toBe(404);

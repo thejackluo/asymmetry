@@ -59,14 +59,14 @@ describe('seed', () => {
   it('refuses to grant demo trust to a pre-existing non-fixture account and changes nothing', () => {
     const db = tempDb();
     db.prepare(
-      "INSERT INTO users (id, username, display_name, pass_hash, agent_id, created_at) VALUES ('pre','alice','Alice','h','pre-agent',1)",
+      "INSERT INTO users (id, username, display_name, pass_hash, agent_id, created_at) VALUES ('pre','bayzhan','Bayzhan','h','pre-agent',1)",
     ).run();
     db.prepare("INSERT INTO agents (id, user_id, name) VALUES ('pre-agent','pre','A')").run();
     expect(() => seed(db)).toThrow(/non-fixture account/);
     expect([count(db, 'users'), count(db, 'trust_edges'), count(db, 'memory_items')]).toEqual([1, 0, 0]);
   });
 
-  it('Bob has separate private address/phone and atomic network room facts', () => {
+  it('Jack has separate private address/phone and atomic network room facts', () => {
     const db = tempDb();
     const { users } = seed(db);
     const bob = db
@@ -79,7 +79,7 @@ describe('seed', () => {
     expect(bob.every((r) => JSON.parse(r.field_tags).length === 1)).toBe(true);
   });
 
-  it('demo flows against seeded data: money shot, Erin public, Dave denied', async () => {
+  it('demo flows against seeded data: money shot, Akash public, Aziz denied', async () => {
     const db = tempDb();
     const { users } = seed(db);
     const { alice, bob, dave, erin } = users;

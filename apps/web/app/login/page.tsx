@@ -7,11 +7,11 @@ import { setSession } from '@/lib/auth';
 import Avatar from '@/components/Avatar';
 
 const demoUsers = [
-  { displayName: 'Alice', username: 'alice' },
-  { displayName: 'Bob', username: 'bob' },
-  { displayName: 'Carol', username: 'carol' },
-  { displayName: 'Dave', username: 'dave' },
-  { displayName: 'Erin', username: 'erin' },
+  { displayName: 'Bayzhan', username: 'bayzhan' },
+  { displayName: 'Jack', username: 'jack' },
+  { displayName: 'Jad', username: 'jad' },
+  { displayName: 'Aziz', username: 'aziz' },
+  { displayName: 'Akash', username: 'akash' },
 ];
 
 export default function LoginPage() {

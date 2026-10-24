@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BOB_RELEASED_FACTS,
+  JACK_RELEASED_FACTS,
   DEMO_SCOPE_FIELDS,
   DEMO_TOTAL_FACTS,
   mockApi,
@@ -8,16 +8,16 @@ import {
 
 describe('mock fixture scope agreement', () => {
   it('peer reply releases exactly the canonical scope fields', () => {
-    const released = BOB_RELEASED_FACTS.split('·').map((s) => s.trim());
+    const released = JACK_RELEASED_FACTS.split('·').map((s) => s.trim());
     expect(released).toHaveLength(DEMO_SCOPE_FIELDS.length);
     // no out-of-scope facts may leak into the base transcript
-    expect(BOB_RELEASED_FACTS).not.toMatch(/furnished/i);
+    expect(JACK_RELEASED_FACTS).not.toMatch(/furnished/i);
   });
 
   it('seed transcript reply matches the exported fixture line', async () => {
     const history = await mockApi.getTaskMessages('t-welcome');
     const bobReply = history.messages.find((m) => m.senderId === 'a-bob');
-    expect(bobReply?.body).toContain(BOB_RELEASED_FACTS);
+    expect(bobReply?.body).toContain(JACK_RELEASED_FACTS);
     const request = history.messages.find((m) => m.body.includes('info_request'));
     for (const field of DEMO_SCOPE_FIELDS) {
       expect(request?.body).toContain(field);

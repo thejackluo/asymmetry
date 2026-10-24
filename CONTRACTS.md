@@ -305,34 +305,35 @@ fixed sample items — D2 codes against `MemoryEngine`, never the stub directly.
 
 ## 7. Seed scenario (owned by D3, content fixed here)
 
-Users (password `demo` for all): **alice**, **bob**, **carol**, **dave**, **erin**
+Users (password `demo` for all): **bayzhan (Bayzhan)**, **jack (Jack)**,
+**jad (Jad)**, **aziz (Aziz)**, **akash (Akash)**
 
-Trust edges: alice→bob, alice→carol, bob→alice, carol→alice, bob→dave.
+Trust edges: bayzhan→jack, bayzhan→jad, jack→bayzhan, jad→bayzhan, jack→aziz.
 
 Memory (pre-classified):
-- alice: private — "Works at Stripe, salary $185k", "SSN on file"
-- alice: network — "Looking for summer sublet near Georgia Tech, May–Aug, <$1200/mo"
-- bob: network — separate atomic facts: room 0.4mi from GT campus
+- bayzhan: private — "Works at Stripe, salary $185k", "SSN on file"
+- bayzhan: network — "Looking for summer sublet near Georgia Tech, May–Aug, <$1200/mo"
+- jack: network — separate atomic facts: room 0.4mi from GT campus
   (`location_area`), $950/mo (`price`), May 15–Aug 10 (`dates`),
   furnished (`furnished`)
-- bob: private — "Exact address: 726 Spring St NW Apt 4", "Phone 404-555-0182"
-- carol: network — "Knows a trusted mechanic (Mike's Auto) for pre-purchase inspection"
-- carol: public — "Sells handmade ceramics"
-- dave: network — "Selling 2019 Honda Civic, 62k miles, $14,500 OBO, clean title"
-- erin: public — "Public housing tip: GT summer sublet listings are available
+- jack: private — "Exact address: 726 Spring St NW Apt 4", "Phone 404-555-0182"
+- jad: network — "Knows a trusted mechanic (Mike's Auto) for pre-purchase inspection"
+- jad: public — "Sells handmade ceramics"
+- aziz: network — "Selling 2019 Honda Civic, 62k miles, $14,500 OBO, clean title"
+- akash: public — "Public housing tip: GT summer sublet listings are available
   through the campus housing board" (`location_area`)
 
 Seed is additive/idempotent. Use stable fixture IDs and a fresh disposable
 database for resets; never wipe an existing demo database.
-Alice discovers Erin without gaining network/private access. Alice has two
-directly trusted peers, Bob and Carol.
+Bayzhan discovers Akash without gaining network/private access. Bayzhan has two
+directly trusted peers, Jack and Jad.
 
-Demo path: alice creates the sublet task → her agent subchats bob's agent →
-bob's agent releases the network-classified room facts, withholds address/phone
+Demo path: bayzhan creates the sublet task → her agent subchats jack's agent →
+jack's agent releases the network-classified room facts, withholds address/phone
 (Disclosure row: `partial`; exactly three facts released and three withheld
-when Bob has only the six defined facts and scope is area/price/dates) →
-alice's agent reports back with the warm intro. Stretch: dave's Civic task
-pulls carol's mechanic knowledge into a **group** subchat.
+when Jack has only the six defined facts and scope is area/price/dates) →
+bayzhan's agent reports back with the warm intro. Stretch: aziz's Civic task
+pulls Jad's mechanic knowledge into a **group** subchat.
 
 ---
 
@@ -411,8 +412,8 @@ Therefore authorize each candidate fact for every other participant's user.
 A network fact requires its owner to trust each recipient, not only the sender.
 If any observer lacks access, omit that fact from the group response.
 Private remains unavailable to every peer even in an otherwise trusted group.
-Tests cover Alice trusted by Bob while Carol is not: Bob's network fact is
-withheld from the group rather than leaked to Carol.
+Tests cover Bayzhan trusted by Jack while Jad is not: Jack's network fact is
+withheld from the group rather than leaked to Jad.
 This all-observers check also applies to the human owners observing the group.
 
 ### Outbound Requests And Peer Context
@@ -447,12 +448,12 @@ Do not drop or truncate tables to make the updated schema match.
 
 ### Exact Base Housing Fixture
 
-Alice's demo request specifies flexible or exact dates explicitly.
+Bayzhan's demo request specifies flexible or exact dates explicitly.
 For an exact-match rehearsal use May 15-August 10 and budget below $1200.
-Bob offers 0.4mi from campus, $950/month, and May 15-August 10.
-Bob's six facts are area, price, dates, furnished, exact address, phone.
+Jack offers 0.4mi from campus, $950/month, and May 15-August 10.
+Jack's six facts are area, price, dates, furnished, exact address, phone.
 With fields location_area/price/dates, return three facts and withhold three.
 If furnished is explicitly added to canonical scope, return four/withhold two.
 Never count only private denials while ignoring other out-of-scope facts.
-If Alice needs dates beyond Bob's availability, report a partial match honestly
+If Bayzhan needs dates beyond Jack's availability, report a partial match honestly
 and ask whether the shorter interval works; do not mark it a full match.

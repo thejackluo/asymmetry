@@ -5,7 +5,7 @@
 // Fixture facts/counts must agree or the demo teaches a false base path.
 export const DEMO_SCOPE_FIELDS = ['location_area', 'price', 'dates'] as const;
 export const DEMO_TOTAL_FACTS = 6;
-export const BOB_RELEASED_FACTS =
+export const JACK_RELEASED_FACTS =
   'Room 0.4mi from GT campus · $950/mo · May 15–Aug 10';
 
 import type {
@@ -30,22 +30,22 @@ export function isMockMode(): boolean {
   return process.env.NEXT_PUBLIC_SOCKET_MODE === 'mock';
 }
 
-// ── Seed fixtures mirroring CONTRACTS.md §7 (alice's view) ──────────────
+// ── Seed fixtures mirroring CONTRACTS.md §7 (Bayzhan's view) ─────────────
 const NOW = Date.now();
 
 export const mockUser: User = {
   id: 'u-alice',
-  username: 'alice',
-  displayName: 'Alice',
+  username: 'bayzhan',
+  displayName: 'Bayzhan',
   agentId: 'a-alice',
   createdAt: NOW - 86_400_000,
 };
 
 const agents: Agent[] = [
-  { id: 'a-alice', userId: 'u-alice', name: "Alice's Agent", status: 'idle' },
-  { id: 'a-bob', userId: 'u-bob', name: "Bob's Agent", status: 'idle' },
-  { id: 'a-carol', userId: 'u-carol', name: "Carol's Agent", status: 'idle' },
-  { id: 'a-erin', userId: 'u-erin', name: "Erin's Agent", status: 'idle' },
+  { id: 'a-alice', userId: 'u-alice', name: "Bayzhan's Agent", status: 'idle' },
+  { id: 'a-bob', userId: 'u-bob', name: "Jack's Agent", status: 'idle' },
+  { id: 'a-carol', userId: 'u-carol', name: "Jad's Agent", status: 'idle' },
+  { id: 'a-erin', userId: 'u-erin', name: "Akash's Agent", status: 'idle' },
 ];
 
 let tasks: Task[] = [
@@ -115,7 +115,7 @@ const seedSubchatMessages: Message[] = [
     subchatId,
     senderType: 'agent',
     senderId: 'a-bob',
-    body: `Room available — ${BOB_RELEASED_FACTS}.`,
+    body: `Room available — ${JACK_RELEASED_FACTS}.`,
     createdAt: NOW - 3_100_000,
   },
 ];
@@ -279,7 +279,7 @@ export class MockSocketClient implements SocketClient {
       subchatId: null,
       senderType: 'agent',
       senderId: 'a-alice',
-      body: 'Checking my trusted network — Bob may have a lead.',
+      body: 'Checking my trusted network — Jack may have a lead.',
       createdAt: Date.now(),
     } satisfies Message);
     at(2200, EVT.AGENT_STATUS, { agentId: 'a-alice', status: 'negotiating' });
@@ -288,8 +288,8 @@ export class MockSocketClient implements SocketClient {
     const subchatMsgs: [string, string][] = [
       ['a-alice', "info_request {scope:['location_area','price','dates']}"],
       ['a-bob', 'query_memory → releasing permitted facts'],
-      ['a-bob', BOB_RELEASED_FACTS],
-      ['a-alice', 'Ack. Summarizing for Alice.'],
+      ['a-bob', JACK_RELEASED_FACTS],
+      ['a-alice', 'Ack. Summarizing for Bayzhan.'],
     ];
     subchatMsgs.forEach(([sender, body], i) => {
       at(3200 + i * 800, EVT.SUBCHAT_MESSAGE, {
@@ -317,7 +317,7 @@ export class MockSocketClient implements SocketClient {
     at(7200, EVT.SUBCHAT_CLOSED, {
       subchatId: scId,
       outcome: 'done',
-      summary: 'Bob has a room 0.4mi from GT, $950/mo, May 15–Aug 10.',
+      summary: 'Jack has a room 0.4mi from GT, $950/mo, May 15–Aug 10.',
     });
     at(7800, EVT.AGENT_STATUS, { agentId: 'a-alice', status: 'done' });
     at(8000, EVT.CHAT_MESSAGE, {
@@ -327,7 +327,7 @@ export class MockSocketClient implements SocketClient {
       subchatId: null,
       senderType: 'agent',
       senderId: 'a-alice',
-      body: 'Bob has a room 0.4mi from GT, $950/mo, May 15–Aug 10. Want a warm intro?',
+      body: 'Jack has a room 0.4mi from GT, $950/mo, May 15–Aug 10. Want a warm intro?',
       createdAt: Date.now(),
     } satisfies Message);
     at(8200, EVT.TASK_UPDATED, { taskId: p.taskId, status: 'done' });

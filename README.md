@@ -14,15 +14,15 @@ npm run seed
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and sign in as `alice` / `demo`.
+Open [http://localhost:3000](http://localhost:3000) and sign in as `bayzhan` / `demo`.
 
 ## Demo script
 
-1. Sign in as `alice` / `demo`.
+1. Sign in as `bayzhan` / `demo`.
 2. Ask: “Find me a furnished place near campus under $1,000 a month, January to May.”
-3. Watch Bob's agent share four task-relevant facts and withhold two private facts; the receipt shows the actual counts.
+3. Watch Jack's agent share four task-relevant facts and withhold two private facts; the receipt shows the actual counts.
 4. Follow the agent-to-agent thread as your agent brings the result back to the main chat.
-5. Visit Network to see Erin's public housing tip and the trusted/discovered network.
+5. Visit Network to see Akash's public housing tip and the trusted/discovered network.
 
 ## Architecture
 
