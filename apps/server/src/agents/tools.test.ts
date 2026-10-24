@@ -18,8 +18,10 @@ import {
   insertMessage,
   listMainThreadMessages,
   listSubchatMessages,
+  listSubchatsByTask,
   putTaskScope,
 } from './repo.js';
+import { closeSubchatAndNotify } from './subchats.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
 import { createFakeIO } from './test/fakeIO.js';
 import { createFakeMemory } from './test/fakeMemory.js';
@@ -149,6 +151,26 @@ describe('trusted-context agent tools', () => {
       }));
       expect(peerResult.content).toMatch(/^Error:/);
       expect(vi.mocked(rt.budgetFor)).toHaveBeenCalled();
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects a second subchat with a peer already used by the task', async () => {
+    const { db, ownerCtx } = setup();
+    try {
+      const first = await executeToolCall(ownerCtx, toolCall('open_subchat', {
+        taskId: ownerCtx.taskId,
+        agentIds: [FIXTURE_IDS.agents.bob],
+      }));
+      expect(first.content).not.toMatch(/^Error:/);
+
+      const second = await executeToolCall(ownerCtx, toolCall('open_subchat', {
+        taskId: ownerCtx.taskId,
+        agentIds: [FIXTURE_IDS.agents.bob],
+      }));
+      expect(second.content).toMatch(/^Error:/);
+      expect(listSubchatsByTask(db, ownerCtx.taskId)).toHaveLength(1);
     } finally {
       db.close();
     }
@@ -352,7 +374,7 @@ describe('trusted-context agent tools', () => {
     }
   });
 
-  it('A2A-04: sends participant messages and schedules every other peer but rejects non-participants', async () => {
+  it('A2A-04: sends owner requests to every peer but rejects non-participants', async () => {
     const { db, ownerCtx, rt, emissions } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
@@ -360,24 +382,75 @@ describe('trusted-context agent tools', () => {
         FIXTURE_IDS.agents.bob,
         FIXTURE_IDS.agents.carol,
       ]);
-      const peerCtx: TrustedCtx = {
-        ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.bob,
-        mode: 'peer',
+      const result = await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
         subchatId: subchat.id,
-      };
-      const result = await executeToolCall(peerCtx, toolCall('send_subchat_message', {
-        body: 'Could you check availability?',
       }));
-      expect(result.content).toContain('Could you check availability?');
+      expect(result.content).toContain('Please return only information authorized');
+      expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.bob);
       expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.carol);
       expect(emissions.some(({ event }) => event === EVENTS.SUBCHAT_MESSAGE)).toBe(true);
 
       const outsider = await executeToolCall({
-        ...peerCtx,
+        ...ownerCtx,
         actingAgentId: FIXTURE_IDS.agents.dave,
+        mode: 'peer',
+        subchatId: subchat.id,
       }, toolCall('send_subchat_message', { body: 'No participation' }));
       expect(outsider.content).toContain('not a subchat participant');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('closes a subchat done after one explicit peer reply and wakes the owner once', async () => {
+    const { db, ownerCtx, rt, emissions } = setup();
+    try {
+      const subchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const result = await executeToolCall({
+        ...ownerCtx,
+        actingAgentId: FIXTURE_IDS.agents.bob,
+        mode: 'peer',
+        subchatId: subchat.id,
+      }, toolCall('send_subchat_message', {
+        body: 'I can share the authorized room facts.',
+      }));
+
+      expect(result.content).toContain('authorized room facts');
+      expect(listSubchatsByTask(db, ownerCtx.taskId)[0]).toMatchObject({
+        status: 'closed',
+        outcome: 'done',
+      });
+      expect(emissions.find(({ event }) => event === EVENTS.SUBCHAT_CLOSED)?.payload).toMatchObject({
+        subchatId: subchat.id,
+        outcome: 'done',
+      });
+      expect(vi.mocked(rt.wakeOwner)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(rt.wakeOwner)).toHaveBeenCalledWith(ownerCtx.taskId);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects owner messages to a closed subchat without scheduling a peer run', async () => {
+    const { db, ownerCtx, rt } = setup();
+    try {
+      const subchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      closeSubchatAndNotify(db, ownerCtx.io, subchat.id, 'done', 'Peer response received.');
+      vi.mocked(rt.runPeer).mockClear();
+
+      const result = await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
+        subchatId: subchat.id,
+      }));
+
+      expect(result.content).toMatch(/^Error:/);
+      expect(vi.mocked(rt.runPeer)).not.toHaveBeenCalled();
+      expect(listSubchatMessages(db, subchat.id)).toHaveLength(0);
     } finally {
       db.close();
     }

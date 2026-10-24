@@ -1,3 +1,4 @@
+import type { MemoryItem } from '@asymmetry/shared';
 import { describe, expect, it } from 'vitest';
 import type { LLMClient, LLMMessage, LLMResult, ToolSpec } from './llm.js';
 import { createAgentRuntime } from './runtime.js';
@@ -8,6 +9,7 @@ import {
   insertMessage,
   listMainThreadMessages,
   listSubchatMessages,
+  listSubchatsByTask,
   putTaskScope,
 } from './repo.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
@@ -220,46 +222,178 @@ describe('agent runtime queues and loops', () => {
     }
   });
 
-  it('A2A-05: competing owner and peer replies never exceed twelve subchat turns and end stuck', async () => {
+  it('finishes after one disclosure from each peer without exhausting the task budget', async () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();
     const task = createScopedTask(db);
-    const llm = routedLLM({
-      "Alice's Agent": [
-        llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] }),
-        ...Array.from({ length: 7 }, (_unused, index) => (messages: LLMMessage[]) => {
-          const latest = [...messages].reverse().find(({ role }) => role === 'tool');
-          if (!latest) {
-            throw new Error('open_subchat tool result was not provided to the owner');
+    const bobFacts: MemoryItem[] = [
+      {
+        id: 'bob-area',
+        userId: FIXTURE_IDS.users.bob,
+        content: 'The room is near Georgia Tech.',
+        classification: 'network',
+        fieldTags: ['location_area'],
+        source: 'seed',
+        createdAt: 1,
+      },
+      {
+        id: 'bob-price',
+        userId: FIXTURE_IDS.users.bob,
+        content: 'Rent is $950 per month.',
+        classification: 'network',
+        fieldTags: ['price'],
+        source: 'seed',
+        createdAt: 2,
+      },
+      {
+        id: 'bob-start',
+        userId: FIXTURE_IDS.users.bob,
+        content: 'The room is available starting June 1.',
+        classification: 'network',
+        fieldTags: ['dates'],
+        source: 'seed',
+        createdAt: 3,
+      },
+      {
+        id: 'bob-end',
+        userId: FIXTURE_IDS.users.bob,
+        content: 'The room is available through August 15.',
+        classification: 'network',
+        fieldTags: ['dates'],
+        source: 'seed',
+        createdAt: 4,
+      },
+    ];
+    const { memory, calls: memoryCalls } = createFakeMemory({
+      itemsByOwner: {
+        [FIXTURE_IDS.users.bob]: bobFacts,
+        [FIXTURE_IDS.users.carol]: [],
+      },
+      withheldCountByOwner: {
+        [FIXTURE_IDS.users.bob]: 2,
+        [FIXTURE_IDS.users.carol]: 0,
+      },
+    });
+    let modelCalls = 0;
+    let ownerCalls = 0;
+    const peerCalls = new Map<string, number>();
+    const finalSummary = 'Bob has a matching room; Carol had nothing relevant.';
+    const llm: LLMClient = {
+      async chat(messages) {
+        modelCalls += 1;
+        const system = messages.find(({ role }) => role === 'system')?.content ?? '';
+        if (system.includes("You are Alice's Agent,")) {
+          ownerCalls += 1;
+          if (ownerCalls === 1) {
+            return {
+              toolCalls: [
+                {
+                  id: 'open-bob',
+                  name: 'open_subchat',
+                  args: { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] },
+                },
+                {
+                  id: 'open-carol',
+                  name: 'open_subchat',
+                  args: { taskId: task.id, agentIds: [FIXTURE_IDS.agents.carol] },
+                },
+              ],
+            };
           }
-          const result = JSON.parse(latest.content) as { id?: string; subchatId?: string };
-          const subchatId = result.subchatId ?? result.id;
-          if (!subchatId) {
-            throw new Error('subchat id was not present in the previous tool result');
+          if (ownerCalls === 2) {
+            const opened = messages
+              .filter(({ role }) => role === 'tool')
+              .flatMap(({ content }) => {
+                try {
+                  const parsed = JSON.parse(content) as {
+                    id?: string;
+                    participantAgentIds?: string[];
+                  };
+                  return parsed.id && parsed.participantAgentIds ? [parsed] : [];
+                } catch {
+                  return [];
+                }
+              });
+            const bobSubchat = opened.find(({ participantAgentIds }) =>
+              participantAgentIds?.includes(FIXTURE_IDS.agents.bob));
+            const carolSubchat = opened.find(({ participantAgentIds }) =>
+              participantAgentIds?.includes(FIXTURE_IDS.agents.carol));
+            if (!bobSubchat?.id || !carolSubchat?.id) {
+              throw new Error('owner did not receive both subchat IDs');
+            }
+            return {
+              toolCalls: [
+                {
+                  id: 'ask-bob',
+                  name: 'send_subchat_message',
+                  args: { subchatId: bobSubchat.id },
+                },
+                {
+                  id: 'ask-carol',
+                  name: 'send_subchat_message',
+                  args: { subchatId: carolSubchat.id },
+                },
+              ],
+            };
           }
+          for (let attempt = 0; attempt < 20; attempt += 1) {
+            if (listSubchatsByTask(db, task.id).every(({ status }) => status === 'closed')) {
+              break;
+            }
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          }
+          return { reply: finalSummary };
+        }
+
+        const isBob = system.includes("You are Bob's Agent,");
+        const peerKey = isBob ? 'bob' : 'carol';
+        const call = peerCalls.get(peerKey) ?? 0;
+        peerCalls.set(peerKey, call + 1);
+        if (call === 0) {
           return {
             toolCalls: [{
-              id: `owner-turn-${index}`,
-              name: 'send_subchat_message',
-              args: { subchatId, body: `Owner turn ${index}` },
+              id: `${peerKey}-query`,
+              name: 'query_memory',
+              args: {
+                ownerUserId: isBob ? FIXTURE_IDS.users.bob : FIXTURE_IDS.users.carol,
+                scope: { fields: ['location_area', 'price', 'dates'] },
+              },
             }],
           };
-        }),
-      ],
-      "Bob's Agent": Array.from({ length: 12 }, (_unused, index) => ({
-        reply: `Bob reply ${index}`,
-      })),
-    });
-    const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm });
+        }
+        return {
+          reply: isBob
+            ? 'I can share four authorized room facts.'
+            : 'I have nothing relevant for those fields.',
+        };
+      },
+    };
+    const runtime = createAgentRuntime({ io, db, memory, llm });
     try {
       runtime.wakeOwner(task.id);
       await runtime.idle();
-      const subchat = db.prepare('SELECT id FROM subchats WHERE task_id = ?').get(task.id) as { id: string };
-      const count = db.prepare('SELECT COUNT(*) AS count FROM messages WHERE subchat_id = ?')
-        .get(subchat.id) as { count: number };
-      expect(count.count).toBeLessThanOrEqual(12);
-      expect(getTask(db, task.id)?.status).toBe('stuck');
-      expect(db.prepare('SELECT status FROM subchats WHERE id = ?').get(subchat.id)).toEqual({ status: 'closed' });
+
+      expect(getTask(db, task.id)?.status).toBe('done');
+      const subchats = listSubchatsByTask(db, task.id);
+      expect(subchats).toHaveLength(2);
+      expect(subchats.every(({ status, outcome }) => status === 'closed' && outcome === 'done')).toBe(true);
+      for (const subchat of subchats) {
+        const peerMessages = listSubchatMessages(db, subchat.id)
+          .filter(({ senderId }) => senderId !== FIXTURE_IDS.agents.alice);
+        expect(peerMessages).toHaveLength(1);
+      }
+      expect(memoryCalls.queryMemory).toHaveLength(2);
+      expect(memoryCalls.queryMemory.map(({ ownerUserId }) => ownerUserId).sort()).toEqual([
+        FIXTURE_IDS.users.bob,
+        FIXTURE_IDS.users.carol,
+      ].sort());
+      expect([...new Set(memoryCalls.queryMemory.map(({ scope }) => scope.subchatId))]).toHaveLength(2);
+      const report = listMainThreadMessages(db, task.id).at(-1)?.body ?? '';
+      expect(report).toContain(finalSummary);
+      for (const fact of bobFacts) {
+        expect(report).toContain(fact.content);
+      }
+      expect(modelCalls).toBeLessThan(15);
     } finally {
       db.close();
     }

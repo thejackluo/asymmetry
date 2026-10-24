@@ -288,6 +288,19 @@ export function createAgentRuntime({
       }
 
       if (typeof result.reply === 'string' && result.reply.trim().length > 0) {
+        const subchats = listSubchatsByTask(db, taskId);
+        if (subchats.length > 0 && subchats.every(({ status }) => status === 'closed')) {
+          await executeToolCall(ctx, {
+            id: 'owner-text-report',
+            name: 'report_to_human',
+            args: {
+              taskId,
+              status: 'done',
+              summary: result.reply,
+            },
+          });
+          return;
+        }
         const message = insertMessage(db, {
           taskId,
           senderType: 'agent',
