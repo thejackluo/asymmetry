@@ -8,7 +8,7 @@ export function registerMemory(app: Express, db: Database): void {
   app.get('/api/memory', (req: Request, res: Response) => {
     const userId = req.userId;
     if (typeof userId !== 'string' || userId.length === 0) {
-      res.status(401).json({ error: 'unauthorized' });
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'unauthorized' } });
       return;
     }
     res.json(listMemory(db, userId));

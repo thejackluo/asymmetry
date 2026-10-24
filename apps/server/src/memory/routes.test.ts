@@ -27,6 +27,7 @@ describe('GET /api/memory', () => {
   it('rejects requests if mounted without auth', async () => {
     const app = express();
     registerMemory(app, freshDb());
-    await request(app).get('/api/memory').expect(401);
+    const res = await request(app).get('/api/memory').expect(401);
+    expect(res.body).toEqual({ error: { code: 'UNAUTHORIZED', message: 'unauthorized' } });
   });
 });
