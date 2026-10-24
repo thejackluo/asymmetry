@@ -13,7 +13,7 @@ integration bugs in the owning layer, and freeze a rehearsal path.
 
 - [ ] Fresh clone → `npm install && npm run seed && npm run dev` → demo works
 - [ ] Demo script (PROJECT.md) runs twice back-to-back, no code edits between
-- [ ] Re-seed = clean demo state (documented in PR)
+- [ ] Fresh disposable DB = clean demo state; no destructive shared reset
 - [ ] `npm test` green on `main`
 - [ ] P0/P1 issues all closed
 
@@ -22,4 +22,5 @@ integration bugs in the owning layer, and freeze a rehearsal path.
 - Integration bugs → `[Dn]`-tagged issues to the owning layer; owner fixes on
   their branch, PRs back to `main`
 - D4 owns all Phase-3 polish (animations, styling)
-- Group-chat stretch goal ONLY after the base demo runs clean twice
+- Pair and group protocol tests are required. Additional group-demo polish
+  follows the base demo; it does not replace the group privacy test.
