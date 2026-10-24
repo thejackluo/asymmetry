@@ -43,6 +43,23 @@ interface OwnerWakeState {
   scheduled: boolean;
 }
 
+function traceOwnerToolResult(
+  taskId: ID,
+  iteration: number,
+  callIndex: number,
+  callCount: number,
+  toolName: string,
+  content: string,
+): void {
+  if (process.env.NODE_ENV !== 'development' || process.env.AGENT_TRACE !== '1') {
+    return;
+  }
+  const result = content.length > 150 ? `${content.slice(0, 147)}...` : content;
+  console.info(
+    `[agent-trace] owner task=${taskId} iteration=${iteration} call=${callIndex}/${callCount} tool=${toolName} result=${JSON.stringify(result)}`,
+  );
+}
+
 function senderName(db: Database, message: Message): string {
   return message.senderType === 'agent'
     ? agentById(db, message.senderId)?.name ?? 'Agent'
@@ -267,6 +284,65 @@ export function createAgentRuntime({
     );
   }
 
+  function hasResolvedSubchats(taskId: ID): boolean {
+    const subchats = listSubchatsByTask(db, taskId);
+    return subchats.length > 0 && subchats.every(({ status }) => status === 'closed');
+  }
+
+  async function finalizeResolvedSubchats(
+    task: Task,
+    ctx: TrustedCtx,
+    messages: LLMMessage[],
+    fallbackReply?: string,
+  ): Promise<boolean> {
+    const subchats = listSubchatsByTask(db, task.id);
+    if (subchats.length === 0 || subchats.some(({ status }) => status === 'open')) {
+      return false;
+    }
+
+    const previousOwnerReply = listMainThreadMessages(db, task.id)
+      .filter(({ senderType, senderId }) =>
+        senderType === 'agent' && senderId === ctx.ownerAgentId)
+      .at(-1)?.body;
+    let summary = fallbackReply?.trim() || previousOwnerReply?.trim() || '';
+
+    if (budgetFor(task.id).reserveModelCall()) {
+      try {
+        const result = await timedLLM.chat([
+          ...messages,
+          {
+            role: 'user',
+            content: 'All peer subchats are closed. Write a concise final summary to the human using the peer messages and tool results above.',
+          },
+        ], []);
+        if (typeof result.reply === 'string' && result.reply.trim().length > 0) {
+          summary = result.reply.trim();
+        }
+      } catch (error) {
+        logAgentError('owner final summary', error);
+      }
+    }
+
+    const resolvedSubchats = listSubchatsByTask(db, task.id);
+    if (resolvedSubchats.length === 0 || resolvedSubchats.some(({ status }) => status === 'open')) {
+      return false;
+    }
+    if (!summary) {
+      summary = 'The peer conversations are complete.';
+    }
+
+    await executeToolCall({ ...ctx, allowOpenSubchatReport: true }, {
+      id: 'owner-resolved-subchat-report',
+      name: 'report_to_human',
+      args: {
+        taskId: task.id,
+        status: resolvedSubchats.some(({ outcome }) => outcome === 'done') ? 'done' : 'stuck',
+        summary: summary.slice(0, 4000),
+      },
+    });
+    return true;
+  }
+
   async function runOwnerLoop(taskId: ID): Promise<void> {
     const task = getTask(db, taskId);
     if (!task || task.status !== 'active') {
@@ -279,6 +355,9 @@ export function createAgentRuntime({
     }
     const messages = ownerHistory(db, task, ownerAgent.id, ownerUser.displayName);
     const ctx = contextFor(task, ownerAgent.id, ownerAgent.id, 'owner', null);
+    if (await finalizeResolvedSubchats(task, ctx, messages)) {
+      return;
+    }
 
     for (let iteration = 0; iteration < TOOL_ITER_CAP; iteration += 1) {
       if (!budgetFor(taskId).reserveModelCall()) {
@@ -296,13 +375,51 @@ export function createAgentRuntime({
       const calls = result.toolCalls ?? [];
       if (calls.length > 0) {
         messages.push(toolCallMessage(calls));
-        for (const call of calls) {
+        for (const [index, call] of calls.entries()) {
           const execution = await executeToolCall(ctx, call);
+          traceOwnerToolResult(
+            taskId,
+            iteration + 1,
+            index + 1,
+            calls.length,
+            call.name,
+            execution.content,
+          );
           messages.push(toolResultMessage(call, execution.content));
           if (execution.stop) {
             return;
           }
           if (getTask(db, taskId)?.status !== 'active') {
+            return;
+          }
+          if (hasResolvedSubchats(taskId)) {
+            for (const skippedCall of calls.slice(index + 1)) {
+              messages.push(toolResultMessage(
+                skippedCall,
+                'Not executed because all task subchats are closed.',
+              ));
+            }
+            await finalizeResolvedSubchats(task, ctx, messages, result.reply);
+            return;
+          }
+          if (
+            call.name === 'report_to_human'
+            && execution.content === 'Error: peers are still replying; end your turn with a short status message and you will be woken when they answer.'
+          ) {
+            return;
+          }
+          const callArgs = call.args !== null && typeof call.args === 'object' && !Array.isArray(call.args)
+            ? call.args as Record<string, unknown>
+            : undefined;
+          const targetSubchat = typeof callArgs?.subchatId === 'string'
+            ? subchatById(db, callArgs.subchatId)
+            : undefined;
+          if (
+            call.name === 'send_subchat_message'
+            && execution.content === 'Error: subchat must be open and belong to this task'
+            && targetSubchat?.status === 'closed'
+            && listSubchatsByTask(db, taskId).some(({ status }) => status === 'open')
+          ) {
             return;
           }
         }
@@ -327,17 +444,7 @@ export function createAgentRuntime({
             );
           }
         }
-        const subchats = listSubchatsByTask(db, taskId);
-        if (subchats.length > 0 && subchats.every(({ status }) => status === 'closed')) {
-          await executeToolCall({ ...ctx, allowOpenSubchatReport: true }, {
-            id: 'owner-text-report',
-            name: 'report_to_human',
-            args: {
-              taskId,
-              status: subchats.some(({ outcome }) => outcome === 'done') ? 'done' : 'stuck',
-              summary: result.reply,
-            },
-          });
+        if (await finalizeResolvedSubchats(task, ctx, messages, result.reply)) {
           return;
         }
         const message = insertMessage(db, {

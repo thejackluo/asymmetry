@@ -267,6 +267,7 @@ describe('agent inbox handlers', () => {
       "Alice's Agent": [
         llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] }),
         { reply: 'I reached out to Bob and am waiting for a response.' },
+        { reply: 'No request was sent before the subchat closed.' },
       ],
     });
     const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm });
@@ -296,6 +297,7 @@ describe('agent inbox handlers', () => {
       ]);
       expect(llm.calls.map(({ route }) => route)).toEqual([
         'scope',
+        "Alice's Agent",
         "Alice's Agent",
         "Alice's Agent",
       ]);
@@ -383,12 +385,22 @@ describe('agent inbox handlers', () => {
       withheldCountByOwner: { [FIXTURE_IDS.users.bob]: 3 },
     });
     const finalReportText = 'Bob has a room 0.4 miles from campus for $950/month from May 15 through August 10. Would you like a warm introduction?';
-    const latestSubchatId = (messages: Array<{ role: string; content: string }>): string => {
-      const toolMessage = [...messages].reverse().find(({ role }) => role === 'tool');
-      if (!toolMessage) {
-        throw new Error('expected a previous open_subchat tool result');
+    const subchatIdForAgent = (
+      messages: Array<{ role: string; content: string }>,
+      agentId: string,
+    ): string => {
+      const opened = [...messages].reverse()
+        .filter(({ role }) => role === 'tool')
+        .map(({ content }) => JSON.parse(content) as {
+          id?: string;
+          participantAgentIds?: string[];
+        });
+      const subchat = opened.find(({ participantAgentIds }) =>
+        participantAgentIds?.includes(agentId));
+      if (!subchat?.id) {
+        throw new Error(`expected an open_subchat result for ${agentId}`);
       }
-      return (JSON.parse(toolMessage.content) as { id: string }).id;
+      return subchat.id;
     };
     const llm = routedLLM({
       scope: [llmTool('set_task_scope', {
@@ -397,28 +409,35 @@ describe('agent inbox handlers', () => {
       })],
       "Alice's Agent": [
         llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] }),
+        llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.erin] }),
         (messages) => ({
           toolCalls: [{
             id: 'send-to-bob',
             name: 'send_subchat_message',
-            args: { subchatId: latestSubchatId(messages), body: 'Please share a room near Georgia Tech for May 15 through August 10 under $1200.' },
+            args: { subchatId: subchatIdForAgent(messages, FIXTURE_IDS.agents.bob), body: 'Please share a room near Georgia Tech for May 15 through August 10 under $1200.' },
           }],
         }),
-        { reply: 'I have asked Bob and will wait for his response.' },
-        llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.erin] }),
         (messages) => ({
           toolCalls: [{
             id: 'send-to-erin',
             name: 'send_subchat_message',
-            args: { subchatId: latestSubchatId(messages), body: 'Do you know of summer sublets near Georgia Tech under $1200?' },
+            args: { subchatId: subchatIdForAgent(messages, FIXTURE_IDS.agents.erin), body: 'Do you know of summer sublets near Georgia Tech under $1200?' },
           }],
         }),
-        { reply: 'I have also asked Erin for an option.' },
-        llmTool('report_to_human', {
-          taskId: task.id,
-          status: 'done',
-          summary: finalReportText,
-        }),
+        (messages) => messages.some(({ content }) => content.includes('All peer subchats are closed.'))
+          ? { reply: finalReportText }
+          : {
+            toolCalls: [{
+              id: 'report-after-peer-completion',
+              name: 'report_to_human',
+              args: {
+                taskId: task.id,
+                status: 'done',
+                summary: finalReportText,
+              },
+            }],
+          },
+        { reply: finalReportText },
       ],
       "Bob's Agent": [
         llmTool('query_memory', {

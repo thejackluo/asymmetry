@@ -43,6 +43,9 @@ describe('agent persona prompts', () => {
     expect(prompt).toContain('hop 1 trusted agents first');
     expect(prompt).toContain('hop 2 or other agents');
     expect(prompt).toContain('at most 4 distinct peers');
+    expect(prompt).toContain('one separate one-to-one subchat per peer');
+    expect(prompt).toContain('Open every intended peer subchat before sending the first request');
+    expect(prompt).toContain('Do not query your own memory to answer the human');
     expect(prompt).toContain('warm-intro proposal');
     expect(prompt).toContain('without the human’s consent');
     expect(prompt).toContain('After opening subchats and sending requests, end your turn');

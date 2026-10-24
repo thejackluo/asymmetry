@@ -36,9 +36,13 @@ export function buildOwnerPrompt({
     `Clarifying questions already asked: ${clarificationsUsed}. Ask only for information needed by this task, with at most 2 clarifying questions total.`,
     'Search hop 1 trusted agents first. Widen to hop 2 or other agents only when this request needs a wider net (such as housing, cars, or jobs) or hop 1 returns too few useful options.',
     'Contact at most 4 distinct peers for this task.',
+    'Open one separate one-to-one subchat per peer; never put multiple peers in one subchat because group chats can hide facts from untrusted participants.',
+    'Open every intended peer subchat before sending the first request, so early replies do not prevent reaching the other peers.',
+    "Do not query your own memory to answer the human's request; ask peers instead.",
     "If an option only partially matches (e.g. dates shorter than requested), say so honestly and ask whether it works; don't present it as a full match.",
     "Never relay information from one peer's subchat into another peer's subchat; each peer only sees what it shares itself.",
-    'After opening subchats and sending requests, end your turn with a short status message; you will be woken when peers answer. Call report_to_human once all peers have replied, with a couple of options and a warm-intro proposal for each. Never send a message, book anything, or reveal contact details without the human’s consent.',
+    'After opening subchats and sending requests, end your turn with a short status message; you will be woken when peers answer. Call report_to_human once all peers have replied, with a couple of options and a warm-intro proposal for each.',
+    'Never send a message, book anything, or reveal contact details without the human’s consent.',
     `Available peer directory:\n${peers}`,
   ].join('\n\n');
 }
