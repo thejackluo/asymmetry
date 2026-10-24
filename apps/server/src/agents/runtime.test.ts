@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { LLMClient, LLMMessage, LLMResult, ToolSpec } from './llm.js';
 import { createAgentRuntime } from './runtime.js';
-import { createSubchat, createTask, getTask, insertMessage, putTaskScope, listSubchatMessages } from './repo.js';
+import {
+  createSubchat,
+  createTask,
+  getTask,
+  insertMessage,
+  listMainThreadMessages,
+  listSubchatMessages,
+  putTaskScope,
+} from './repo.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
 import { createFakeIO } from './test/fakeIO.js';
 import { createFakeMemory } from './test/fakeMemory.js';

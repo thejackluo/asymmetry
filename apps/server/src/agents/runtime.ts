@@ -387,13 +387,16 @@ export function createAgentRuntime({
     }
     state.scheduled = true;
     enqueue(`main:${taskId}`, async () => {
-      while (state.pending) {
-        state.pending = false;
-        await runOwnerLoop(taskId);
-      }
-      state.scheduled = false;
-      if (state.pending) {
-        wakeOwner(taskId);
+      try {
+        while (state.pending) {
+          state.pending = false;
+          await runOwnerLoop(taskId);
+        }
+      } finally {
+        state.scheduled = false;
+        if (state.pending) {
+          wakeOwner(taskId);
+        }
       }
     });
   }

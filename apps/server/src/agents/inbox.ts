@@ -217,21 +217,21 @@ export function createInboxHandlers({
     }
 
     try {
-      await memory.ingest(userId, payload.body, 'chat');
-    } catch (error) {
-      logAgentError('memory ingest', error);
-    }
-    try {
-      await memory.extractGoals(userId, task.id, payload.body);
-    } catch (error) {
-      logAgentError('goal extraction', error);
-    }
-
-    if (!getTaskScope(db, task.id)) {
-      setAgentStatus(db, ownerAgent.id, 'clarifying');
-      emitAgentStatus(io, db, ownerAgent.id, 'clarifying', userId);
-      let scope;
       try {
+        await memory.ingest(userId, payload.body, 'chat');
+      } catch (error) {
+        logAgentError('memory ingest', error);
+      }
+      try {
+        await memory.extractGoals(userId, task.id, payload.body);
+      } catch (error) {
+        logAgentError('goal extraction', error);
+      }
+
+      if (!getTaskScope(db, task.id)) {
+        setAgentStatus(db, ownerAgent.id, 'clarifying');
+        emitAgentStatus(io, db, ownerAgent.id, 'clarifying', userId);
+        let scope;
         if (!rt.budgetFor(task.id).reserveModelCall()) {
           await reportStuck(rt, task, 'task model-call budget exhausted');
           return;
@@ -240,32 +240,36 @@ export function createInboxHandlers({
           title: task.title,
           mainThread: listMainThreadMessages(db, task.id),
         });
-      } catch (error) {
-        await reportStuck(rt, task, safeFailureReason(error));
-        return;
-      }
-      if (scope) {
-        db.transaction(() => {
-          const canonical = getTaskScope(db, task.id);
-          if (!canonical) {
-            putTaskScope(db, { taskId: task.id, purpose: scope.purpose, fields: scope.fields });
-          }
-        }).immediate();
-        rt.wakeOwner(task.id);
+        if (scope) {
+          db.transaction(() => {
+            const canonical = getTaskScope(db, task.id);
+            if (!canonical) {
+              putTaskScope(db, { taskId: task.id, purpose: scope.purpose, fields: scope.fields });
+            }
+          }).immediate();
+          rt.wakeOwner(task.id);
+          return;
+        }
+
+        const clarificationsUsed = listMainThreadMessages(db, task.id)
+          .filter(({ senderType }) => senderType === 'agent').length;
+        if (clarificationsUsed < CLARIFY_CAP) {
+          await askClarifyingQuestion(task, ownerAgent.id, clarificationsUsed);
+        } else {
+          await reportStuck(rt, task, "couldn't determine what information this task needs");
+        }
         return;
       }
 
-      const clarificationsUsed = listMainThreadMessages(db, task.id)
-        .filter(({ senderType }) => senderType === 'agent').length;
-      if (clarificationsUsed < CLARIFY_CAP) {
-        await askClarifyingQuestion(task, ownerAgent.id, clarificationsUsed);
-      } else {
-        await reportStuck(rt, task, "couldn't determine what information this task needs");
+      rt.wakeOwner(task.id);
+    } catch (error) {
+      logAgentError('chat post-persistence', error);
+      try {
+        await reportStuck(rt, task, 'Task stopped after an internal error.');
+      } catch (reportError) {
+        logAgentError('chat failure reporting', reportError);
       }
-      return;
     }
-
-    rt.wakeOwner(task.id);
   }
 
   return { handleTaskCreate, handleChatSend };

@@ -367,10 +367,14 @@ async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
      WHERE user_id = ? AND id <> ? AND status = 'active'
      ORDER BY created_at, id`,
   ).all(ctx.taskOwnerUserId, ctx.taskId) as Array<{ id: ID }>;
-  const hasOtherOpenSubchat = otherActiveTasks.some(({ id }) =>
-    listSubchatsByTask(ctx.db, id).some(({ status: subchatStatus }) => subchatStatus === 'open'));
+  const hasOtherOpenSubchat = agentHasOtherActiveSubchat(
+    ctx.db,
+    ctx.actingAgentId,
+    ctx.taskId,
+  );
+  const hasOtherScopedTask = otherActiveTasks.some(({ id }) => Boolean(getTaskScope(ctx.db, id)));
   const hasOtherUnscopedTask = otherActiveTasks.some(({ id }) => !getTaskScope(ctx.db, id));
-  const status = hasOtherOpenSubchat
+  const status = hasOtherOpenSubchat || hasOtherScopedTask
     ? 'negotiating'
     : hasOtherUnscopedTask
       ? 'clarifying'
@@ -380,6 +384,20 @@ async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
   emitNetworkUpdated(ctx.io, ctx.db, ctx.taskOwnerUserId);
   emitTaskUpdated(ctx.io, ctx.taskOwnerUserId, { id: task.id, status: args.status });
   return 'Task reported to human.';
+}
+
+function agentHasOtherActiveSubchat(db: Database, agentId: ID, excludeTaskId: ID): boolean {
+  return Boolean(db.prepare(
+    `SELECT 1
+     FROM subchat_participants AS participants
+     JOIN subchats ON subchats.id = participants.subchat_id
+     JOIN tasks ON tasks.id = subchats.task_id
+     WHERE participants.agent_id = ?
+       AND subchats.status = 'open'
+       AND tasks.status = 'active'
+       AND tasks.id <> ?
+     LIMIT 1`,
+  ).get(agentId, excludeTaskId));
 }
 
 export interface ToolExecution {
