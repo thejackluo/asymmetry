@@ -4,16 +4,31 @@ import { buildDirectory, networkPayload } from './peers.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
 
 describe('peer directory', () => {
-  it("lists Alice's one- and two-hop peers before discovered agents", () => {
+  it("lists Alice's one- and two-hop peers before other agents and caps at four", () => {
     const db = createFixtureDb();
     try {
+      const insertUser = db.prepare(
+        `INSERT INTO users (id, username, display_name, pass_hash, agent_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      );
+      const insertAgent = db.prepare(
+        'INSERT INTO agents (id, user_id, name, status) VALUES (?, ?, ?, ?)',
+      );
+      for (const [id, username, name] of [
+        ['user-frank', 'frank', 'Frank'],
+        ['user-gina', 'gina', 'Gina'],
+      ]) {
+        insertUser.run(id, username, name, 'fixture-hash', `agent-${username}`, 6);
+        insertAgent.run(`agent-${username}`, id, `${name}'s Agent`, 'idle');
+      }
       const directory = buildDirectory(db, FIXTURE_IDS.users.alice);
       expect(directory).toEqual([
         { agentId: FIXTURE_IDS.agents.bob, name: 'Bob', hop: 1 },
         { agentId: FIXTURE_IDS.agents.carol, name: 'Carol', hop: 1 },
         { agentId: FIXTURE_IDS.agents.dave, name: 'Dave', hop: 2 },
-        { agentId: FIXTURE_IDS.agents.erin, name: 'Erin', hop: 'discovered' },
+        { agentId: FIXTURE_IDS.agents.erin, name: 'Erin', hop: 'other' },
       ]);
+      expect(directory).toHaveLength(4);
     } finally {
       db.close();
     }

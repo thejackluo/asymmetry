@@ -1,4 +1,3 @@
-import type BetterSqlite3 from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   Agent,
@@ -12,8 +11,8 @@ import type {
   TrustEdge,
   User,
 } from '@asymmetry/shared';
-
-type Database = BetterSqlite3.Database;
+import { subchatRoom, userRoom } from '@asymmetry/shared';
+import type { Database } from '../db.js';
 
 type TaskRow = {
   id: string;
@@ -210,14 +209,14 @@ export function insertMessage(db: Database, input: InsertMessageInput): Message 
       throw new Error('Message task does not match its subchat');
     }
     taskId = subchat.task_id;
-    roomId = `subchat:${subchatId}`;
+    roomId = subchatRoom(subchatId);
   } else {
     const task = taskId ? getTask(db, taskId) : undefined;
     const userId = task?.userId ?? input.userId;
     if (!userId) {
       throw new Error('A main-thread message requires a task or user id');
     }
-    roomId = `user:${userId}`;
+    roomId = userRoom(userId);
   }
 
   const message: Message = {
@@ -361,4 +360,24 @@ export function agentHasOtherActiveSubchat(
        AND subchats.status = 'open'
      LIMIT 1`,
   ).get(agentId, excludedTaskId));
+}
+
+export function agentHasOpenSubchat(db: Database, agentId: ID): boolean {
+  return Boolean(db.prepare(
+    `SELECT 1
+     FROM subchat_participants
+     JOIN subchats ON subchats.id = subchat_participants.subchat_id
+     JOIN tasks ON tasks.id = subchats.task_id
+     WHERE subchat_participants.agent_id = ?
+       AND tasks.status = 'active'
+       AND subchats.status = 'open'
+     LIMIT 1`,
+  ).get(agentId));
+}
+
+export function agentOwnsActiveTask(db: Database, agentId: ID): boolean {
+  const owner = userByAgent(db, agentId);
+  return owner !== undefined && Boolean(db.prepare(
+    "SELECT 1 FROM tasks WHERE user_id = ? AND status = 'active' LIMIT 1",
+  ).get(owner.id));
 }

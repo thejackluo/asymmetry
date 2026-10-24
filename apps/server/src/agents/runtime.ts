@@ -1,11 +1,12 @@
-import type BetterSqlite3 from 'better-sqlite3';
 import type { ID, MemoryEngine, Message, Task } from '@asymmetry/shared';
 import type { Server } from 'socket.io';
+import type { Database } from '../db.js';
 import { Budget, MODEL_TIMEOUT_MS, TASK_MODEL_CALL_CAP, TOOL_ITER_CAP } from './budgets.js';
 import { emitMainMessage, emitSubchatEvent } from './emit.js';
 import { EVENTS } from './events.js';
-import { agentById, agentByUser, closeSubchat, getTask, getTaskScope, insertMessage, listMainThreadMessages, listSubchatMessages, listSubchatsByTask, subchatById, userByAgent } from './repo.js';
+import { agentById, agentByUser, getTask, getTaskScope, insertMessage, listMainThreadMessages, listSubchatMessages, listSubchatsByTask, subchatById, userByAgent } from './repo.js';
 import { buildDirectory } from './peers.js';
+import { closeSubchatAndNotify } from './subchats.js';
 import { buildOwnerPrompt, buildPeerPrompt, peerMessageToLLM } from './persona.js';
 import { LLMTimeoutError, withTimeout, type LLMClient, type LLMMessage } from './llm.js';
 import {
@@ -17,8 +18,6 @@ import {
   type TrustedCtx,
 } from './tools.js';
 import { createInboxHandlers } from './inbox.js';
-
-type Database = BetterSqlite3.Database;
 
 export interface CreateAgentRuntimeOptions {
   io: Server;
@@ -189,7 +188,7 @@ export function createAgentRuntime({
     mode: 'owner' | 'peer',
     subchatId: ID | null,
   ): TrustedCtx {
-    const rt: RuntimeHooks = { budgetFor, wakeOwner, runPeer };
+    const rt: RuntimeHooks = { budgetFor, wakeOwner, reportOwnerFailure, runPeer };
     return {
       db,
       io,
@@ -290,14 +289,9 @@ export function createAgentRuntime({
     if (!task) {
       return;
     }
-    const summary = `Peer agent ${agentId} stopped: ${reason}`;
-    closeSubchat(db, subchatId);
-    emitSubchatEvent(io, db, subchatId, EVENTS.SUBCHAT_CLOSED, {
-      subchatId,
-      outcome: 'stuck',
-      summary: reason,
-    });
-    wakeOwner(taskId, summary);
+    closeSubchatAndNotify(db, io, subchatId, 'stuck', reason);
+    const peerName = agentById(db, agentId)?.name ?? 'Peer agent';
+    wakeOwner(taskId, `${peerName} stopped: ${reason}`);
   }
 
   async function runPeerLoop(subchatId: ID, agentId: ID): Promise<void> {
@@ -408,7 +402,7 @@ export function createAgentRuntime({
     enqueue(`sub:${subchatId}:${agentId}`, () => runPeerLoop(subchatId, agentId));
   }
 
-  const hooks: RuntimeHooks = { budgetFor, wakeOwner, runPeer };
+  const hooks: RuntimeHooks = { budgetFor, wakeOwner, reportOwnerFailure, runPeer };
   const inbox = createInboxHandlers({ io, db, memory, llm, timeoutMs, rt: hooks });
 
   return {

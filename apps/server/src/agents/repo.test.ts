@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { subchatRoom, userRoom } from '@asymmetry/shared';
 import {
   agentByUser,
   closeSubchat,
@@ -88,8 +89,8 @@ describe('agent repository', () => {
         body: 'I can help',
       });
 
-      expect(main.roomId).toBe(`user:${FIXTURE_IDS.users.alice}`);
-      expect(peer.roomId).toBe(`subchat:${subchat.id}`);
+      expect(main.roomId).toBe(userRoom(FIXTURE_IDS.users.alice));
+      expect(peer.roomId).toBe(subchatRoom(subchat.id));
       expect(listMainThreadMessages(db, task.id)).toEqual([main]);
       expect(listSubchatMessages(db, subchat.id)).toEqual([peer]);
     } finally {

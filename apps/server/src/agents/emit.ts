@@ -1,7 +1,8 @@
-import type BetterSqlite3 from 'better-sqlite3';
 import type { Server } from 'socket.io';
 import type { AgentStatus, ID, Message, Task } from '@asymmetry/shared';
+import { userRoom } from '@asymmetry/shared';
 import { EVENTS } from './events.js';
+import type { Database } from '../db.js';
 import {
   getTask,
   listParticipants,
@@ -9,8 +10,6 @@ import {
   userByAgent,
 } from './repo.js';
 import { networkPayload } from './peers.js';
-
-type Database = BetterSqlite3.Database;
 
 export function emitTo(
   io: Server,
@@ -24,7 +23,7 @@ export function emitTo(
 }
 
 export function emitMainMessage(io: Server, userId: ID, message: Message): void {
-  emitTo(io, [`user:${userId}`], EVENTS.CHAT_MESSAGE, message);
+  emitTo(io, [userRoom(userId)], EVENTS.CHAT_MESSAGE, message);
 }
 
 export function emitSubchatEvent(
@@ -40,22 +39,22 @@ export function emitSubchatEvent(
     return;
   }
 
-  const rooms = [`user:${task.userId}`];
+  const rooms = [userRoom(task.userId)];
   for (const agentId of listParticipants(db, subchatId)) {
     const participant = userByAgent(db, agentId);
     if (participant) {
-      rooms.push(`user:${participant.id}`);
+      rooms.push(userRoom(participant.id));
     }
   }
   emitTo(io, rooms, event, payload);
 }
 
 export function emitNetworkUpdated(io: Server, db: Database, userId: ID): void {
-  emitTo(io, [`user:${userId}`], EVENTS.NETWORK_UPDATED, networkPayload(db, userId));
+  emitTo(io, [userRoom(userId)], EVENTS.NETWORK_UPDATED, networkPayload(db, userId));
 }
 
 export function emitTaskUpdated(io: Server, userId: ID, task: Pick<Task, 'id' | 'status'>): void {
-  emitTo(io, [`user:${userId}`], EVENTS.TASK_UPDATED, task);
+  emitTo(io, [userRoom(userId)], EVENTS.TASK_UPDATED, { taskId: task.id, status: task.status });
 }
 
 export function emitAgentStatus(
@@ -66,9 +65,9 @@ export function emitAgentStatus(
   taskOwnerUserId: ID,
 ): void {
   const agentOwner = userByAgent(db, agentId);
-  const rooms = [`user:${taskOwnerUserId}`];
+  const rooms = [userRoom(taskOwnerUserId)];
   if (agentOwner) {
-    rooms.push(`user:${agentOwner.id}`);
+    rooms.push(userRoom(agentOwner.id));
   }
   emitTo(io, rooms, EVENTS.AGENT_STATUS, { agentId, status });
 }

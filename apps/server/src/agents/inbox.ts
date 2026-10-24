@@ -1,6 +1,7 @@
-import type BetterSqlite3 from 'better-sqlite3';
 import type { ID, MemoryEngine, Message, Task } from '@asymmetry/shared';
+import { userRoom } from '@asymmetry/shared';
 import type { Server, Socket } from 'socket.io';
+import type { Database } from '../db.js';
 import { CLARIFY_CAP, MODEL_TIMEOUT_MS } from './budgets.js';
 import { emitAgentStatus, emitMainMessage, emitTaskUpdated } from './emit.js';
 import { EVENTS } from './events.js';
@@ -8,23 +9,18 @@ import { LLMTimeoutError, withTimeout, type LLMClient, type LLMMessage } from '.
 import { buildDirectory } from './peers.js';
 import {
   agentByUser,
-  closeSubchat,
   createTask,
   getTask,
   getTaskScope,
   insertMessage,
   listMainThreadMessages,
-  listSubchatsByTask,
   putTaskScope,
   setAgentStatus,
-  setTaskStatus,
   userByAgent,
 } from './repo.js';
 import { deriveScope } from './scope.js';
 import type { RuntimeHooks } from './tools.js';
 import { buildOwnerPrompt } from './persona.js';
-
-type Database = BetterSqlite3.Database;
 
 export type InboxAck = (result: { ok: true; task?: Task; message?: Message } | { ok: false; error: string }) => void;
 
@@ -90,23 +86,8 @@ function persistAgentMessage(
   return message;
 }
 
-function reportStuck(
-  io: Server,
-  db: Database,
-  task: Task,
-  agentId: ID,
-  summary: string,
-): void {
-  persistAgentMessage(io, db, task, agentId, summary);
-  setTaskStatus(db, task.id, 'stuck');
-  for (const subchat of listSubchatsByTask(db, task.id)) {
-    if (subchat.status === 'open') {
-      closeSubchat(db, subchat.id);
-    }
-  }
-  setAgentStatus(db, agentId, 'stuck');
-  emitAgentStatus(io, db, agentId, 'stuck', task.userId);
-  emitTaskUpdated(io, task.userId, { id: task.id, status: 'stuck' });
+function reportStuck(rt: RuntimeHooks, task: Task, summary: string): Promise<void> {
+  return rt.reportOwnerFailure(task.id, summary);
 }
 
 export function createInboxHandlers({
@@ -131,18 +112,18 @@ export function createInboxHandlers({
       return;
     }
     const task = createTask(db, userId, title);
-    io.to(`user:${userId}`).emit(EVENTS.TASK_CREATED, task);
+    io.to(userRoom(userId)).emit(EVENTS.TASK_CREATED, task);
     ack?.({ ok: true, task });
   }
 
   async function askClarifyingQuestion(task: Task, agentId: ID, clarificationsUsed: number): Promise<void> {
     const owner = userByAgent(db, agentId);
     if (!owner) {
-      reportStuck(io, db, task, agentId, 'LLM not configured');
+      await reportStuck(rt, task, 'LLM not configured');
       return;
     }
     if (!rt.budgetFor(task.id).reserveModelCall()) {
-      reportStuck(io, db, task, agentId, 'task model-call budget exhausted');
+      await reportStuck(rt, task, 'task model-call budget exhausted');
       return;
     }
     const systemPrompt = buildOwnerPrompt({
@@ -159,12 +140,12 @@ export function createInboxHandlers({
         ...replyMessages(listMainThreadMessages(db, task.id)),
       ], []);
       if (typeof result.reply !== 'string' || result.reply.trim().length === 0) {
-        reportStuck(io, db, task, agentId, 'model returned no clarifying question');
+        await reportStuck(rt, task, 'model returned no clarifying question');
         return;
       }
       persistAgentMessage(io, db, task, agentId, result.reply);
     } catch (error) {
-      reportStuck(io, db, task, agentId, errorReason(error, timeoutMs));
+      await reportStuck(rt, task, errorReason(error, timeoutMs));
     }
   }
 
@@ -221,7 +202,7 @@ export function createInboxHandlers({
       let scope;
       try {
         if (!rt.budgetFor(task.id).reserveModelCall()) {
-          reportStuck(io, db, task, ownerAgent.id, 'task model-call budget exhausted');
+          await reportStuck(rt, task, 'task model-call budget exhausted');
           return;
         }
         scope = await deriveScope(timedLLM, {
@@ -229,7 +210,7 @@ export function createInboxHandlers({
           mainThread: listMainThreadMessages(db, task.id),
         });
       } catch (error) {
-        reportStuck(io, db, task, ownerAgent.id, errorReason(error, timeoutMs));
+        await reportStuck(rt, task, errorReason(error, timeoutMs));
         return;
       }
       if (scope) {
@@ -239,7 +220,7 @@ export function createInboxHandlers({
             putTaskScope(db, { taskId: task.id, purpose: scope.purpose, fields: scope.fields });
           }
         }).immediate();
-        rt.wakeOwner(task.id, `Task trigger message ${humanMessage.id} established the canonical scope.`);
+        rt.wakeOwner(task.id);
         return;
       }
 
@@ -248,12 +229,12 @@ export function createInboxHandlers({
       if (clarificationsUsed < CLARIFY_CAP) {
         await askClarifyingQuestion(task, ownerAgent.id, clarificationsUsed);
       } else {
-        reportStuck(io, db, task, ownerAgent.id, "couldn't determine what information this task needs");
+        await reportStuck(rt, task, "couldn't determine what information this task needs");
       }
       return;
     }
 
-    rt.wakeOwner(task.id, `Task trigger message ${humanMessage.id}.`);
+    rt.wakeOwner(task.id);
   }
 
   return { handleTaskCreate, handleChatSend };

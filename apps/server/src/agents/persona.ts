@@ -20,7 +20,7 @@ export function buildOwnerPrompt({
   clarificationsUsed,
 }: OwnerPromptInput): string {
   const peers = directory
-    .map(({ agentId, name, hop }) => `${name} (${agentId}, hop ${hop})`)
+    .map(({ agentId, name, hop }) => `${name} (${agentId}, ${hop === 'other' ? 'other' : `hop ${hop}`})`)
     .join('\n');
   const scopeText = scope
     ? `Canonical purpose: ${scope.purpose}\nAllowed fields: ${scope.fields.join(', ')}`
@@ -31,7 +31,7 @@ export function buildOwnerPrompt({
     `Task: ${task.title}`,
     scopeText,
     `Clarifying questions already asked: ${clarificationsUsed}. Ask only for information needed by this task, with at most 2 clarifying questions total.`,
-    'Search hop-1 trusted agents first. Widen to hop-2 or discovered agents only when this request needs a wider net (such as housing, cars, or jobs) or hop 1 returns too few useful options.',
+    'Search hop 1 trusted agents first. Widen to hop 2 or other agents only when this request needs a wider net (such as housing, cars, or jobs) or hop 1 returns too few useful options.',
     'Contact at most 4 distinct peers for this task.',
     'Wait for or synthesize all open subchats before reporting. Use report_to_human with a couple of options and a warm-intro proposal for each. Never send a message, book anything, or reveal contact details without the human’s consent.',
     `Available peer directory:\n${peers}`,

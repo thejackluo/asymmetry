@@ -1,12 +1,12 @@
-import type BetterSqlite3 from 'better-sqlite3';
 import type { MemoryEngine, ID } from '@asymmetry/shared';
 import type { Server } from 'socket.io';
+import type { Database } from '../db.js';
 import { Budget, PEER_CAP } from './budgets.js';
 import { emitAgentStatus, emitMainMessage, emitNetworkUpdated, emitSubchatEvent, emitTaskUpdated } from './emit.js';
 import { EVENTS } from './events.js';
 import {
   agentHasOtherActiveSubchat,
-  closeSubchat,
+  agentById,
   createSubchat,
   getTask,
   getTaskScope,
@@ -18,15 +18,15 @@ import {
   subchatById,
   userByAgent,
 } from './repo.js';
+import { closeSubchatAndNotify } from './subchats.js';
 import { buildDirectory } from './peers.js';
 import { validateScopeRequest } from './scope.js';
 import type { LLMMessage, ToolCall, ToolSpec } from './llm.js';
 
-type Database = BetterSqlite3.Database;
-
 export interface RuntimeHooks {
   budgetFor(taskId: ID): Budget;
   wakeOwner(taskId: ID, note?: string): void;
+  reportOwnerFailure(taskId: ID, reason: string): Promise<void>;
   runPeer(subchatId: ID, agentId: ID): void;
 }
 
@@ -242,13 +242,9 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
   }
 
   if (!ctx.rt.budgetFor(ctx.taskId).reserveSubchatTurn(subchatId)) {
-    closeSubchat(ctx.db, subchatId);
-    emitSubchatEvent(ctx.io, ctx.db, subchatId, EVENTS.SUBCHAT_CLOSED, {
-      subchatId,
-      outcome: 'stuck',
-      summary: 'turn cap reached',
-    });
-    ctx.rt.wakeOwner(ctx.taskId, `Subchat ${subchatId} closed because the turn cap was reached.`);
+    closeSubchatAndNotify(ctx.db, ctx.io, subchatId, 'stuck', 'turn cap reached');
+    const agentName = agentById(ctx.db, ctx.actingAgentId)?.name ?? 'Agent';
+    ctx.rt.wakeOwner(ctx.taskId, `${agentName} stopped: subchat turn cap reached.`);
     return 'Error: subchat turn cap reached';
   }
 
@@ -266,7 +262,7 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
     }
   }
   if (ctx.actingAgentId !== ctx.ownerAgentId) {
-    ctx.rt.wakeOwner(ctx.taskId, `New subchat message from agent ${ctx.actingAgentId}.`);
+    ctx.rt.wakeOwner(ctx.taskId);
   }
   return JSON.stringify(message);
 }
@@ -301,19 +297,14 @@ async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
     body: args.summary,
   });
   emitMainMessage(ctx.io, ctx.taskOwnerUserId, message);
-  setTaskStatus(ctx.db, ctx.taskId, args.status);
 
   for (const subchat of listSubchatsByTask(ctx.db, ctx.taskId)) {
     if (subchat.status !== 'open') {
       continue;
     }
-    closeSubchat(ctx.db, subchat.id);
-    emitSubchatEvent(ctx.io, ctx.db, subchat.id, EVENTS.SUBCHAT_CLOSED, {
-      subchatId: subchat.id,
-      outcome: args.status,
-      summary: args.summary,
-    });
+    closeSubchatAndNotify(ctx.db, ctx.io, subchat.id, args.status, args.summary);
   }
+  setTaskStatus(ctx.db, ctx.taskId, args.status);
 
   const status = agentHasOtherActiveSubchat(ctx.db, ctx.actingAgentId, ctx.taskId)
     ? 'negotiating'

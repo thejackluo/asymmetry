@@ -1,5 +1,6 @@
 import type { Socket } from 'socket.io';
 import { describe, expect, it, vi } from 'vitest';
+import { userRoom } from '@asymmetry/shared';
 import { createAgentRuntime } from './runtime.js';
 import { EVENTS } from './events.js';
 import { createTask, getTask, getTaskScope, listMainThreadMessages, listSubchatsByTask, listSubchatMessages, putTaskScope } from './repo.js';
@@ -77,7 +78,7 @@ describe('agent inbox handlers', () => {
         event === EVENTS.CHAT_MESSAGE && (payload as { senderType?: string }).senderType === 'human')).toHaveLength(1);
       expect(emissions.filter(({ event, payload }) =>
         event === EVENTS.CHAT_MESSAGE && (payload as { senderType?: string }).senderType === 'human')
-        .every(({ room }) => room === `user:${FIXTURE_IDS.users.alice}`)).toBe(true);
+        .every(({ room }) => room === userRoom(FIXTURE_IDS.users.alice))).toBe(true);
       expect(llm.calls.filter(({ route }) => route === "Alice's Agent")).toHaveLength(1);
       expect(calls.ingest).toEqual([{
         userId: FIXTURE_IDS.users.alice,
@@ -306,7 +307,7 @@ describe('agent inbox handlers', () => {
       expect(bobFacts.withheldCount).toBe(2);
       expect(listMainThreadMessages(db, task.id).at(-1)?.body).toContain('warm introduction');
       expect(networkPayload(db, FIXTURE_IDS.users.alice).discovered).toContain(FIXTURE_IDS.agents.erin);
-      expect(emissions.some(({ room }) => room === `user:${FIXTURE_IDS.users.dave}`)).toBe(false);
+      expect(emissions.some(({ room }) => room === userRoom(FIXTURE_IDS.users.dave))).toBe(false);
       expect(emissions.some(({ event }) => event === EVENTS.DISCLOSURE_LOGGED)).toBe(false);
     } finally {
       db.close();

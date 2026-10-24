@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { userRoom } from '@asymmetry/shared';
 import { createTask, createSubchat } from './repo.js';
 import {
   emitAgentStatus,
@@ -15,10 +16,10 @@ import { createFakeIO } from './test/fakeIO.js';
 describe('room-targeted event delivery', () => {
   it('deduplicates rooms and never requires a global emit', () => {
     const { io, emissions } = createFakeIO();
-    emitTo(io, ['user:alice', 'user:alice', 'user:bob'], 'example:event', { value: 1 });
+    emitTo(io, [userRoom('alice'), userRoom('alice'), userRoom('bob')], 'example:event', { value: 1 });
     expect(emissions).toEqual([
-      { room: 'user:alice', event: 'example:event', payload: { value: 1 } },
-      { room: 'user:bob', event: 'example:event', payload: { value: 1 } },
+      { room: userRoom('alice'), event: 'example:event', payload: { value: 1 } },
+      { room: userRoom('bob'), event: 'example:event', payload: { value: 1 } },
     ]);
   });
 
@@ -34,7 +35,7 @@ describe('room-targeted event delivery', () => {
 
       emitMainMessage(io, FIXTURE_IDS.users.alice, {
         id: 'message-1',
-        roomId: `user:${FIXTURE_IDS.users.alice}`,
+        roomId: userRoom(FIXTURE_IDS.users.alice),
         taskId: task.id,
         subchatId: null,
         senderType: 'human',
@@ -48,15 +49,17 @@ describe('room-targeted event delivery', () => {
       emitAgentStatus(io, db, FIXTURE_IDS.agents.bob, 'negotiating', FIXTURE_IDS.users.alice);
 
       expect(emissions.map(({ room, event }) => [room, event])).toEqual([
-        [`user:${FIXTURE_IDS.users.alice}`, EVENTS.CHAT_MESSAGE],
-        [`user:${FIXTURE_IDS.users.alice}`, EVENTS.SUBCHAT_STARTED],
-        [`user:${FIXTURE_IDS.users.bob}`, EVENTS.SUBCHAT_STARTED],
-        [`user:${FIXTURE_IDS.users.alice}`, EVENTS.NETWORK_UPDATED],
-        [`user:${FIXTURE_IDS.users.alice}`, EVENTS.TASK_UPDATED],
-        [`user:${FIXTURE_IDS.users.alice}`, EVENTS.AGENT_STATUS],
-        [`user:${FIXTURE_IDS.users.bob}`, EVENTS.AGENT_STATUS],
+        [userRoom(FIXTURE_IDS.users.alice), EVENTS.CHAT_MESSAGE],
+        [userRoom(FIXTURE_IDS.users.alice), EVENTS.SUBCHAT_STARTED],
+        [userRoom(FIXTURE_IDS.users.bob), EVENTS.SUBCHAT_STARTED],
+        [userRoom(FIXTURE_IDS.users.alice), EVENTS.NETWORK_UPDATED],
+        [userRoom(FIXTURE_IDS.users.alice), EVENTS.TASK_UPDATED],
+        [userRoom(FIXTURE_IDS.users.alice), EVENTS.AGENT_STATUS],
+        [userRoom(FIXTURE_IDS.users.bob), EVENTS.AGENT_STATUS],
       ]);
-      expect(emissions.some(({ room }) => room === `user:${FIXTURE_IDS.users.dave}`)).toBe(false);
+      expect(emissions.find(({ event }) => event === EVENTS.TASK_UPDATED)?.payload)
+        .toEqual({ taskId: task.id, status: 'done' });
+      expect(emissions.some(({ room }) => room === userRoom(FIXTURE_IDS.users.dave))).toBe(false);
     } finally {
       db.close();
     }

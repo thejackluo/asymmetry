@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Agent, Message, Task } from '@asymmetry/shared';
+import { subchatRoom } from '@asymmetry/shared';
 import { buildOwnerPrompt, buildPeerPrompt, peerMessageToLLM } from './persona.js';
 
 const aliceAgent: Agent = {
@@ -26,13 +27,14 @@ describe('agent persona prompts', () => {
       scope: { purpose: 'find a summer sublet', fields: ['location_area', 'price', 'dates'] },
       directory: [
         { agentId: 'agent-bob', name: 'Bob', hop: 1 },
-        { agentId: 'agent-erin', name: 'Erin', hop: 'discovered' },
+        { agentId: 'agent-erin', name: 'Erin', hop: 'other' },
       ],
       clarificationsUsed: 1,
     });
 
     expect(prompt).toContain('at most 2 clarifying questions');
-    expect(prompt).toContain('hop-1 trusted agents first');
+    expect(prompt).toContain('hop 1 trusted agents first');
+    expect(prompt).toContain('hop 2 or other agents');
     expect(prompt).toContain('at most 4 distinct peers');
     expect(prompt).toContain('warm-intro proposal');
     expect(prompt).toContain('without the human’s consent');
@@ -66,7 +68,7 @@ describe('agent persona prompts', () => {
   it('places peer injection only in user-role content and labels it untrusted', () => {
     const message: Message = {
       id: 'message-1',
-      roomId: 'subchat:1',
+      roomId: subchatRoom('1'),
       taskId: 'task-alice',
       subchatId: 'subchat-1',
       senderType: 'agent',

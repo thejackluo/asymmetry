@@ -1,10 +1,9 @@
-import type BetterSqlite3 from 'better-sqlite3';
 import type { Agent, ID } from '@asymmetry/shared';
+import type { Database } from '../db.js';
+import { PEER_CAP } from './budgets.js';
 import { outgoingTrustEdges } from './repo.js';
 
-type Database = BetterSqlite3.Database;
-
-export type PeerHop = 1 | 2 | 'discovered';
+export type PeerHop = 1 | 2 | 'other';
 
 export interface DirectoryPeer {
   agentId: ID;
@@ -83,10 +82,10 @@ export function buildDirectory(db: Database, ownerUserId: ID): DirectoryPeer[] {
   }
   for (const row of rows) {
     if (!hops.has(row.user_id)) {
-      peers.push({ agentId: row.agent_id, name: row.display_name, hop: 'discovered' });
+      peers.push({ agentId: row.agent_id, name: row.display_name, hop: 'other' });
     }
   }
-  return peers;
+  return peers.slice(0, PEER_CAP);
 }
 
 export interface NetworkPayload {
