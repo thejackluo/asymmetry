@@ -37,7 +37,10 @@ const stubId = (parts: string[]): string => {
 
 const assertStubEnv = (): void => {
   const env = process.env.NODE_ENV;
-  if (env !== 'development' && env !== 'test') {
+  if (
+    (env !== 'development' && env !== 'test') ||
+    process.env.APP_MODE === 'demo'
+  ) {
     throw new Error('stubMemoryEngine is only available in development/test mode');
   }
 };
@@ -73,7 +76,7 @@ export function stubMemoryEngine(): MemoryEngine {
       const disclosure: Disclosure = {
         id: stubId(['disclosure', ownerUserId, requesterUserId, scope.taskId, scope.fields.join(',')]),
         ownerUserId,
-        requesterAgentId: requesterUserId,
+        requesterAgentId: `stub-agent:${requesterUserId}`,
         scope,
         released: items.map((i) => i.id),
         withheldCount,

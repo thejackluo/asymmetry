@@ -132,6 +132,31 @@ export const SERVER_EVENTS = {
 export type ClientEvent = (typeof CLIENT_EVENTS)[keyof typeof CLIENT_EVENTS];
 export type ServerEvent = (typeof SERVER_EVENTS)[keyof typeof SERVER_EVENTS];
 
+export interface ClientToServerEvents {
+  'task:create': (payload: { title: string }) => void;
+  'chat:send': (payload: { taskId: ID; body: string }) => void;
+}
+
+export interface ServerToClientEvents {
+  'task:created': (task: Task) => void;
+  'task:updated': (payload: { taskId: ID; status: Task['status'] }) => void;
+  'chat:message': (message: Message) => void;
+  'subchat:started': (subchat: Subchat) => void;
+  'subchat:message': (message: Message) => void;
+  'subchat:closed': (payload: {
+    subchatId: ID;
+    outcome: 'done' | 'stuck';
+    summary: string;
+  }) => void;
+  'agent:status': (payload: { agentId: ID; status: AgentStatus }) => void;
+  'network:updated': (payload: {
+    agents: Agent[];
+    trusted: ID[];
+    discovered: ID[];
+  }) => void;
+  'disclosure:logged': (notice: DisclosureNotice) => void;
+}
+
 export const userRoom = (userId: ID): string => `user:${userId}`;
 export const agentRoom = (agentId: ID): string => `agent:${agentId}`;
 export const subchatRoom = (subchatId: ID): string => `subchat:${subchatId}`;
