@@ -466,7 +466,11 @@ describe('agent inbox handlers', () => {
         .toEqual(['location_area', 'price', 'dates']);
       expect(db.prepare('SELECT status FROM agents WHERE id = ?').get(FIXTURE_IDS.agents.bob))
         .toEqual({ status: 'idle' });
-      expect(listMainThreadMessages(db, task.id).some(({ body }) => body === finalReportText)).toBe(true);
+      const ownerReport = listMainThreadMessages(db, task.id)
+        .find(({ senderType, body }) => senderType === 'agent' && body.startsWith(finalReportText))?.body;
+      expect(ownerReport).toContain(
+        '\n\nShared with you:\n- Bob\'s Agent: A room 0.4 miles from Georgia Tech.; $950/month.; Available May 15 through August 10.',
+      );
       expect(listMainThreadMessages(db, task.id).some(({ senderType }) => senderType === 'system')).toBe(false);
       expect(networkPayload(db, FIXTURE_IDS.users.alice).discovered).toContain(FIXTURE_IDS.agents.erin);
       expect(emissions.some(({ room }) => room === userRoom(FIXTURE_IDS.users.dave))).toBe(false);

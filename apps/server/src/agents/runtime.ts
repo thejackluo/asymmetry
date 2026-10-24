@@ -16,6 +16,7 @@ import {
   executeToolCall,
   toolCallMessage,
   toolResultMessage,
+  type ReleasedPeerFact,
   type RuntimeHooks,
   type TrustedCtx,
 } from './tools.js';
@@ -137,6 +138,7 @@ export function createAgentRuntime({
   const budgets = new Map<ID, Budget>();
   const ownerWakeStates = new Map<ID, OwnerWakeState>();
   const queueTails = new Map<string, Promise<void>>();
+  const releasedPeerFacts = new Map<ID, Map<ID, ReleasedPeerFact>>();
   const idleWaiters = new Set<() => void>();
   let activeJobs = 0;
 
@@ -148,6 +150,27 @@ export function createAgentRuntime({
     }
     return budget;
   };
+
+  function recordPeerFacts(
+    taskId: ID,
+    ownerAgentName: string,
+    facts: Array<{ id: ID; text: string }>,
+  ): void {
+    let factsById = releasedPeerFacts.get(taskId);
+    if (!factsById) {
+      factsById = new Map();
+      releasedPeerFacts.set(taskId, factsById);
+    }
+    for (const fact of facts) {
+      factsById.set(fact.id, { ...fact, ownerAgentName });
+    }
+  }
+
+  function takePeerFacts(taskId: ID): ReleasedPeerFact[] {
+    const facts = [...(releasedPeerFacts.get(taskId)?.values() ?? [])];
+    releasedPeerFacts.delete(taskId);
+    return facts;
+  }
 
   function enqueue(key: string, job: () => Promise<void>): void {
     const previous = queueTails.get(key) ?? Promise.resolve();
@@ -181,7 +204,14 @@ export function createAgentRuntime({
     mode: 'owner' | 'peer',
     subchatId: ID | null,
   ): TrustedCtx {
-    const rt: RuntimeHooks = { budgetFor, wakeOwner, reportOwnerFailure, runPeer };
+    const rt: RuntimeHooks = {
+      budgetFor,
+      wakeOwner,
+      reportOwnerFailure,
+      runPeer,
+      recordPeerFacts,
+      takePeerFacts,
+    };
     return {
       db,
       io,
