@@ -42,50 +42,59 @@ const findUserByUsername = (db: Database, username: string): UserRow | undefined
   get<UserRow>(db, 'SELECT * FROM users WHERE username = ?', username);
 
 export function registerAuth(app: Express, db: Database): void {
-  app.post('/api/login', async (req: Request, res: Response) => {
-    const body = req.body as { username?: unknown; password?: unknown } | undefined;
-    const username = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
-    const password = typeof body?.password === 'string' ? body.password : '';
-    if (!USERNAME_RE.test(username) || password.length < 4 || password.length > 128) {
-      res.status(400).json({ error: 'invalid request' });
-      return;
-    }
-    if (Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) {
-      res.status(400).json({ error: 'invalid request' });
-      return;
-    }
-
-    const existing = findUserByUsername(db, username);
-    if (existing) {
-      if (!bcrypt.compareSync(password, existing.pass_hash)) {
-        res.status(401).json({ error: INVALID_CREDENTIALS });
+  app.post('/api/login', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body as { username?: unknown; password?: unknown } | undefined;
+      const username = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
+      const password = typeof body?.password === 'string' ? body.password : '';
+      if (!USERNAME_RE.test(username) || password.length < 4 || password.length > 128) {
+        res.status(400).json({ error: 'invalid request' });
         return;
       }
-      res.json({ token: createSession(db, existing.id), user: publicUser(existing) });
-      return;
-    }
+      if (Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) {
+        res.status(400).json({ error: 'password exceeds 72-byte limit' });
+        return;
+      }
 
-    const passHash = await bcrypt.hash(password, 10);
-    const now = Date.now();
-    const registered = db.transaction((): UserRow => {
-      const raced = findUserByUsername(db, username);
-      if (raced) return raced;
-      const userId = randomUUID();
-      const agentId = randomUUID();
-      run(
-        db,
-        'INSERT INTO users (id, username, display_name, pass_hash, agent_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        userId, username, username, passHash, agentId, now,
-      );
-      run(db, 'INSERT INTO agents (id, user_id, name) VALUES (?, ?, ?)', agentId, userId, `${username}'s Agent`);
-      return findUserByUsername(db, username) as UserRow;
-    })();
+      const existing = findUserByUsername(db, username);
+      if (existing) {
+        if (!(await bcrypt.compare(password, existing.pass_hash))) {
+          res.status(401).json({ error: INVALID_CREDENTIALS });
+          return;
+        }
+        res.json({ token: createSession(db, existing.id), user: publicUser(existing) });
+        return;
+      }
 
-    if (registered.pass_hash !== passHash && !bcrypt.compareSync(password, registered.pass_hash)) {
-      res.status(401).json({ error: INVALID_CREDENTIALS });
-      return;
+      const passHash = await bcrypt.hash(password, 10);
+      const now = Date.now();
+      const registered = db.transaction((): { row: UserRow; token: string | null } => {
+        const raced = findUserByUsername(db, username);
+        if (raced) return { row: raced, token: null };
+        const userId = randomUUID();
+        const agentId = randomUUID();
+        run(
+          db,
+          'INSERT INTO users (id, username, display_name, pass_hash, agent_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+          userId, username, username, passHash, agentId, now,
+        );
+        run(db, 'INSERT INTO agents (id, user_id, name) VALUES (?, ?, ?)', agentId, userId, `${username}'s Agent`);
+        const token = createSession(db, userId);
+        return { row: findUserByUsername(db, username) as UserRow, token };
+      })();
+
+      if (registered.token === null) {
+        if (!(await bcrypt.compare(password, registered.row.pass_hash))) {
+          res.status(401).json({ error: INVALID_CREDENTIALS });
+          return;
+        }
+        res.json({ token: createSession(db, registered.row.id), user: publicUser(registered.row) });
+        return;
+      }
+      res.json({ token: registered.token, user: publicUser(registered.row) });
+    } catch (err) {
+      next(err);
     }
-    res.json({ token: createSession(db, registered.id), user: publicUser(registered) });
   });
 }
 

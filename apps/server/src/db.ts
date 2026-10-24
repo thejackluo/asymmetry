@@ -4,9 +4,9 @@ import BetterSqlite3 from 'better-sqlite3';
 
 export type Database = BetterSqlite3.Database;
 
-const defaultDatabasePath = (): string =>
-  process.env.DATABASE_PATH ??
-  fileURLToPath(new URL('../../../asymmetry.db', import.meta.url));
+export function resolveDatabasePath(value: string | undefined = process.env.DATABASE_PATH): string {
+  return value || fileURLToPath(new URL('../../../asymmetry.db', import.meta.url));
+}
 
 const schemaPath = (): string => {
   const candidates = [
@@ -20,7 +20,7 @@ const schemaPath = (): string => {
   throw new Error('schema.sql not found next to db module or in src/');
 };
 
-export function openDatabase(path: string = defaultDatabasePath()): Database {
+export function openDatabase(path: string = resolveDatabasePath()): Database {
   const db = new BetterSqlite3(path);
   try {
     db.pragma('journal_mode = WAL');

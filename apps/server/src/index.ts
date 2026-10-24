@@ -169,7 +169,8 @@ export function createServer(options: ServerOptions = {}): AsymmetryServer {
         db,
         `SELECT a.* FROM agents a
          JOIN trust_edges t ON t.trusted_user_id = a.user_id
-         WHERE t.owner_user_id = ?`,
+         WHERE t.owner_user_id = ? AND a.user_id != ?`,
+        userId,
         userId,
       );
       const trustedIds = new Set(trustedAgentRows.map((a) => a.id));
@@ -211,20 +212,24 @@ export function createServer(options: ServerOptions = {}): AsymmetryServer {
 
     const listen = (port: number = Number(process.env.PORT) || 3001): Promise<number> =>
       new Promise((resolveListen, rejectListen) => {
-        httpServer.once('error', rejectListen);
+        const onError = (err: unknown): void => {
+          httpServer.off('error', onError);
+          rejectListen(err);
+        };
+        httpServer.once('error', onError);
         httpServer.listen(port, () => {
+          httpServer.off('error', onError);
           const address = httpServer.address();
           resolveListen(typeof address === 'object' && address !== null ? address.port : port);
         });
       });
 
+    let closed = false;
     const close = async (): Promise<void> => {
+      if (closed) return;
+      closed = true;
       await new Promise<void>((resolveClose) => io.close(() => resolveClose()));
-      try {
-        db.close();
-      } catch {
-        void 0;
-      }
+      db.close();
     };
 
     return { app, httpServer, io, db, listen, close };
@@ -238,9 +243,16 @@ export function createServer(options: ServerOptions = {}): AsymmetryServer {
   }
 }
 
+export function loadEnvironment(
+  envFile: string = process.env.ASYMMETRY_ENV_FILE ||
+    fileURLToPath(new URL('../../../.env', import.meta.url)),
+): void {
+  dotenv.config({ path: envFile });
+}
+
 const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
-  dotenv.config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
+  loadEnvironment();
   const server = createServer();
   server
     .listen()
@@ -252,8 +264,9 @@ if (isMain) {
       process.on('SIGINT', shutdown);
       process.on('SIGTERM', shutdown);
     })
-    .catch((err) => {
+    .catch(async (err) => {
       console.error('server failed to start:', err instanceof Error ? err.message : err);
+      await server.close().catch(() => {});
       process.exit(1);
     });
 }
