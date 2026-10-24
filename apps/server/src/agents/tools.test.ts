@@ -185,6 +185,59 @@ describe('trusted-context agent tools', () => {
     }
   });
 
+  it('sends only one owner request per open subchat', async () => {
+    const { db, ownerCtx, rt } = setup();
+    try {
+      const subchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const first = await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
+        subchatId: subchat.id,
+      }));
+      const second = await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
+        subchatId: subchat.id,
+      }));
+
+      expect(first.content).toContain('Please return only information authorized');
+      expect(second.content).toBe('Already asked; wait for the peer reply.');
+      expect(listSubchatMessages(db, subchat.id)).toHaveLength(1);
+      expect(rt.runPeer).toHaveBeenCalledTimes(1);
+      expect(rt.wakeOwner).not.toHaveBeenCalled();
+    } finally {
+      db.close();
+    }
+  });
+
+  it('returns cached peer memory results without another memory query', async () => {
+    const { db, ownerCtx, memory, calls } = setup();
+    try {
+      const subchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const peerCtx: TrustedCtx = {
+        ...ownerCtx,
+        actingAgentId: FIXTURE_IDS.agents.bob,
+        mode: 'peer',
+        subchatId: subchat.id,
+      };
+      const query = toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.bob,
+        scope: { fields: ['location_area'] },
+      });
+
+      const first = await executeToolCall(peerCtx, query);
+      const second = await executeToolCall(peerCtx, query);
+
+      expect(second.content).toBe(first.content);
+      expect(calls.queryMemory).toHaveLength(1);
+      expect(memory).toBeDefined();
+    } finally {
+      db.close();
+    }
+  });
+
   it('rejects spoofed memory owners and enforces canonical scope and requester identity', async () => {
     const { db, ownerCtx, calls, memory, scope } = setup();
     try {
@@ -383,7 +436,7 @@ describe('trusted-context agent tools', () => {
     }
   });
 
-  it('A2A-04: sends participant messages and schedules every other peer but rejects non-participants', async () => {
+  it('A2A-04: owner requests schedule peers and rejects non-participants', async () => {
     const { db, ownerCtx, rt, emissions } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
@@ -391,6 +444,14 @@ describe('trusted-context agent tools', () => {
         FIXTURE_IDS.agents.bob,
         FIXTURE_IDS.agents.carol,
       ]);
+      const ownerResult = await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
+        subchatId: subchat.id,
+      }));
+      expect(ownerResult.content).toContain('Please return only information authorized');
+      expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.bob);
+      expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.carol);
+
+      vi.mocked(rt.runPeer).mockClear();
       const peerCtx: TrustedCtx = {
         ...ownerCtx,
         actingAgentId: FIXTURE_IDS.agents.bob,
@@ -401,7 +462,7 @@ describe('trusted-context agent tools', () => {
         body: 'Could you check availability?',
       }));
       expect(result.content).toContain('Could you check availability?');
-      expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.carol);
+      expect(rt.runPeer).not.toHaveBeenCalled();
       expect(emissions.some(({ event }) => event === EVENTS.SUBCHAT_MESSAGE)).toBe(true);
 
       const outsider = await executeToolCall({

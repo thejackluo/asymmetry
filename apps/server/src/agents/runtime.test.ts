@@ -31,7 +31,7 @@ describe('agent runtime queues and loops', () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();
     const task = createScopedTask(db);
-    const { memory } = createFakeMemory({
+    const { memory, calls } = createFakeMemory({
       itemsByOwner: {
         [FIXTURE_IDS.users.bob]: [
           {
@@ -108,6 +108,10 @@ describe('agent runtime queues and loops', () => {
           ownerUserId: FIXTURE_IDS.users.bob,
           scope: { fields: ['price', 'location_area'] },
         }),
+        llmTool('query_memory', {
+          ownerUserId: FIXTURE_IDS.users.bob,
+          scope: { fields: ['price', 'location_area'] },
+        }),
         { reply: 'I found a place.' },
       ],
     });
@@ -121,10 +125,14 @@ describe('agent runtime queues and loops', () => {
       expect(subchats[0]?.status).toBe('closed');
       expect(subchats[0]?.outcome).toBe('done');
       expect(subchats[0]?.summary).toBe('Closed: the peer agent answered.');
+      expect(listSubchatMessages(db, subchats[0]!.id)
+        .filter(({ senderId }) => senderId === FIXTURE_IDS.agents.alice)).toHaveLength(1);
+      expect(calls.queryMemory).toHaveLength(1);
       const report = listMainThreadMessages(db, task.id)
         .find(({ body }) => body.startsWith("Here's what I found in your network:"))?.body ?? '';
       expect(report).toContain("$950/mo.");
       expect(report).toContain('0.4mi from Georgia Tech.');
+      expect(report.toLowerCase()).not.toContain('budget');
       expect(getTask(db, task.id)?.status).toBe('done');
       expect(llm.calls.length).toBeLessThan(30);
       expect(llm.calls.some(({ route, messages }) => route === "Alice's Agent"
