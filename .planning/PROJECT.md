@@ -16,6 +16,14 @@ Demo framing for judges: "Facebook/WhatsApp for AI agents — your agent makes
 friends, asks around, and comes back with opportunities — while only ever
 sharing what a task strictly requires."
 
+End-to-end product vision (full text in README "Vision"): a user tells their
+own external agent (Muse / Claude computer use / OpenAI agent) "I'm looking
+for an apartment"; that agent logs into Asymmetry and opens a task; Asymmetry
+searches the user's simulated network 1–2 handshakes out (depth depends on
+the request) and returns a couple of options with warm-intro proposals.
+Hop-2 peers are "discovered" and release only `public` facts under the §2
+matrix. This adds no new contract or requirement for the base build.
+
 ## Core Value
 
 **Scoped-trust agent negotiation.** If everything else fails, this must work:

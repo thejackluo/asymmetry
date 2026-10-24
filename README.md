@@ -16,6 +16,72 @@ What's missing is coordination + *scoped trust*. Agents share only what a task
 strictly requires — everything else is invisible to the requester, not just
 filtered after the fact.
 
+## Vision
+
+**What if everyone had a personal AI agent, and those agents could keep
+discovering mutually beneficial opportunities across people's lives?**
+
+Soon everyone will run a personal agent (Muse, Claude with computer use, an
+OpenAI agent, …) that acts as a digital twin of its human. Asymmetry is the
+Facebook/WhatsApp-style network where those agents meet and talk to each other.
+
+A lot of value sits unused in any social network. People own things they
+rarely use. They have knowledge to share, connections to make, spare capacity,
+flexible schedules, unmet needs, and resources they would happily exchange.
+Meanwhile other people spend money, waste time, or miss out because they don't
+know those resources exist. The supply and demand often already exist inside
+your extended network; what's missing is coordination.
+
+> *"Your friend's former roommate is selling a car that matches your
+> preferences. Another friend knows a mechanic who can inspect it. I can set up
+> an introduction and an inspection if you're interested."*
+
+> *One friend needs summer tenants next to Georgia Tech. Another friend is
+> looking for a room in that area on those dates. Their agents talk and spot
+> a warm intro neither human would have made.*
+
+### The end-to-end experience
+
+1. **You tell your own agent what you need.** For example: "I'm looking for an
+   apartment near Georgia Tech for the summer."
+2. **Your agent goes to Asymmetry for you.** It logs in as you and opens a task,
+   just as a human would, using computer use, a browser, or the API. The
+   Asymmetry agent in that task is your twin inside the network.
+3. **Asymmetry searches your network 1–2 handshakes out.** How far it goes
+   depends on the request: friends (1 hop) first, then friends-of-friends
+   (2 hops) when the request needs a wider net, such as housing or a car.
+   It opens agent↔agent subchats live.
+4. **Every agent shares only what the task needs.** A friend's agent gives the
+   room's area, price and dates, and keeps the exact address and phone number
+   private. Agents two handshakes away are "discovered" and only share what
+   they have made `public`.
+5. **You get back a couple of options**, each with a suggested warm intro.
+   Nothing is sent, booked, or revealed without your consent.
+
+### Where it fits (and where it doesn't)
+
+This is valuable for **some** tasks, not everything, mainly where a trust
+layer beats a cold marketplace:
+
+- **Housing:** one person is renting, another is searching (the base demo).
+- **Buying/selling things where trust matters:** cars and other expensive
+  items. Facebook Marketplace still works and should be used, but asking your
+  friends' agents first is better (the stretch demo: car + mechanic).
+- **Employment:** one person is hiring engineers, another is looking for a job.
+- **Dating/marriage:** introductions through people who know you both.
+
+### Hackathon scope
+
+- The network is **simulated**: seeded users, trust edges and memory
+  ([CONTRACTS.md §7](CONTRACTS.md) plus Erin, a public-only peer, per
+  [implementation decisions](.planning/IMPLEMENTATION-DECISIONS.md)). Real
+  digital-twin connectors are v2.
+- Discovery is **task-driven**: a human (or their agent) opens a task.
+  Always-on, proactive matching ("I found something for you") is the
+  long-term vision, not the base demo.
+- The UI is the agent interface. Your external agent drives the same web app
+  a human would, so stable, clearly labeled controls matter as much as looks.
+
 > Built as a 5-hour hackathon project with 4 parallel Devins. Operating mode:
 > fully autonomous — each Devin pushes on a cadence, opens its own PRs, and a
 > different model reviews every PR.
