@@ -87,9 +87,13 @@ export function addTask(
   }
 }
 
-export function fakeIo() {
+export function fakeIo(): {
+  io: never;
+  emits: { rooms: string[]; event: string; payload: unknown }[];
+  globalEmit: (...args: unknown[]) => unknown;
+} {
   const emits: { rooms: string[]; event: string; payload: unknown }[] = [];
-  const globalEmit = vi.fn();
+  const globalEmit: (...args: unknown[]) => unknown = vi.fn();
   const io = {
     emit: globalEmit,
     to(rooms: string | string[]) {
