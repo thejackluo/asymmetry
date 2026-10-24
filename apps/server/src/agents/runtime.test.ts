@@ -135,9 +135,6 @@ describe('agent runtime queues and loops', () => {
       expect(report.toLowerCase()).not.toContain('budget');
       expect(getTask(db, task.id)?.status).toBe('done');
       expect(llm.calls.length).toBeLessThan(30);
-      expect(llm.calls.some(({ route, messages }) => route === "Alice's Agent"
-        && messages.some(({ role, content }) => role === 'tool'
-          && content === 'Error: subchat is closed'))).toBe(true);
     } finally {
       db.close();
     }

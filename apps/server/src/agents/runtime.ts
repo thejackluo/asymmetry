@@ -14,6 +14,8 @@ import {
   AGENT_TOOLS,
   OWNER_AGENT_TOOLS,
   executeToolCall,
+  formatReleasedPeerFacts,
+  persistOwnerReport,
   toolCallMessage,
   toolResultMessage,
   type ReleasedPeerFact,
@@ -139,6 +141,10 @@ export function createAgentRuntime({
   const ownerWakeStates = new Map<ID, OwnerWakeState>();
   const queueTails = new Map<string, Promise<void>>();
   const releasedPeerFacts = new Map<ID, Map<ID, ReleasedPeerFact>>();
+  const releasedPeerFactIdsBySubchat = new Map<ID, Set<ID>>();
+  const peerMemoryResults = new Map<ID, Map<ID, string>>();
+  const finalizingTasks = new Set<ID>();
+  const finalizedTasks = new Set<ID>();
   const idleWaiters = new Set<() => void>();
   let activeJobs = 0;
 
@@ -155,6 +161,7 @@ export function createAgentRuntime({
     taskId: ID,
     ownerAgentName: string,
     facts: Array<{ id: ID; text: string }>,
+    subchatId?: ID,
   ): void {
     let factsById = releasedPeerFacts.get(taskId);
     if (!factsById) {
@@ -163,6 +170,14 @@ export function createAgentRuntime({
     }
     for (const fact of facts) {
       factsById.set(fact.id, { ...fact, ownerAgentName });
+      if (subchatId) {
+        let factIds = releasedPeerFactIdsBySubchat.get(subchatId);
+        if (!factIds) {
+          factIds = new Set();
+          releasedPeerFactIdsBySubchat.set(subchatId, factIds);
+        }
+        factIds.add(fact.id);
+      }
     }
   }
 
@@ -170,6 +185,34 @@ export function createAgentRuntime({
     const facts = [...(releasedPeerFacts.get(taskId)?.values() ?? [])];
     releasedPeerFacts.delete(taskId);
     return facts;
+  }
+
+  function getPeerMemoryResult(subchatId: ID, agentId: ID): string | undefined {
+    return peerMemoryResults.get(subchatId)?.get(agentId);
+  }
+
+  function cachePeerMemoryResult(subchatId: ID, agentId: ID, result: string): void {
+    let resultsByAgent = peerMemoryResults.get(subchatId);
+    if (!resultsByAgent) {
+      resultsByAgent = new Map();
+      peerMemoryResults.set(subchatId, resultsByAgent);
+    }
+    resultsByAgent.set(agentId, result);
+  }
+
+  function clearPeerMemoryResults(subchatId: ID): void {
+    peerMemoryResults.delete(subchatId);
+    releasedPeerFactIdsBySubchat.delete(subchatId);
+  }
+
+  function hasPeerFactsInSubchat(subchatId: ID): boolean {
+    return (releasedPeerFactIdsBySubchat.get(subchatId)?.size ?? 0) > 0;
+  }
+
+  function clearTaskPeerMemoryResults(taskId: ID): void {
+    for (const { id } of listSubchatsByTask(db, taskId)) {
+      clearPeerMemoryResults(id);
+    }
   }
 
   function enqueue(key: string, job: () => Promise<void>): void {
@@ -211,6 +254,8 @@ export function createAgentRuntime({
       runPeer,
       recordPeerFacts,
       takePeerFacts,
+      getPeerMemoryResult,
+      cachePeerMemoryResult,
     };
     return {
       db,
@@ -224,6 +269,42 @@ export function createAgentRuntime({
       mode,
       subchatId,
     };
+  }
+
+  function allSubchatsClosed(taskId: ID): boolean {
+    const subchats = listSubchatsByTask(db, taskId);
+    return subchats.length > 0 && subchats.every(({ status }) => status !== 'open');
+  }
+
+  async function finalizeDeterministically(taskId: ID): Promise<void> {
+    if (finalizedTasks.has(taskId) || finalizingTasks.has(taskId)) {
+      return;
+    }
+    const task = getTask(db, taskId);
+    const ownerAgent = task ? agentByUser(db, task.userId) : undefined;
+    if (!task || task.status !== 'active' || !ownerAgent) {
+      return;
+    }
+
+    finalizingTasks.add(taskId);
+    try {
+      const facts = takePeerFacts(taskId);
+      const hasFacts = facts.length > 0;
+      const report = hasFacts
+        ? `Here's what I found in your network:\n${formatReleasedPeerFacts(facts)}\nWant me to propose a warm intro? Nothing is sent without your OK.`
+        : "I couldn't find a matching option in your network yet.";
+      const result = await persistOwnerReport(
+        contextFor(task, ownerAgent.id, ownerAgent.id, 'owner', null),
+        hasFacts ? 'done' : 'stuck',
+        report,
+      );
+      if (result === 'Task reported to human.') {
+        finalizedTasks.add(taskId);
+        clearTaskPeerMemoryResults(taskId);
+      }
+    } finally {
+      finalizingTasks.delete(taskId);
+    }
   }
 
   async function reportOwnerFailure(taskId: ID, reason: string): Promise<void> {
@@ -243,6 +324,7 @@ export function createAgentRuntime({
         args: { taskId, status: 'stuck', summary: reason },
       },
     );
+    clearTaskPeerMemoryResults(taskId);
   }
 
   async function runOwnerLoop(taskId: ID): Promise<void> {
@@ -260,14 +342,18 @@ export function createAgentRuntime({
 
     for (let iteration = 0; iteration < TOOL_ITER_CAP; iteration += 1) {
       if (!budgetFor(taskId).reserveModelCall()) {
-        await reportOwnerFailure(taskId, `task model-call budget exhausted (cap ${TASK_MODEL_CALL_CAP})`);
+        await finalizeDeterministically(taskId);
         return;
       }
       let result;
       try {
         result = await timedLLM.chat(messages, OWNER_AGENT_TOOLS);
       } catch (error) {
-        await reportOwnerFailure(taskId, safeFailureReason(error));
+        if (allSubchatsClosed(taskId)) {
+          await finalizeDeterministically(taskId);
+        } else {
+          await reportOwnerFailure(taskId, safeFailureReason(error));
+        }
         return;
       }
 
@@ -281,13 +367,22 @@ export function createAgentRuntime({
             return;
           }
           if (getTask(db, taskId)?.status !== 'active') {
+            clearTaskPeerMemoryResults(taskId);
             return;
           }
+        }
+        if (allSubchatsClosed(taskId)) {
+          await finalizeDeterministically(taskId);
+          return;
         }
         continue;
       }
 
       if (typeof result.reply === 'string' && result.reply.trim().length > 0) {
+        if (allSubchatsClosed(taskId)) {
+          await finalizeDeterministically(taskId);
+          return;
+        }
         const message = insertMessage(db, {
           taskId,
           senderType: 'agent',
@@ -297,10 +392,28 @@ export function createAgentRuntime({
         emitMainMessage(io, task.userId, message);
         return;
       }
-      await reportOwnerFailure(taskId, 'model returned no text reply or tool call');
+      if (allSubchatsClosed(taskId)) {
+        await finalizeDeterministically(taskId);
+      } else {
+        await reportOwnerFailure(taskId, 'model returned no text reply or tool call');
+      }
       return;
     }
-    await reportOwnerFailure(taskId, `tool iteration cap reached (${TOOL_ITER_CAP})`);
+    await finalizeDeterministically(taskId);
+  }
+
+  function closePeerAnswer(subchatId: ID, taskId: ID): void {
+    const outcome = hasPeerFactsInSubchat(subchatId) ? 'done' : 'stuck';
+    if (closeSubchatAndNotify(
+      db,
+      io,
+      subchatId,
+      outcome,
+      'Closed: the peer agent answered.',
+    )) {
+      clearPeerMemoryResults(subchatId);
+      wakeOwner(taskId);
+    }
   }
 
   async function failPeer(subchatId: ID, agentId: ID, taskId: ID, reason: string): Promise<void> {
@@ -319,6 +432,7 @@ export function createAgentRuntime({
       'stuck',
       'Closed: a peer agent stopped before completing this subchat.',
     );
+    clearPeerMemoryResults(subchatId);
     const peerName = agentById(db, agentId)?.name ?? 'Peer agent';
     wakeOwner(taskId, `${peerName} stopped: ${reason}`);
   }
@@ -369,6 +483,14 @@ export function createAgentRuntime({
           if (getTask(db, task.id)?.status !== 'active' || subchatById(db, subchatId)?.status !== 'open') {
             return;
           }
+          if (call.name === 'send_subchat_message') {
+            if (execution.content.startsWith('Error:') || execution.content.startsWith('Invalid arguments:')) {
+              await failPeer(subchatId, agentId, task.id, 'peer reply could not be sent');
+            } else {
+              closePeerAnswer(subchatId, task.id);
+            }
+            return;
+          }
         }
         continue;
       }
@@ -383,6 +505,8 @@ export function createAgentRuntime({
           if (subchatById(db, subchatId)?.status === 'open') {
             await failPeer(subchatId, agentId, task.id, 'peer reply could not be sent');
           }
+        } else {
+          closePeerAnswer(subchatId, task.id);
         }
         return;
       }

@@ -12,6 +12,7 @@ import {
   getTaskScope,
   insertMessage,
   listParticipants,
+  listSubchatMessages,
   listSubchatsByTask,
   setAgentStatus,
   setTaskStatus,
@@ -32,8 +33,11 @@ export interface RuntimeHooks {
     taskId: ID,
     ownerAgentName: string,
     facts: Array<{ id: ID; text: string }>,
+    subchatId?: ID,
   ): void;
   takePeerFacts?(taskId: ID): ReleasedPeerFact[];
+  getPeerMemoryResult?(subchatId: ID, actingAgentId: ID): string | undefined;
+  cachePeerMemoryResult?(subchatId: ID, actingAgentId: ID, result: string): void;
 }
 
 export interface ReleasedPeerFact {
@@ -206,6 +210,12 @@ async function queryMemory(ctx: TrustedCtx, args: Args): Promise<string> {
   if (!scope.ok) {
     return `Error: fields outside the canonical task scope: ${scope.fields.join(', ')}`;
   }
+  if (ctx.mode === 'peer' && ctx.subchatId) {
+    const cached = ctx.rt.getPeerMemoryResult?.(ctx.subchatId, ctx.actingAgentId);
+    if (cached !== undefined) {
+      return cached;
+    }
+  }
   const requesterUserId = ctx.mode === 'owner' ? actingOwner.id : ctx.taskOwnerUserId;
   if (ctx.mode === 'peer' && !ctx.subchatId) {
     return 'Error: peer memory reads require a subchat';
@@ -219,7 +229,11 @@ async function queryMemory(ctx: TrustedCtx, args: Args): Promise<string> {
       ...(ctx.mode === 'peer' ? { subchatId: ctx.subchatId! } : {}),
     });
   } catch {
-    return 'Error: no data available for this request';
+    const error = 'Error: no data available for this request';
+    if (ctx.mode === 'peer' && ctx.subchatId) {
+      ctx.rt.cachePeerMemoryResult?.(ctx.subchatId, ctx.actingAgentId, error);
+    }
+    return error;
   }
   if (ctx.mode === 'peer' && result.items.length > 0) {
     const ownerAgent = agentByUser(ctx.db, actingOwner.id);
@@ -228,13 +242,18 @@ async function queryMemory(ctx: TrustedCtx, args: Args): Promise<string> {
         ctx.taskId,
         ownerAgent.name,
         result.items.map(({ id, content }) => ({ id, text: content })),
+        ctx.subchatId ?? undefined,
       );
     }
   }
-  return JSON.stringify({
+  const response = JSON.stringify({
     facts: result.items.map((item) => item.content),
     withheldCount: result.withheldCount,
   });
+  if (ctx.mode === 'peer' && ctx.subchatId) {
+    ctx.rt.cachePeerMemoryResult?.(ctx.subchatId, ctx.actingAgentId, response);
+  }
+  return response;
 }
 
 async function openSubchat(ctx: TrustedCtx, args: Args): Promise<string> {
@@ -255,10 +274,22 @@ async function openSubchat(ctx: TrustedCtx, args: Args): Promise<string> {
   if (requestedIds.some((agentId) => agentId === ctx.ownerAgentId)) {
     return 'Error: the owner agent cannot be added as a peer';
   }
-  const directoryIds = new Set(buildDirectory(ctx.db, ctx.taskOwnerUserId).map(({ agentId }) => agentId));
+  const directory = buildDirectory(ctx.db, ctx.taskOwnerUserId);
+  const directoryIds = new Set(directory.map(({ agentId }) => agentId));
   const unauthorized = requestedIds.filter((agentId) => !directoryIds.has(agentId));
   if (unauthorized.length > 0) {
     return `Error: peers are not in the task directory: ${unauthorized.join(', ')}`;
+  }
+
+  const requestedParticipants = new Set([ctx.ownerAgentId, ...requestedIds]);
+  const existing = listSubchatsByTask(ctx.db, ctx.taskId).find((subchat) =>
+    subchat.participantAgentIds.length === requestedParticipants.size
+    && subchat.participantAgentIds.every((agentId) => requestedParticipants.has(agentId)));
+  if (existing) {
+    const names = requestedIds
+      .map((agentId) => directory.find((peer) => peer.agentId === agentId)?.name ?? 'peer')
+      .join(', ');
+    return `Already contacted ${names} in subchat ${existing.id}; wait for its result.`;
   }
 
   const budget = ctx.rt.budgetFor(ctx.taskId);
@@ -308,12 +339,22 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
   }
 
   const subchat = subchatById(ctx.db, subchatId);
-  if (!subchat || subchat.taskId !== ctx.taskId || subchat.status !== 'open') {
+  if (!subchat || subchat.taskId !== ctx.taskId) {
     return 'Error: subchat must be open and belong to this task';
+  }
+  if (subchat.status !== 'open') {
+    return 'Error: subchat is closed';
   }
   const participants = listParticipants(ctx.db, subchatId);
   if (!participants.includes(ctx.actingAgentId)) {
     return 'Error: acting agent is not a subchat participant';
+  }
+  if (
+    ctx.mode === 'owner'
+    && listSubchatMessages(ctx.db, subchatId).some((message) =>
+      message.senderType === 'agent' && message.senderId === ctx.actingAgentId)
+  ) {
+    return 'Already asked; wait for the peer reply.';
   }
 
   if (!ctx.rt.budgetFor(ctx.taskId).reserveSubchatTurn(subchatId)) {
@@ -331,19 +372,17 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
     body,
   });
   emitSubchatEvent(ctx.io, ctx.db, subchatId, EVENTS.SUBCHAT_MESSAGE, message);
-  for (const participantId of participants) {
-    if (participantId !== ctx.actingAgentId && participantId !== ctx.ownerAgentId) {
-      ctx.rt.runPeer(subchatId, participantId);
+  if (ctx.mode === 'owner') {
+    for (const participantId of participants) {
+      if (participantId !== ctx.actingAgentId && participantId !== ctx.ownerAgentId) {
+        ctx.rt.runPeer(subchatId, participantId);
+      }
     }
-  }
-  if (ctx.actingAgentId !== ctx.ownerAgentId) {
-    ctx.rt.wakeOwner(ctx.taskId);
   }
   return JSON.stringify(message);
 }
 
-function releasedFactsAppendix(ctx: TrustedCtx): string {
-  const releasedFacts = ctx.rt.takePeerFacts?.(ctx.taskId) ?? [];
+export function formatReleasedPeerFacts(releasedFacts: ReleasedPeerFact[]): string {
   const factsById = new Map<ID, ReleasedPeerFact>();
   for (const fact of releasedFacts) {
     factsById.set(fact.id, fact);
@@ -358,9 +397,73 @@ function releasedFactsAppendix(ctx: TrustedCtx): string {
     facts.push(fact.text);
     factsByAgent.set(fact.ownerAgentName, facts);
   }
-  return `\n\nShared with you:\n${[...factsByAgent]
+  return [...factsByAgent]
     .map(([ownerAgentName, facts]) => `- ${ownerAgentName}: ${facts.join('; ')}`)
-    .join('\n')}`;
+    .join('\n');
+}
+
+function releasedFactsAppendix(ctx: TrustedCtx): string {
+  const facts = formatReleasedPeerFacts(ctx.rt.takePeerFacts?.(ctx.taskId) ?? []);
+  return facts ? `\n\nShared with you:\n${facts}` : '';
+}
+
+export async function persistOwnerReport(
+  ctx: TrustedCtx,
+  status: 'done' | 'stuck',
+  report: string,
+): Promise<string> {
+  if (ctx.mode === 'peer') {
+    return "only the task owner's agent can finish this task";
+  }
+  if (report.trim().length === 0) {
+    return 'Invalid arguments: taskId, status, and a non-empty summary are required';
+  }
+  const task = getTask(ctx.db, ctx.taskId);
+  if (!task || task.userId !== ctx.taskOwnerUserId) {
+    return 'Error: task owner context is invalid';
+  }
+
+  const message = insertMessage(ctx.db, {
+    taskId: ctx.taskId,
+    senderType: 'agent',
+    senderId: ctx.actingAgentId,
+    body: report,
+  });
+  emitMainMessage(ctx.io, ctx.taskOwnerUserId, message);
+
+  const closureSummary = status === 'done'
+    ? 'Closed: the requesting agent finished the task.'
+    : 'Closed: the requesting agent stopped the task.';
+  for (const subchat of listSubchatsByTask(ctx.db, ctx.taskId)) {
+    if (subchat.status !== 'open') {
+      continue;
+    }
+    closeSubchatAndNotify(ctx.db, ctx.io, subchat.id, status, closureSummary);
+  }
+  setTaskStatus(ctx.db, ctx.taskId, status);
+
+  const otherActiveTasks = ctx.db.prepare(
+    `SELECT id FROM tasks
+     WHERE user_id = ? AND id <> ? AND status = 'active'
+     ORDER BY created_at, id`,
+  ).all(ctx.taskOwnerUserId, ctx.taskId) as Array<{ id: ID }>;
+  const hasOtherOpenSubchat = agentHasOtherActiveSubchat(
+    ctx.db,
+    ctx.actingAgentId,
+    ctx.taskId,
+  );
+  const hasOtherScopedTask = otherActiveTasks.some(({ id }) => Boolean(getTaskScope(ctx.db, id)));
+  const hasOtherUnscopedTask = otherActiveTasks.some(({ id }) => !getTaskScope(ctx.db, id));
+  const agentStatus = hasOtherOpenSubchat || hasOtherScopedTask
+    ? 'negotiating'
+    : hasOtherUnscopedTask
+      ? 'clarifying'
+      : status;
+  setAgentStatus(ctx.db, ctx.actingAgentId, agentStatus);
+  emitAgentStatus(ctx.io, ctx.db, ctx.actingAgentId, agentStatus, ctx.taskOwnerUserId);
+  emitNetworkUpdated(ctx.io, ctx.db, ctx.taskOwnerUserId);
+  emitTaskUpdated(ctx.io, ctx.taskOwnerUserId, { id: task.id, status });
+  return 'Task reported to human.';
 }
 
 async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
@@ -385,49 +488,8 @@ async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
   if (!task || task.userId !== ctx.taskOwnerUserId) {
     return 'Error: task owner context is invalid';
   }
-
   const report = `${args.summary}${releasedFactsAppendix(ctx)}`;
-  const message = insertMessage(ctx.db, {
-    taskId: ctx.taskId,
-    senderType: 'agent',
-    senderId: ctx.actingAgentId,
-    body: report,
-  });
-  emitMainMessage(ctx.io, ctx.taskOwnerUserId, message);
-
-  const closureSummary = args.status === 'done'
-    ? 'Closed: the requesting agent finished the task.'
-    : 'Closed: the requesting agent stopped the task.';
-  for (const subchat of listSubchatsByTask(ctx.db, ctx.taskId)) {
-    if (subchat.status !== 'open') {
-      continue;
-    }
-    closeSubchatAndNotify(ctx.db, ctx.io, subchat.id, args.status, closureSummary);
-  }
-  setTaskStatus(ctx.db, ctx.taskId, args.status);
-
-  const otherActiveTasks = ctx.db.prepare(
-    `SELECT id FROM tasks
-     WHERE user_id = ? AND id <> ? AND status = 'active'
-     ORDER BY created_at, id`,
-  ).all(ctx.taskOwnerUserId, ctx.taskId) as Array<{ id: ID }>;
-  const hasOtherOpenSubchat = agentHasOtherActiveSubchat(
-    ctx.db,
-    ctx.actingAgentId,
-    ctx.taskId,
-  );
-  const hasOtherScopedTask = otherActiveTasks.some(({ id }) => Boolean(getTaskScope(ctx.db, id)));
-  const hasOtherUnscopedTask = otherActiveTasks.some(({ id }) => !getTaskScope(ctx.db, id));
-  const status = hasOtherOpenSubchat || hasOtherScopedTask
-    ? 'negotiating'
-    : hasOtherUnscopedTask
-      ? 'clarifying'
-      : args.status;
-  setAgentStatus(ctx.db, ctx.actingAgentId, status);
-  emitAgentStatus(ctx.io, ctx.db, ctx.actingAgentId, status, ctx.taskOwnerUserId);
-  emitNetworkUpdated(ctx.io, ctx.db, ctx.taskOwnerUserId);
-  emitTaskUpdated(ctx.io, ctx.taskOwnerUserId, { id: task.id, status: args.status });
-  return 'Task reported to human.';
+  return persistOwnerReport(ctx, args.status, report);
 }
 
 function agentHasOtherActiveSubchat(db: Database, agentId: ID, excludeTaskId: ID): boolean {

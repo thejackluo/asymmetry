@@ -210,17 +210,25 @@ describe('trusted-context agent tools', () => {
   });
 
   it('returns cached peer memory results without another memory query', async () => {
-    const { db, ownerCtx, memory, calls } = setup();
+    const { db, ownerCtx, calls } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
         FIXTURE_IDS.agents.alice,
         FIXTURE_IDS.agents.bob,
       ]);
+      const results = new Map<string, string>();
       const peerCtx: TrustedCtx = {
         ...ownerCtx,
         actingAgentId: FIXTURE_IDS.agents.bob,
         mode: 'peer',
         subchatId: subchat.id,
+        rt: {
+          ...ownerCtx.rt,
+          getPeerMemoryResult: (subchatId, agentId) => results.get(`${subchatId}:${agentId}`),
+          cachePeerMemoryResult: (subchatId, agentId, result) => {
+            results.set(`${subchatId}:${agentId}`, result);
+          },
+        },
       };
       const query = toolCall('query_memory', {
         ownerUserId: FIXTURE_IDS.users.bob,
@@ -232,7 +240,6 @@ describe('trusted-context agent tools', () => {
 
       expect(second.content).toBe(first.content);
       expect(calls.queryMemory).toHaveLength(1);
-      expect(memory).toBeDefined();
     } finally {
       db.close();
     }
