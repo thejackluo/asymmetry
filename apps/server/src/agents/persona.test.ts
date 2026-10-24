@@ -45,6 +45,8 @@ describe('agent persona prompts', () => {
     expect(prompt).toContain('at most 4 distinct peers');
     expect(prompt).toContain('warm-intro proposal');
     expect(prompt).toContain('without the human’s consent');
+    expect(prompt).toContain('After opening subchats and sending requests, end your turn');
+    expect(prompt).toContain('Call report_to_human once all peers have replied');
     expect(prompt).toContain(
       "If an option only partially matches (e.g. dates shorter than requested), say so honestly and ask whether it works; don't present it as a full match.",
     );

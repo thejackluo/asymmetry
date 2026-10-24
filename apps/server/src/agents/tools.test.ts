@@ -18,8 +18,10 @@ import {
   insertMessage,
   listMainThreadMessages,
   listSubchatMessages,
+  listSubchatsByTask,
   putTaskScope,
 } from './repo.js';
+import { closeSubchatAndNotify } from './subchats.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
 import { createFakeIO } from './test/fakeIO.js';
 import { createFakeMemory } from './test/fakeMemory.js';
@@ -42,27 +44,49 @@ function setup() {
   const budget = new Budget('task');
   type ReleasedFact = { id: string; ownerAgentName: string; text: string };
   const releasedFacts = new Map<string, Map<string, ReleasedFact>>();
+  const releasedFactIdsBySubchat = new Map<string, Map<string, Set<string>>>();
   const rt: RuntimeHooks & {
-    recordPeerFacts(taskId: string, ownerAgentName: string, facts: Array<{ id: string; text: string }>): void;
+    recordPeerFacts(
+      taskId: string,
+      subchatId: string,
+      ownerAgentName: string,
+      facts: Array<{ id: string; text: string }>,
+    ): void;
+    hasReleasedPeerFacts(taskId: string, subchatId: string): boolean;
     takePeerFacts(taskId: string): ReleasedFact[];
   } = {
     budgetFor: vi.fn(() => budget),
     wakeOwner: vi.fn(),
     reportOwnerFailure: vi.fn(async () => {}),
     runPeer: vi.fn(),
-    recordPeerFacts(taskId, ownerAgentName, facts) {
+    recordPeerFacts(taskId, subchatId, ownerAgentName, facts) {
       let byId = releasedFacts.get(taskId);
       if (!byId) {
         byId = new Map();
         releasedFacts.set(taskId, byId);
       }
+      let bySubchat = releasedFactIdsBySubchat.get(taskId);
+      if (!bySubchat) {
+        bySubchat = new Map();
+        releasedFactIdsBySubchat.set(taskId, bySubchat);
+      }
+      let factIds = bySubchat.get(subchatId);
+      if (!factIds) {
+        factIds = new Set();
+        bySubchat.set(subchatId, factIds);
+      }
       for (const fact of facts) {
         byId.set(fact.id, { ...fact, ownerAgentName });
+        factIds.add(fact.id);
       }
+    },
+    hasReleasedPeerFacts(taskId, subchatId) {
+      return (releasedFactIdsBySubchat.get(taskId)?.get(subchatId)?.size ?? 0) > 0;
     },
     takePeerFacts(taskId) {
       const facts = [...(releasedFacts.get(taskId)?.values() ?? [])];
       releasedFacts.delete(taskId);
+      releasedFactIdsBySubchat.delete(taskId);
       return facts;
     },
   };
@@ -149,6 +173,26 @@ describe('trusted-context agent tools', () => {
       }));
       expect(peerResult.content).toMatch(/^Error:/);
       expect(vi.mocked(rt.budgetFor)).toHaveBeenCalled();
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects a second subchat with a peer already used by the task', async () => {
+    const { db, ownerCtx } = setup();
+    try {
+      const first = await executeToolCall(ownerCtx, toolCall('open_subchat', {
+        taskId: ownerCtx.taskId,
+        agentIds: [FIXTURE_IDS.agents.bob],
+      }));
+      expect(first.content).not.toMatch(/^Error:/);
+
+      const second = await executeToolCall(ownerCtx, toolCall('open_subchat', {
+        taskId: ownerCtx.taskId,
+        agentIds: [FIXTURE_IDS.agents.bob],
+      }));
+      expect(second.content).toMatch(/^Error:/);
+      expect(listSubchatsByTask(db, ownerCtx.taskId)).toHaveLength(1);
     } finally {
       db.close();
     }
@@ -352,7 +396,7 @@ describe('trusted-context agent tools', () => {
     }
   });
 
-  it('A2A-04: sends participant messages and schedules every other peer but rejects non-participants', async () => {
+  it('A2A-04: sends owner requests to every peer but rejects non-participants', async () => {
     const { db, ownerCtx, rt, emissions } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
@@ -360,24 +404,128 @@ describe('trusted-context agent tools', () => {
         FIXTURE_IDS.agents.bob,
         FIXTURE_IDS.agents.carol,
       ]);
-      const peerCtx: TrustedCtx = {
-        ...ownerCtx,
-        actingAgentId: FIXTURE_IDS.agents.bob,
-        mode: 'peer',
+      const result = await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
         subchatId: subchat.id,
-      };
-      const result = await executeToolCall(peerCtx, toolCall('send_subchat_message', {
-        body: 'Could you check availability?',
       }));
-      expect(result.content).toContain('Could you check availability?');
+      expect(result.content).toContain('Please return only information authorized');
+      expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.bob);
       expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.carol);
       expect(emissions.some(({ event }) => event === EVENTS.SUBCHAT_MESSAGE)).toBe(true);
 
       const outsider = await executeToolCall({
-        ...peerCtx,
+        ...ownerCtx,
         actingAgentId: FIXTURE_IDS.agents.dave,
+        mode: 'peer',
+        subchatId: subchat.id,
       }, toolCall('send_subchat_message', { body: 'No participation' }));
       expect(outsider.content).toContain('not a subchat participant');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('closes a no-fact subchat as stuck after an explicit peer reply', async () => {
+    const { db, ownerCtx, rt, emissions } = setup();
+    try {
+      const subchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const result = await executeToolCall({
+        ...ownerCtx,
+        actingAgentId: FIXTURE_IDS.agents.bob,
+        mode: 'peer',
+        subchatId: subchat.id,
+      }, toolCall('send_subchat_message', {
+        body: 'I can share the authorized room facts.',
+      }));
+
+      expect(result.content).toContain('authorized room facts');
+      expect(listSubchatsByTask(db, ownerCtx.taskId)[0]).toMatchObject({
+        status: 'closed',
+        outcome: 'stuck',
+        summary: 'Closed: peers had no matching information.',
+      });
+      expect(emissions.find(({ event }) => event === EVENTS.SUBCHAT_CLOSED)?.payload).toMatchObject({
+        subchatId: subchat.id,
+        outcome: 'stuck',
+        summary: 'Closed: peers had no matching information.',
+      });
+      expect(vi.mocked(rt.wakeOwner)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(rt.wakeOwner)).toHaveBeenCalledWith(ownerCtx.taskId);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('keeps a group subchat open until every peer replies, then lets the owner report done', async () => {
+    const { db, ownerCtx, rt } = setup();
+    try {
+      const subchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+        FIXTURE_IDS.agents.carol,
+      ]);
+      await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
+        subchatId: subchat.id,
+      }));
+      vi.mocked(rt.runPeer).mockClear();
+      vi.mocked(rt.wakeOwner).mockClear();
+
+      const sendPeerReply = (agentId: string, body: string) => executeToolCall({
+        ...ownerCtx,
+        actingAgentId: agentId,
+        mode: 'peer',
+        subchatId: subchat.id,
+      }, toolCall('send_subchat_message', { body }));
+
+      await sendPeerReply(FIXTURE_IDS.agents.bob, 'Bob can share the room facts.');
+      expect(listSubchatsByTask(db, ownerCtx.taskId)[0]).toMatchObject({
+        status: 'open',
+        outcome: null,
+      });
+      expect(vi.mocked(rt.wakeOwner)).not.toHaveBeenCalled();
+      expect(vi.mocked(rt.runPeer)).not.toHaveBeenCalled();
+
+      await sendPeerReply(FIXTURE_IDS.agents.carol, 'Carol has nothing relevant.');
+      expect(listSubchatsByTask(db, ownerCtx.taskId)[0]).toMatchObject({
+        status: 'closed',
+        outcome: 'stuck',
+        summary: 'Closed: peers had no matching information.',
+      });
+      expect(vi.mocked(rt.wakeOwner)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(rt.wakeOwner)).toHaveBeenCalledWith(ownerCtx.taskId);
+      expect(vi.mocked(rt.runPeer)).not.toHaveBeenCalled();
+
+      const report = await executeToolCall(ownerCtx, toolCall('report_to_human', {
+        taskId: ownerCtx.taskId,
+        status: 'done',
+        summary: 'Bob found a match and Carol had nothing relevant.',
+      }));
+      expect(report.stop).toBe(true);
+      expect(getTask(db, ownerCtx.taskId)?.status).toBe('done');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects owner messages to a closed subchat without scheduling a peer run', async () => {
+    const { db, ownerCtx, rt } = setup();
+    try {
+      const subchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      closeSubchatAndNotify(db, ownerCtx.io, subchat.id, 'done', 'Peer response received.');
+      vi.mocked(rt.runPeer).mockClear();
+
+      const result = await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
+        subchatId: subchat.id,
+      }));
+
+      expect(result.content).toMatch(/^Error:/);
+      expect(vi.mocked(rt.runPeer)).not.toHaveBeenCalled();
+      expect(listSubchatMessages(db, subchat.id)).toHaveLength(0);
     } finally {
       db.close();
     }
@@ -415,7 +563,7 @@ describe('trusted-context agent tools', () => {
     }
   });
 
-  it('A2A-06: blocks peer completion and lets the owner report and close open subchats', async () => {
+  it('A2A-06: blocks peer completion and lets the owner report after a peer reply', async () => {
     const { db, ownerCtx, emissions } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
@@ -434,6 +582,14 @@ describe('trusted-context agent tools', () => {
       }));
       expect(peerResult.content).toBe("only the task owner's agent can finish this task");
 
+      await executeToolCall({
+        ...ownerCtx,
+        actingAgentId: FIXTURE_IDS.agents.bob,
+        mode: 'peer',
+        subchatId: subchat.id,
+      }, toolCall('send_subchat_message', {
+        body: 'A room is available.',
+      }));
       const report = await executeToolCall(ownerCtx, toolCall('report_to_human', {
         taskId: ownerCtx.taskId,
         status: 'done',
@@ -446,7 +602,8 @@ describe('trusted-context agent tools', () => {
         .some(({ body }) => body.includes('warm introduction'))).toBe(true);
       expect(emissions.some(({ event }) => event === EVENTS.TASK_UPDATED)).toBe(true);
       expect(emissions.some(({ event, payload }) => event === EVENTS.SUBCHAT_CLOSED
-        && (payload as { outcome?: string }).outcome === 'done')).toBe(true);
+        && (payload as { outcome?: string; summary?: string }).outcome === 'stuck'
+        && (payload as { summary?: string }).summary === 'Closed: peers had no matching information.')).toBe(true);
     } finally {
       db.close();
     }
@@ -473,6 +630,18 @@ describe('trusted-context agent tools', () => {
       const sentinel = 'BOBNET-91c';
       const summary = `Bob found a room for $950. ${sentinel}`;
 
+      await executeToolCall({
+        ...ownerCtx,
+        actingAgentId: FIXTURE_IDS.agents.bob,
+        mode: 'peer',
+        subchatId: bobSubchat.id,
+      }, toolCall('send_subchat_message', { body: 'Bob has an authorized reply.' }));
+      await executeToolCall({
+        ...ownerCtx,
+        actingAgentId: FIXTURE_IDS.agents.erin,
+        mode: 'peer',
+        subchatId: erinSubchat.id,
+      }, toolCall('send_subchat_message', { body: 'Erin has an authorized reply.' }));
       const report = await executeToolCall(ownerCtx, toolCall('report_to_human', {
         taskId: ownerCtx.taskId,
         status: 'done',
@@ -493,15 +662,42 @@ describe('trusted-context agent tools', () => {
         && (payload as { subchatId?: string }).subchatId === erinSubchat.id);
       expect(erinClosure?.payload).toEqual({
         subchatId: erinSubchat.id,
-        outcome: 'done',
-        summary: 'Closed: the requesting agent finished the task.',
+        outcome: 'stuck',
+        summary: 'Closed: peers had no matching information.',
       });
       expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(erinSubchat.id)).toEqual({
-        summary: 'Closed: the requesting agent finished the task.',
+        summary: 'Closed: peers had no matching information.',
       });
       expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(bobSubchat.id)).toEqual({
-        summary: 'Closed: the requesting agent finished the task.',
+        summary: 'Closed: peers had no matching information.',
       });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects model reports while peers are replying without changing the task', async () => {
+    const { db, ownerCtx } = setup();
+    try {
+      const subchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const report = await executeToolCall(ownerCtx, toolCall('report_to_human', {
+        taskId: ownerCtx.taskId,
+        status: 'stuck',
+        summary: 'I have not received a response yet.',
+      }));
+
+      expect(report.content).toBe(
+        'Error: peers are still replying; end your turn with a short status message and you will be woken when they answer.',
+      );
+      expect(getTask(db, ownerCtx.taskId)?.status).toBe('active');
+      expect(listSubchatsByTask(db, ownerCtx.taskId)[0]).toMatchObject({
+        status: 'open',
+        outcome: null,
+      });
+      expect(listMainThreadMessages(db, ownerCtx.taskId)).toHaveLength(0);
     } finally {
       db.close();
     }
@@ -709,6 +905,17 @@ describe('trusted-context agent tools', () => {
         scope: { fields: ['price'] },
       }));
       expect(ownerQuery.content).toContain('OWNER-ONLY-SENTINEL');
+      await executeToolCall(peerCtx, toolCall('send_subchat_message', {
+        body: 'Bob can share the scoped room details.',
+      }));
+      await executeToolCall({
+        ...ownerCtx,
+        actingAgentId: FIXTURE_IDS.agents.erin,
+        mode: 'peer',
+        subchatId: erinSubchat.id,
+      }, toolCall('send_subchat_message', {
+        body: 'Erin has no additional option.',
+      }));
 
       const ownerReport = 'I found a place, want an intro?';
       const ownerModel = mockLLM([{
@@ -743,7 +950,7 @@ describe('trusted-context agent tools', () => {
         .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.erin))
         .map(({ event, payload }) => `${event} ${JSON.stringify(payload)}`)
         .join('\n');
-      expect(erinPayloads).toContain('Closed: the requesting agent finished the task.');
+      expect(erinPayloads).toContain('Closed: peers had no matching information.');
       expect(erinPayloads).not.toContain('$950');
       expect(erinPayloads).not.toContain('0.4mi');
       expect(erinPayloads).not.toContain('OWNER-ONLY-SENTINEL');

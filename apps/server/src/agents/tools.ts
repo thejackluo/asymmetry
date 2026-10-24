@@ -30,9 +30,11 @@ export interface RuntimeHooks {
   runPeer(subchatId: ID, agentId: ID): void;
   recordPeerFacts?(
     taskId: ID,
+    subchatId: ID,
     ownerAgentName: string,
     facts: Array<{ id: ID; text: string }>,
   ): void;
+  hasReleasedPeerFacts?(taskId: ID, subchatId: ID): boolean;
   takePeerFacts?(taskId: ID): ReleasedPeerFact[];
 }
 
@@ -53,6 +55,7 @@ export interface TrustedCtx {
   actingAgentId: ID;
   mode: 'owner' | 'peer';
   subchatId: ID | null;
+  allowOpenSubchatReport?: boolean;
 }
 
 export const AGENT_TOOLS: ToolSpec[] = [
@@ -226,6 +229,7 @@ async function queryMemory(ctx: TrustedCtx, args: Args): Promise<string> {
     if (ownerAgent) {
       ctx.rt.recordPeerFacts?.(
         ctx.taskId,
+        ctx.subchatId!,
         ownerAgent.name,
         result.items.map(({ id, content }) => ({ id, text: content })),
       );
@@ -259,6 +263,16 @@ async function openSubchat(ctx: TrustedCtx, args: Args): Promise<string> {
   const unauthorized = requestedIds.filter((agentId) => !directoryIds.has(agentId));
   if (unauthorized.length > 0) {
     return `Error: peers are not in the task directory: ${unauthorized.join(', ')}`;
+  }
+  const existingPeerIds = new Set(
+    listSubchatsByTask(ctx.db, ctx.taskId)
+      .filter(({ participantAgentIds }) => participantAgentIds.includes(ctx.ownerAgentId))
+      .flatMap(({ participantAgentIds }) =>
+        participantAgentIds.filter((agentId) => agentId !== ctx.ownerAgentId)),
+  );
+  const repeatedPeer = requestedIds.find((agentId) => existingPeerIds.has(agentId));
+  if (repeatedPeer) {
+    return `Error: peer already has a subchat in this task: ${repeatedPeer}`;
   }
 
   const budget = ctx.rt.budgetFor(ctx.taskId);
@@ -331,13 +345,47 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
     body,
   });
   emitSubchatEvent(ctx.io, ctx.db, subchatId, EVENTS.SUBCHAT_MESSAGE, message);
-  for (const participantId of participants) {
-    if (participantId !== ctx.actingAgentId && participantId !== ctx.ownerAgentId) {
-      ctx.rt.runPeer(subchatId, participantId);
+  if (ctx.actingAgentId === ctx.ownerAgentId) {
+    for (const participantId of participants) {
+      if (participantId !== ctx.ownerAgentId) {
+        ctx.rt.runPeer(subchatId, participantId);
+      }
     }
-  }
-  if (ctx.actingAgentId !== ctx.ownerAgentId) {
-    ctx.rt.wakeOwner(ctx.taskId);
+  } else {
+    const senderRows = ctx.db.prepare(
+      `SELECT sender_id
+       FROM messages
+       WHERE subchat_id = ? AND sender_type = 'agent'
+       ORDER BY rowid`,
+    ).all(subchatId) as Array<{ sender_id: ID }>;
+    let latestOwnerMessage = -1;
+    for (let index = 0; index < senderRows.length; index += 1) {
+      if (senderRows[index]?.sender_id === ctx.ownerAgentId) {
+        latestOwnerMessage = index;
+      }
+    }
+    const responders = new Set(
+      senderRows
+        .slice(latestOwnerMessage + 1)
+        .map(({ sender_id }) => sender_id)
+        .filter((agentId) => agentId !== ctx.ownerAgentId),
+    );
+    const allPeersReplied = participants
+      .filter((agentId) => agentId !== ctx.ownerAgentId)
+      .every((agentId) => responders.has(agentId));
+    if (allPeersReplied) {
+      const releasedFacts = ctx.rt.hasReleasedPeerFacts?.(ctx.taskId, subchatId) ?? false;
+      closeSubchatAndNotify(
+        ctx.db,
+        ctx.io,
+        subchatId,
+        releasedFacts ? 'done' : 'stuck',
+        releasedFacts
+          ? 'Closed: all peers provided a response.'
+          : 'Closed: peers had no matching information.',
+      );
+      ctx.rt.wakeOwner(ctx.taskId);
+    }
   }
   return JSON.stringify(message);
 }
@@ -384,6 +432,12 @@ async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
   const task = getTask(ctx.db, ctx.taskId);
   if (!task || task.userId !== ctx.taskOwnerUserId) {
     return 'Error: task owner context is invalid';
+  }
+  if (
+    !ctx.allowOpenSubchatReport
+    && listSubchatsByTask(ctx.db, ctx.taskId).some(({ status }) => status === 'open')
+  ) {
+    return 'Error: peers are still replying; end your turn with a short status message and you will be woken when they answer.';
   }
 
   const report = `${args.summary}${releasedFactsAppendix(ctx)}`;
