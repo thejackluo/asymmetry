@@ -43,14 +43,21 @@ export default function TaskChat({
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // REST history on select — replay reconstructs participants + transcripts.
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
+  // Reset when the selected task changes — render-phase adjustment is the
+  // sanctioned pattern over synchronous setState inside the effect.
+  const [lastTaskId, setLastTaskId] = useState(task.id);
+  if (lastTaskId !== task.id) {
+    setLastTaskId(task.id);
     setMessages([]);
     setSubchats([]);
     setClosures({});
     setDisclosures([]);
+    setLoading(true);
+  }
+
+  // REST history on select — replay reconstructs participants + transcripts.
+  useEffect(() => {
+    let cancelled = false;
     getTaskMessages(task.id)
       .then((h) => {
         if (cancelled) return;
@@ -58,7 +65,9 @@ export default function TaskChat({
         setSubchats(h.subchats);
       })
       .catch(() => {})
-      .finally(() => !cancelled && setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };

@@ -12,7 +12,7 @@ import { EVT } from '@/lib/types';
 
 export default function NetworkPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const [user] = useState<User | null>(() => getUser());
   const [network, setNetwork] = useState<NetworkPayload | null>(null);
   const [connected, setConnected] = useState(false);
 
@@ -22,8 +22,6 @@ export default function NetworkPage() {
       router.replace('/login');
       return;
     }
-    setUser(getUser());
-
     const socket = getSocket();
     socket.connect(token);
     const unsubs = [

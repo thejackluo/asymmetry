@@ -116,6 +116,7 @@ let network: NetworkPayload = {
 };
 
 export const mockApi = {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async login(username: string, _password: string) {
     return {
       token: 'mock-token',
@@ -147,13 +148,16 @@ export const mockApi = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Handler = (payload: any) => void;
 
-let counter = 0;
+// Start above seed fixture ids (m-0, m-1, sm-1, sm-2) so mock ids never
+// collide with history — mergeMessages dedupes by id.
+let counter = 1000;
 const uid = (p: string) => `${p}-${++counter}`;
 
 export class MockSocketClient implements SocketClient {
   private handlers = new Map<string, Set<Handler>>();
   private timers: ReturnType<typeof setTimeout>[] = [];
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   connect(_token: string): void {
     // nothing to do — mock needs no network
   }
@@ -287,10 +291,13 @@ export class MockSocketClient implements SocketClient {
       createdAt: Date.now(),
     } satisfies Message);
     at(8200, EVT.TASK_UPDATED, { taskId: p.taskId, status: 'done' });
-    at(8600, EVT.NETWORK_UPDATED, {
-      agents,
-      trusted: ['a-bob', 'a-carol'],
-      discovered: ['a-erin'],
-    } satisfies NetworkPayload);
+    this.after(8600, () => {
+      network = {
+        agents,
+        trusted: ['a-bob', 'a-carol'],
+        discovered: ['a-erin'],
+      };
+      this.fire(EVT.NETWORK_UPDATED, network);
+    });
   }
 }

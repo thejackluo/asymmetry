@@ -19,13 +19,16 @@ import { EVT } from '@/lib/types';
 
 export default function TasksPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const [user] = useState<User | null>(() => getUser());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [connected, setConnected] = useState(false);
   const selectedRef = useRef<string | null>(null);
-  selectedRef.current = selectedId;
+
+  useEffect(() => {
+    selectedRef.current = selectedId;
+  }, [selectedId]);
 
   useEffect(() => {
     const token = getToken();
@@ -33,7 +36,6 @@ export default function TasksPage() {
       router.replace('/login');
       return;
     }
-    setUser(getUser());
 
     const socket = getSocket();
     socket.connect(token);

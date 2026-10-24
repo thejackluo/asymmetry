@@ -4,15 +4,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearSession, getUser } from '@/lib/auth';
 import { resetSocket } from '@/lib/socket';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { User } from '@/lib/types';
 
 export default function Header({ connected }: { connected?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => setUser(getUser()), []);
+  const [user] = useState<User | null>(() => getUser());
 
   function logout() {
     clearSession();
