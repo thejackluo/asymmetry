@@ -1,5 +1,7 @@
 # ASYMMETRY — Contracts (frozen interfaces)
 
+Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
+
 This file is the **single source of truth** for every boundary between Devins.
 If your code disagrees with this file, your code is wrong. Changes require all
 4 devs to agree; log any change at the bottom under Changelog.
@@ -257,7 +259,9 @@ export interface MemoryEngine {
     Promise<{ items: MemoryItem[]; withheldCount: number; disclosure: Disclosure }>;
   extractGoals(userId: ID, taskId: ID, text: string): Promise<Goal[]>;
 }
-export function createMemoryEngine(db: Database, openai: OpenAI): MemoryEngine;
+// llm is injectable (tests mock it); io is optional so the engine can emit
+// disclosure:logged — tests may pass undefined (see Changelog 2026-10-24)
+export function createMemoryEngine(db: Database, llm: LLMClient, io?: Server): MemoryEngine;
 export function registerMemory(app: Express, db: Database): void; // debug REST
 
 // OpenAI tools available to the runtime (D2 calls, backed by D3's engine):
@@ -299,4 +303,11 @@ pulls carol's mechanic knowledge into a **group** subchat.
 
 ## Changelog
 
-_(empty — any contract change gets a dated line here + sign-off from all devs)_
+- 2026-10-24: `createMemoryEngine` signature is `(db, llm, io?)` — takes the
+  injectable LLM client (mocked in tests) and optional Socket.IO server so the
+  engine can emit `disclosure:logged` (PERM-05). Agreed in spec phase.
+- 2026-10-24: Added `agent:status` server→client event (§3) — referenced by
+  D2/D4 plans (A2A-07, UI-07). Agreed in spec phase.
+- 2026-10-24: Spec package migrated to GSD `.planning/` layout — requirements
+  now have IDs (PLAT/AUTH/MEM/PERM/A2A/UI/SEED/OPS) tracked in
+  `.planning/REQUIREMENTS.md`.

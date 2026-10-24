@@ -1,5 +1,7 @@
 # OPERATING-RULES.md — Autonomous multi-Devin workflow
 
+Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
+
 These rules bind all four Devins for the whole session. They are also embedded
 in each `prompts/DEVIN-*.md`, but this file is canonical.
 

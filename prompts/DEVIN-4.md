@@ -1,75 +1,38 @@
-# DEVIN 4 — Frontend (the whole visual demo)
+# DEVIN 4 — Frontend (Phase 4, the whole visual demo)
 
-You are Devin 4 of 4 on team **Asymmetry** (hackathon, 5h). You own everything
-the judges see. Two pages, dark/hacker aesthetic, must work live.
+Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
 
-**Read first:** `GST.md` (win condition = your demo script) and `CONTRACTS.md`
-§3 (socket events) + §4 (REST). Build strictly to those payloads — backend is
-being built in parallel, so mock with fixtures if needed early on.
+You are Devin 4 of 4 on team **Asymmetry** — personal AI agents that negotiate
+across a trusted network. You own everything the judges see: login, task chat
+with live agent↔agent subchat panes, and the trusted-vs-discovered network
+graph. Dark/hacker aesthetic, Tailwind only.
 
-## Operating rules (same for all Devins)
-- Branch: `devin-4`. Commit + push every **≤30 min** — WIP commits are fine, the branch is yours alone.
-- Open a **draft PR** in your first session; body must include: summary, CONTRACTS.md sections touched, and pasted verification output. Keep it updated.
-- A **different model** reviews your PR. Every comment is a work item — fix and push. Push back only via comment if it conflicts with CONTRACTS.md.
-- Contract change needed? PR description + dated Changelog line in CONTRACTS.md. Never silent-change an interface.
-- Test your own layer — nobody else will. Paste test output in the PR.
-- `main` must always boot; merge only after approval + your checks pass.
+## Your spec (read in this order)
+1. `.planning/OPERATING-RULES.md` — cadence, PRs, review, comms (binds you)
+2. `.planning/PROJECT.md` — charter + **demo script** (design for this path)
+3. `CONTRACTS.md` — **law**; esp. §1 types, §3 socket events + payloads, §4 REST
+4. `.planning/phases/04-frontend/04-SPEC.md` — falsifiable requirements
+5. `.planning/phases/04-frontend/04-01-PLAN.md` — **your executable plan; work its tasks in order, run every `<verify>`, meet every `<acceptance_criteria>`**
 
-## Communication (GitHub is the team chat — no other channel exists)
-- **GitHub Issues = message board**: bugs, blockers, cross-layer requests, questions. Title format `[Dn] short description` routes to the owning layer (`[D4]` you, `[D1]` platform, `[D2]` runtime, `[D3]` memory).
-- **GitHub Projects = task board**: keep your own cards' status current as you work.
-- **Poll every ~5 min while working**: `gh issue list` + your project column. Respond wherever you're tagged.
-- **Addressing**: tag the GitHub *username* of the human whose Devin(s) should respond — every Devin they run sees it; the `[Dn]` prefix says who acts.
-- **Blocked on another layer?** File an issue, tag the owner, keep building against your mock SocketClient — never sit idle waiting for backend.
-- Contract changes start as an issue, get agreed there, then land via PR + Changelog entry.
+## You own exclusively
+- `apps/web/**` — including scaffolding it (D1 left only a placeholder package.json).
 
-## You own (nobody else touches this path)
-- `apps/web/**` (entire Next.js app — scaffold it yourself with
-  create-next-app TS + Tailwind + App Router, then move it under `apps/web`)
+## Key boundary
+Backend lands in parallel — build your socket layer behind a `SocketClient`
+interface + `MockSocketClient` replaying contract §3 payloads so every page
+renders with zero backend. Never wait on backend; never touch its files.
 
-## Build
-1. **`/login`** — single card: username + password → `POST /api/login` →
-   store token (localStorage) → redirect `/tasks`. Register-if-new is
-   server-side; the form needs no toggle.
-2. **`/tasks`** — two columns: task list (left, + "new task" input →
-   `task:create`) and the selected task's chat (right).
-   - Main thread: `subchatId === null` messages. Human bubbles vs agent
-     bubbles visually distinct (avatar/label "You" / "Alice's Agent").
-   - **Subchats**: on `subchat:started` render a collapsible pane/column per
-     subchat titled e.g. "🤖↔🤖 Alice's Agent ↔ Bob's Agent — negotiating".
-     `subchat:message` flows in live. On `subchat:closed` show outcome chip
-     (done=green / stuck=amber) + summary. This pane IS the wow factor —
-     make A2A messages visibly machine-styled (mono font or terminal look).
-   - Agent status pill from `agent:status`/`task:updated` ("negotiating…").
-   - If a `disclosure:logged` arrives, show a subtle line in the subchat:
-     "🔒 Bob's agent shared 3 items · withheld 2 (out of scope)" — judges love this.
-3. **`/network`** — graph of agents. `GET /api/network` + live
-   `network:updated`. Nodes = agents (label with owner name); **solid edge =
-   trusted**, **dashed/glowing edge = discovered during tasks**; highlight the
-   logged-in user's agent. Any lightweight approach is fine (svg + simple
-   force layout, reactflow, or even fixed positions if time is short —
-   reactflow via npm is fine but not required).
+## Operating rules
+- Branch `devin-4`. Commit + push every **≤30 min** — WIP is fine.
+- Open a **draft PR** in your first session; body = summary + contract sections + requirement IDs (UI-*) + pasted `npm run build`/`tsc --noEmit` output + screenshots.
+- A **different model** reviews your PR — every comment is a work item.
+- `main` must always boot; merge only after approval + green.
 
-## Conventions
-- One `lib/socket.ts` singleton; reconnect with stored token.
-- No component library required — Tailwind only, move fast.
-- All type imports from `@asymmetry/shared` if the package resolves in your
-  workspace; otherwise copy the §1 types into `apps/web/lib/types.ts` and move
-  on (note it in the PR).
+## Communication — GitHub is the only channel
+- **Issues = message board**: title `[Dn] description` (`[D4]` you, `[D1]` platform, `[D2]` runtime, `[D3]` memory, `[ALL]` all).
+- **Projects = task board**: keep your cards current.
+- **Poll every ~5 min**: `gh issue list` + your project column; answer tags.
+- **Addressing**: tag the human's GitHub username — all their Devins see it; `[Dn]` says who acts.
+- Contract changes → issue → agreement → PR + Changelog line. Never silent.
 
-## Testing
-- Gate every PR on: `npm run build` + `npx tsc --noEmit` green (paste output).
-- Where cheap, add a `*.test.ts` for pure utils (e.g., splitting messages into
-  main thread vs subchats — that's the logic most likely to have bugs).
-- Socket layer: build behind a small `SocketClient` interface with a mock
-  implementation so pages render in dev without the backend.
-
-## Done when
-- [ ] `npm run build` + `npx tsc --noEmit` green, output pasted in PR
-- [ ] Login → task create → chat round-trips over sockets
-- [ ] A2A subchat pane visibly updates live as agents negotiate
-- [ ] Network page renders trusted vs discovered distinctly
-- [ ] `npm run dev` from repo root serves web on :3000
-- [ ] You never edited anything outside `apps/web/`
-
-You own all UI polish in Phase 3.
+Requirements you satisfy: UI-01…10 (see REQUIREMENTS.md).

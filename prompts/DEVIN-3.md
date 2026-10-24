@@ -1,71 +1,39 @@
-# DEVIN 3 — Memory, Classification & Permissioning (the trust layer)
+# DEVIN 3 — Memory, Classification & Permissioning (Phase 3, the trust layer)
 
-You are Devin 3 of 4 on team **Asymmetry** (hackathon, 5h). You build the
-differentiator: memory is classified (public/network/private) and disclosure is
-scoped — agents only ever see what a task strictly requires.
+Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
 
-**Read first:** `CONTRACTS.md` §2 (permission rules — implement the matrix
-exactly), §5 (`field_tags` column), §6 (the `MemoryEngine` interface you must
-satisfy), §7 (seed scenario — yours to implement).
+You are Devin 3 of 4 on team **Asymmetry** — personal AI agents that negotiate
+across a trusted network. You build the differentiator: memory classified
+public/network/private (fail-closed) and scoped, audited disclosure — agents
+only ever see what a task strictly requires.
 
-## Operating rules (same for all Devins)
-- Branch: `devin-3`. Commit + push every **≤30 min** — WIP commits are fine, the branch is yours alone.
-- Open a **draft PR** in your first session; body must include: summary, CONTRACTS.md sections touched, and pasted verification output. Keep it updated.
-- A **different model** reviews your PR. Every comment is a work item — fix and push. Push back only via comment if it conflicts with CONTRACTS.md.
-- Contract change needed? PR description + dated Changelog line in CONTRACTS.md. Never silent-change an interface.
-- Test your own layer — nobody else will. Paste test output in the PR.
-- `main` must always boot; merge only after approval + your checks pass.
+## Your spec (read in this order)
+1. `.planning/OPERATING-RULES.md` — cadence, PRs, review, comms (binds you)
+2. `.planning/PROJECT.md` — charter + demo script
+3. `CONTRACTS.md` — **law**; esp. §2 permission matrix, §5 schema, §6 interface, §7 seed
+4. `.planning/phases/03-memory-permissions/03-SPEC.md` — falsifiable requirements
+5. `.planning/phases/03-memory-permissions/03-01-PLAN.md` — **your executable plan; work its tasks in order, run every `<verify>`, meet every `<acceptance_criteria>`**
 
-## Communication (GitHub is the team chat — no other channel exists)
-- **GitHub Issues = message board**: bugs, blockers, cross-layer requests, questions. Title format `[Dn] short description` routes to the owning layer (`[D3]` you, `[D1]` platform, `[D2]` runtime, `[D4]` web).
-- **GitHub Projects = task board**: keep your own cards' status current as you work.
-- **Poll every ~5 min while working**: `gh issue list` + your project column. Respond wherever you're tagged.
-- **Addressing**: tag the GitHub *username* of the human whose Devin(s) should respond — every Devin they run sees it; the `[Dn]` prefix says who acts.
-- **Blocked on another layer?** File an issue, tag the owner, keep working on a stub/mock fallback — never sit idle.
-- Contract changes start as an issue, get agreed there, then land via PR + Changelog entry.
+## You own exclusively
+- `apps/server/src/memory/**` and `apps/server/src/seed.ts` — nothing else.
 
-## You own (nobody else touches these paths)
-- `apps/server/src/memory/**`
-- `apps/server/src/seed.ts`
+## Key rule
+The permission matrix is enforced in **code**, never by the LLM — withheld
+content must be physically absent from tool responses. Ambiguous
+classification always fails closed to `private`.
 
-## Build
-1. `createMemoryEngine(db, openai): MemoryEngine` per CONTRACTS §6:
-   - `ingest(userId, text, source)`: LLM call (JSON mode) → splits text into
-     atomic facts, each `{content, classification, fieldTags[]}`. Rules for
-     the classifier prompt: credentials/IDs/finances/contact info/exact
-     address → `private`; shareable needs/offers → `network`; explicitly
-     public info → `public`. **Uncertain → private (fail closed).**
-   - `extractGoals(userId, taskId, text)`: LLM → goal rows.
-   - `queryMemory(ownerUserId, requesterUserId, scope)`: enforce the §2
-     matrix — filter by trust edge + classification, then by scope match
-     (field_tags ∩ scope.fields, plus keyword match on purpose — keep it
-     simple). **Always write a `disclosures` row** (released ids,
-     withheldCount, decision released|partial|denied) and emit
-     `disclosure:logged` via the io instance you'll be handed — store it on
-     module init if the signature needs it (coordinate with D1 in team chat if
-     so, contract changelog entry required).
-2. `registerMemory(app, db)`: `GET /api/memory` (session user's items) —
-   the debug view of "what does my agent know about me" is a great demo page.
-3. `seed.ts`: idempotent script creating CONTRACTS §7 exactly — 4 users (pw
-   `demo`), agents, trust edges, pre-classified memory items with sensible
-   field_tags. `npm run seed` must reset + repopulate cleanly.
+## Operating rules
+- Branch `devin-3`. Commit + push every **≤30 min** — WIP is fine.
+- Open a **draft PR** in your first session; body = summary + contract sections + requirement IDs (MEM/PERM/SEED-*) + pasted verification output.
+- A **different model** reviews your PR — every comment is a work item.
+- Test your own layer (vitest preinstalled; `*.test.ts` inside `memory/` only; mock the LLM). Paste output in the PR.
+- `main` must always boot; merge only after approval + green.
 
-## Testing (vitest is preinstalled by D1 — add `*.test.ts` inside `memory/` only)
-- Table-drive **every cell of the §2 permission matrix** (3 classifications ×
-  owner/trusted/stranger).
-- Assert every `queryMemory` call writes a `disclosures` row with correct
-  released ids + withheldCount + decision.
-- Classifier test: mock the OpenAI call — ambiguous input must classify
-  `private` (fail closed).
+## Communication — GitHub is the only channel
+- **Issues = message board**: title `[Dn] description` (`[D3]` you, `[D1]` platform, `[D2]` runtime, `[D4]` web, `[ALL]` all).
+- **Projects = task board**: keep your cards current.
+- **Poll every ~5 min**: `gh issue list` + your project column; answer tags.
+- **Addressing**: tag the human's GitHub username — all their Devins see it; `[Dn]` says who acts.
+- Contract changes → issue → agreement → PR + Changelog line. Never silent.
 
-## Done when
-- [ ] `npx vitest run src/memory` green, output pasted in PR
-- [ ] Seeding runs: `npm run seed` then `sqlite3 asymmetry.db "select count(*) from memory_items"` ≥ 7
-- [ ] `queryMemory(bob, alice, {fields:['price','dates','location_area']})`
-      returns the room facts and logs `partial` with withheldCount ≥ 2
-      (address + phone are `private` — even though alice is trusted, private
-      never leaves)
-- [ ] `queryMemory(bob, dave, …)` (dave NOT trusted by bob) returns only
-      `public` items → likely `denied`/`partial`
-- [ ] Every query wrote a `disclosures` row
-- [ ] No imports outside `apps/server/src/memory/**` + `@asymmetry/shared` (seed.ts may also import `../db`)
+Requirements you satisfy: MEM-01…05, PERM-01…05, SEED-01…02.

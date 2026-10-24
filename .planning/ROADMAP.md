@@ -1,5 +1,7 @@
 # ROADMAP.md — Asymmetry
 
+Read `.planning/IMPLEMENTATION-DECISIONS.md` first. Its binding clarifications supersede conflicting examples in this document and the phase plans.
+
 ## Overview
 
 Five phases, four parallel Devins. Phase 1 (foundation) is the only serial
