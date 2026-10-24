@@ -33,7 +33,7 @@ export interface LLMClient {
   chat(
     messages: LLMMessage[],
     tools: ToolSpec[],
-    opts?: { signal?: AbortSignal },
+    opts?: { signal?: AbortSignal; toolChoice?: { name: string } },
   ): Promise<LLMResult>;
 }
 
@@ -112,6 +112,14 @@ export function openAILLM({
               model,
               messages: apiMessages,
               ...(apiTools.length > 0 ? { tools: apiTools } : {}),
+              ...(opts?.toolChoice
+                ? {
+                    tool_choice: {
+                      type: 'function',
+                      function: { name: opts.toolChoice.name },
+                    },
+                  }
+                : {}),
             },
             { signal: opts?.signal },
           );
@@ -150,7 +158,7 @@ export type MockLLMScriptStep =
 export interface MockLLMCall {
   messages: LLMMessage[];
   tools: ToolSpec[];
-  opts?: { signal?: AbortSignal };
+  opts?: { signal?: AbortSignal; toolChoice?: { name: string } };
 }
 
 export type MockLLMClient = LLMClient & { calls: MockLLMCall[] };
@@ -191,7 +199,10 @@ export function withTimeout(llm: LLMClient, ms = 30_000): LLMClient {
       }
 
       let timeout: ReturnType<typeof setTimeout> | undefined;
-      const call = llm.chat(messages, tools, { signal: controller.signal });
+      const call = llm.chat(messages, tools, {
+        signal: controller.signal,
+        ...(opts?.toolChoice ? { toolChoice: opts.toolChoice } : {}),
+      });
       try {
         return await Promise.race([
           call,

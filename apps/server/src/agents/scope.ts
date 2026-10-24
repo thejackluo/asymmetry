@@ -25,12 +25,12 @@ export interface DeriveScopeInput {
 
 const scopeTool: ToolSpec = {
   name: 'set_task_scope',
-  description: 'Set the task purpose and the smallest set of information fields needed.',
+  description: 'Set the task purpose and the smallest set of information fields needed. Housing tasks typically need location_area, price and dates.',
   parameters: {
     type: 'object',
     properties: {
       purpose: { type: 'string' },
-      fields: { type: 'array', items: { type: 'string' } },
+      fields: { type: 'array', items: { type: 'string', enum: [...ALLOWED_FIELDS] } },
     },
     required: ['purpose', 'fields'],
     additionalProperties: false,
@@ -60,7 +60,9 @@ export async function deriveScope(
       content: `Task: ${title}\n\nMain-thread conversation:\n${threadText(mainThread)}`,
     },
   ];
-  const result = await llm.chat(messages, [scopeTool]);
+  const result = await llm.chat(messages, [scopeTool], {
+    toolChoice: { name: 'set_task_scope' },
+  });
   const call = result.toolCalls?.find(({ name }) => name === 'set_task_scope');
   if (!call || call.args instanceof ArgsParseError || !call.args || typeof call.args !== 'object') {
     return null;
