@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { userRoom } from '@asymmetry/shared';
+import { userRoom, type MemoryItem } from '@asymmetry/shared';
 import { Budget } from './budgets.js';
 import { EVENTS } from './events.js';
 import {
@@ -39,11 +39,31 @@ function setup() {
     withheldCount: 2,
   });
   const budget = new Budget('task');
-  const rt: RuntimeHooks = {
+  type ReleasedFact = { id: string; ownerAgentName: string; text: string };
+  const releasedFacts = new Map<string, Map<string, ReleasedFact>>();
+  const rt: RuntimeHooks & {
+    recordPeerFacts(taskId: string, ownerAgentName: string, facts: Array<{ id: string; text: string }>): void;
+    takePeerFacts(taskId: string): ReleasedFact[];
+  } = {
     budgetFor: vi.fn(() => budget),
     wakeOwner: vi.fn(),
     reportOwnerFailure: vi.fn(async () => {}),
     runPeer: vi.fn(),
+    recordPeerFacts(taskId, ownerAgentName, facts) {
+      let byId = releasedFacts.get(taskId);
+      if (!byId) {
+        byId = new Map();
+        releasedFacts.set(taskId, byId);
+      }
+      for (const fact of facts) {
+        byId.set(fact.id, { ...fact, ownerAgentName });
+      }
+    },
+    takePeerFacts(taskId) {
+      const facts = [...(releasedFacts.get(taskId)?.values() ?? [])];
+      releasedFacts.delete(taskId);
+      return facts;
+    },
   };
   const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a summer sublet');
   const scope = { taskId: task.id, purpose: 'find a summer sublet', fields: ['location_area', 'price', 'dates'] };
@@ -614,6 +634,110 @@ describe('trusted-context agent tools', () => {
         content: expect.stringContaining('unknown tool'),
         stop: false,
       });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('appends only released peer facts to the owner report', async () => {
+    const { db, ownerCtx, emissions } = setup();
+    try {
+      const bobSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.bob,
+      ]);
+      const erinSubchat = createSubchat(db, ownerCtx.taskId, [
+        FIXTURE_IDS.agents.alice,
+        FIXTURE_IDS.agents.erin,
+      ]);
+      const bobFacts: MemoryItem[] = [
+        {
+          id: 'bob-price-released',
+          userId: FIXTURE_IDS.users.bob,
+          content: 'Room rent is $950/mo.',
+          classification: 'network',
+          fieldTags: ['price'],
+          source: 'seed',
+          createdAt: 1,
+        },
+        {
+          id: 'bob-location-released',
+          userId: FIXTURE_IDS.users.bob,
+          content: 'Room is 0.4mi from Georgia Tech.',
+          classification: 'network',
+          fieldTags: ['location_area'],
+          source: 'seed',
+          createdAt: 2,
+        },
+      ];
+      const ownerOnlyFact: MemoryItem = {
+        id: 'alice-owner-only',
+        userId: FIXTURE_IDS.users.alice,
+        content: 'OWNER-ONLY-SENTINEL',
+        classification: 'private',
+        fieldTags: ['price'],
+        source: 'seed',
+        createdAt: 3,
+      };
+      const withheldSentinel = 'WITHHELD-FACT-739';
+      const { memory } = createFakeMemory({
+        itemsByOwner: {
+          [FIXTURE_IDS.users.alice]: [ownerOnlyFact],
+          [FIXTURE_IDS.users.bob]: bobFacts,
+        },
+        withheldCountByOwner: { [FIXTURE_IDS.users.bob]: 1 },
+      });
+      const peerCtx: TrustedCtx = {
+        ...ownerCtx,
+        memory,
+        actingAgentId: FIXTURE_IDS.agents.bob,
+        mode: 'peer',
+        subchatId: bobSubchat.id,
+      };
+
+      const peerQuery = toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.bob,
+        scope: { fields: ['price', 'location_area'] },
+      });
+      const firstQuery = await executeToolCall(peerCtx, peerQuery);
+      expect(JSON.parse(firstQuery.content).facts).toEqual(bobFacts.map(({ content }) => content));
+      await executeToolCall(peerCtx, peerQuery);
+
+      const ownerQuery = await executeToolCall({ ...ownerCtx, memory }, toolCall('query_memory', {
+        ownerUserId: FIXTURE_IDS.users.alice,
+        scope: { fields: ['price'] },
+      }));
+      expect(ownerQuery.content).toContain('OWNER-ONLY-SENTINEL');
+
+      const ownerReport = 'I found a place, want an intro?';
+      await executeToolCall({ ...ownerCtx, memory }, toolCall('report_to_human', {
+        taskId: ownerCtx.taskId,
+        status: 'done',
+        summary: ownerReport,
+      }));
+
+      const report = listMainThreadMessages(db, ownerCtx.taskId)
+        .find(({ body }) => body.startsWith(ownerReport))?.body ?? '';
+      expect(report).toContain(
+        '\n\nShared with you:\n- Bob\'s Agent: Room rent is $950/mo.; Room is 0.4mi from Georgia Tech.',
+      );
+      expect(report.match(/\$950/g)).toHaveLength(1);
+      expect(report).not.toContain('OWNER-ONLY-SENTINEL');
+      expect(report).not.toContain(withheldSentinel);
+
+      const erinPayloads = emissions
+        .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.erin))
+        .map(({ event, payload }) => `${event} ${JSON.stringify(payload)}`)
+        .join('\n');
+      expect(erinPayloads).toContain('Closed: the requesting agent finished the task.');
+      expect(erinPayloads).not.toContain('$950');
+      expect(erinPayloads).not.toContain('0.4mi');
+      expect(erinPayloads).not.toContain('OWNER-ONLY-SENTINEL');
+      expect(erinPayloads).not.toContain(withheldSentinel);
+      const erinRows = listSubchatMessages(db, erinSubchat.id);
+      expect(JSON.stringify(erinRows)).not.toContain('$950');
+      expect(JSON.stringify(erinRows)).not.toContain('0.4mi');
+      expect(JSON.stringify(erinRows)).not.toContain(withheldSentinel);
     } finally {
       db.close();
     }

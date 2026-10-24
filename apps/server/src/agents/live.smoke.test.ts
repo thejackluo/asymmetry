@@ -139,6 +139,7 @@ describe.skipIf(!process.env.OPENAI_API_KEY)('live OpenAI smoke', () => {
         .filter(({ senderType }) => senderType === 'agent')
         .map(({ body }) => body)
         .join('\n');
+      console.info(`[live smoke] report: ${report.slice(0, 400)}`);
       expect(/\$950|0\.4mi/.test(report)).toBe(true);
 
       const storedMessages = db.prepare(
