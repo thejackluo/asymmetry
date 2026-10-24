@@ -100,7 +100,7 @@ describe('agent runtime queues and loops', () => {
       expect(listSubchatMessages(db, subchat.id).some(({ body }) => body === 'I found one option.')).toBe(true);
       const peerPrompt = llm.calls[0]?.messages.find(({ role }) => role === 'system')?.content ?? '';
       expect(peerPrompt).toContain("You are Bob's Agent, the personal agent for Bob.");
-      expect(peerPrompt).toContain("Alice's Agent is asking for help with:");
+      expect(peerPrompt).toContain("Alice's Agent is asking for help with this task.");
       expect(peerPrompt).not.toContain('personal agent for Alice');
       expect(peerPrompt).toContain(`Task ID: ${task.id}`);
       expect(peerPrompt).toContain(`Subchat ID: ${subchat.id}`);

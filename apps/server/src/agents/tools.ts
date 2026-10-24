@@ -5,7 +5,6 @@ import { Budget, PEER_CAP } from './budgets.js';
 import { emitAgentStatus, emitMainMessage, emitNetworkUpdated, emitSubchatEvent, emitTaskUpdated } from './emit.js';
 import { EVENTS } from './events.js';
 import {
-  agentHasOtherActiveSubchat,
   agentById,
   agentByUser,
   createSubchat,
@@ -106,6 +105,20 @@ export const AGENT_TOOLS: ToolSpec[] = [
     },
   },
 ];
+
+export const OWNER_AGENT_TOOLS: ToolSpec[] = AGENT_TOOLS.map((tool) =>
+  tool.name === 'send_subchat_message'
+    ? {
+      ...tool,
+      parameters: {
+        type: 'object',
+        properties: { subchatId: { type: 'string' } },
+        required: ['subchatId'],
+        additionalProperties: false,
+      },
+    }
+    : tool,
+);
 
 type Args = Record<string, unknown>;
 
@@ -237,25 +250,31 @@ async function openSubchat(ctx: TrustedCtx, args: Args): Promise<string> {
 
   const subchat = createSubchat(ctx.db, ctx.taskId, [ctx.ownerAgentId, ...requestedIds]);
   emitSubchatEvent(ctx.io, ctx.db, subchat.id, EVENTS.SUBCHAT_STARTED, subchat);
-  emitNetworkUpdated(ctx.io, ctx.db, ctx.taskOwnerUserId);
   for (const agentId of subchat.participantAgentIds) {
     setAgentStatus(ctx.db, agentId, 'negotiating');
     emitAgentStatus(ctx.io, ctx.db, agentId, 'negotiating', ctx.taskOwnerUserId);
   }
+  emitNetworkUpdated(ctx.io, ctx.db, ctx.taskOwnerUserId);
   return JSON.stringify(subchat);
 }
 
 async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> {
-  if (typeof args.body !== 'string' || args.body.trim().length === 0 || args.body.length > 4000) {
-    return 'Invalid arguments: body must be non-empty and at most 4000 characters';
-  }
   let subchatId: ID | null = null;
+  let body: string;
   if (ctx.mode === 'owner') {
     if (typeof args.subchatId !== 'string') {
       return 'Invalid arguments: owner mode requires subchatId';
     }
     subchatId = args.subchatId;
+    const canonical = getTaskScope(ctx.db, ctx.taskId);
+    if (!canonical) {
+      return 'Error: canonical task scope is not set';
+    }
+    body = `Please return only information authorized for these task fields: ${canonical.fields.join(', ')}.`;
   } else {
+    if (typeof args.body !== 'string' || args.body.trim().length === 0 || args.body.length > 4000) {
+      return 'Invalid arguments: body must be non-empty and at most 4000 characters';
+    }
     if (!ctx.subchatId) {
       return 'Error: peer mode is not bound to a subchat';
     }
@@ -263,6 +282,7 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
       return 'Error: peer mode cannot send to another subchat';
     }
     subchatId = ctx.subchatId;
+    body = args.body;
   }
 
   const subchat = subchatById(ctx.db, subchatId);
@@ -286,7 +306,7 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
     subchatId,
     senderType: 'agent',
     senderId: ctx.actingAgentId,
-    body: args.body,
+    body,
   });
   emitSubchatEvent(ctx.io, ctx.db, subchatId, EVENTS.SUBCHAT_MESSAGE, message);
   for (const participantId of participants) {
@@ -342,11 +362,22 @@ async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
   }
   setTaskStatus(ctx.db, ctx.taskId, args.status);
 
-  const status = agentHasOtherActiveSubchat(ctx.db, ctx.actingAgentId, ctx.taskId)
+  const otherActiveTasks = ctx.db.prepare(
+    `SELECT id FROM tasks
+     WHERE user_id = ? AND id <> ? AND status = 'active'
+     ORDER BY created_at, id`,
+  ).all(ctx.taskOwnerUserId, ctx.taskId) as Array<{ id: ID }>;
+  const hasOtherOpenSubchat = otherActiveTasks.some(({ id }) =>
+    listSubchatsByTask(ctx.db, id).some(({ status: subchatStatus }) => subchatStatus === 'open'));
+  const hasOtherUnscopedTask = otherActiveTasks.some(({ id }) => !getTaskScope(ctx.db, id));
+  const status = hasOtherOpenSubchat
     ? 'negotiating'
-    : args.status;
+    : hasOtherUnscopedTask
+      ? 'clarifying'
+      : args.status;
   setAgentStatus(ctx.db, ctx.actingAgentId, status);
   emitAgentStatus(ctx.io, ctx.db, ctx.actingAgentId, status, ctx.taskOwnerUserId);
+  emitNetworkUpdated(ctx.io, ctx.db, ctx.taskOwnerUserId);
   emitTaskUpdated(ctx.io, ctx.taskOwnerUserId, { id: task.id, status: args.status });
   return 'Task reported to human.';
 }

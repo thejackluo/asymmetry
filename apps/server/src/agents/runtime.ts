@@ -12,6 +12,7 @@ import { buildOwnerPrompt, buildPeerPrompt, peerMessageToLLM } from './persona.j
 import { withTimeout, type LLMClient, type LLMMessage } from './llm.js';
 import {
   AGENT_TOOLS,
+  OWNER_AGENT_TOOLS,
   executeToolCall,
   toolCallMessage,
   toolResultMessage,
@@ -234,7 +235,7 @@ export function createAgentRuntime({
       }
       let result;
       try {
-        result = await timedLLM.chat(messages, AGENT_TOOLS);
+        result = await timedLLM.chat(messages, OWNER_AGENT_TOOLS);
       } catch (error) {
         await reportOwnerFailure(taskId, safeFailureReason(error));
         return;

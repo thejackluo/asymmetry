@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { userRoom } from '@asymmetry/shared';
 import { Budget } from './budgets.js';
 import { EVENTS } from './events.js';
-import { executeToolCall, type RuntimeHooks, type TrustedCtx } from './tools.js';
+import {
+  AGENT_TOOLS,
+  executeToolCall,
+  OWNER_AGENT_TOOLS,
+  type RuntimeHooks,
+  type TrustedCtx,
+} from './tools.js';
 import {
   createSubchat,
   createTask,
@@ -62,6 +68,18 @@ function toolCall(name: string, args: unknown) {
 }
 
 describe('trusted-context agent tools', () => {
+  it('offers owners an ID-only relay tool while peers retain their own message body', () => {
+    const ownerTool = OWNER_AGENT_TOOLS.find(({ name }) => name === 'send_subchat_message');
+    const peerTool = AGENT_TOOLS.find(({ name }) => name === 'send_subchat_message');
+
+    expect(ownerTool?.parameters).toMatchObject({
+      properties: { subchatId: { type: 'string' } },
+      required: ['subchatId'],
+    });
+    expect(ownerTool?.parameters).not.toHaveProperty('properties.body');
+    expect(peerTool?.parameters).toHaveProperty('properties.body');
+  });
+
   it('A2A-02/03: opens authorized pair and group subchats and rejects invalid peers/modes', async () => {
     const { db, ownerCtx, rt, emissions } = setup();
     try {
@@ -321,20 +339,22 @@ describe('trusted-context agent tools', () => {
         FIXTURE_IDS.agents.bob,
         FIXTURE_IDS.agents.carol,
       ]);
-      const result = await executeToolCall(ownerCtx, toolCall('send_subchat_message', {
+      const peerCtx: TrustedCtx = {
+        ...ownerCtx,
+        actingAgentId: FIXTURE_IDS.agents.bob,
+        mode: 'peer',
         subchatId: subchat.id,
+      };
+      const result = await executeToolCall(peerCtx, toolCall('send_subchat_message', {
         body: 'Could you check availability?',
       }));
       expect(result.content).toContain('Could you check availability?');
-      expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.bob);
       expect(vi.mocked(rt.runPeer)).toHaveBeenCalledWith(subchat.id, FIXTURE_IDS.agents.carol);
       expect(emissions.some(({ event }) => event === EVENTS.SUBCHAT_MESSAGE)).toBe(true);
 
       const outsider = await executeToolCall({
-        ...ownerCtx,
+        ...peerCtx,
         actingAgentId: FIXTURE_IDS.agents.dave,
-        mode: 'peer',
-        subchatId: subchat.id,
       }, toolCall('send_subchat_message', { body: 'No participation' }));
       expect(outsider.content).toContain('not a subchat participant');
     } finally {

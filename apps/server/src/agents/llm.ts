@@ -108,7 +108,11 @@ export function openAILLM({
       for (let attempt = 0; ; attempt += 1) {
         try {
           completion = await client.chat.completions.create(
-            { model, messages: apiMessages, tools: apiTools },
+            {
+              model,
+              messages: apiMessages,
+              ...(apiTools.length > 0 ? { tools: apiTools } : {}),
+            },
             { signal: opts?.signal },
           );
           break;

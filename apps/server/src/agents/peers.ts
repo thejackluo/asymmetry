@@ -98,7 +98,7 @@ export function networkPayload(db: Database, userId: ID): NetworkPayload {
   const owner = db.prepare('SELECT agent_id FROM users WHERE id = ?').get(userId) as
     | { agent_id: ID }
     | undefined;
-  const agents = (db.prepare(
+  const allAgents = (db.prepare(
     `SELECT agents.id, agents.user_id, agents.name, agents.status
      FROM agents
      ORDER BY agents.name, agents.id`,
@@ -133,6 +133,16 @@ export function networkPayload(db: Database, userId: ID): NetworkPayload {
       .map(({ agent_id }) => agent_id)
       .filter((agentId) => agentId !== owner?.agent_id && !trustedIds.has(agentId)),
   )];
+  const agentById = new Map(allAgents.map((agent) => [agent.id, agent]));
+  const agentIds = [...new Set([
+    ...(owner?.agent_id ? [owner.agent_id] : []),
+    ...trusted,
+    ...discovered,
+  ])];
+  const agents = agentIds.flatMap((agentId) => {
+    const agent = agentById.get(agentId);
+    return agent ? [agent] : [];
+  });
 
   return { agents, trusted, discovered };
 }

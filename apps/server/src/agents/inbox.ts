@@ -185,6 +185,10 @@ export function createInboxHandlers({
       ack?.(ackError('NOT_FOUND', 'task not found or not owned by this user'));
       return;
     }
+    if (task.status !== 'active') {
+      ack?.(ackError('CONFLICT', 'This task is finished. Create or select an active task.'));
+      return;
+    }
     let ownerAgent;
     try {
       ownerAgent = agentByUser(db, userId);
