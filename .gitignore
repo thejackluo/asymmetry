@@ -9,3 +9,9 @@ asymmetry.db-journal
 .DS_Store
 # NOTE: .planning/ and .claude/ are intentionally NOT ignored —
 # they are committed spec + tooling that all four Devins build against.
+asymmetry.db-wal
+asymmetry.db-shm
+.env.development
+.env.test
+.env.production
+.env.*.local
