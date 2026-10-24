@@ -236,7 +236,10 @@ export function createAgentRuntime({
       return;
     }
     await executeToolCall(
-      contextFor(task, ownerAgent.id, ownerAgent.id, 'owner', null),
+      {
+        ...contextFor(task, ownerAgent.id, ownerAgent.id, 'owner', null),
+        allowOpenSubchatReport: true,
+      },
       {
         id: 'server-failure-report',
         name: 'report_to_human',
@@ -290,7 +293,7 @@ export function createAgentRuntime({
       if (typeof result.reply === 'string' && result.reply.trim().length > 0) {
         const subchats = listSubchatsByTask(db, taskId);
         if (subchats.length > 0 && subchats.every(({ status }) => status === 'closed')) {
-          await executeToolCall(ctx, {
+          await executeToolCall({ ...ctx, allowOpenSubchatReport: true }, {
             id: 'owner-text-report',
             name: 'report_to_human',
             args: {
@@ -380,6 +383,13 @@ export function createAgentRuntime({
           const execution = await executeToolCall(ctx, call);
           messages.push(toolResultMessage(call, execution.content));
           if (getTask(db, task.id)?.status !== 'active' || subchatById(db, subchatId)?.status !== 'open') {
+            return;
+          }
+          if (
+            call.name === 'send_subchat_message'
+            && !execution.content.startsWith('Error:')
+            && !execution.content.startsWith('Invalid arguments:')
+          ) {
             return;
           }
         }
