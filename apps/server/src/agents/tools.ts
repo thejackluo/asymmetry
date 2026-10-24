@@ -260,6 +260,16 @@ async function openSubchat(ctx: TrustedCtx, args: Args): Promise<string> {
   if (unauthorized.length > 0) {
     return `Error: peers are not in the task directory: ${unauthorized.join(', ')}`;
   }
+  const existingPeerIds = new Set(
+    listSubchatsByTask(ctx.db, ctx.taskId)
+      .filter(({ participantAgentIds }) => participantAgentIds.includes(ctx.ownerAgentId))
+      .flatMap(({ participantAgentIds }) =>
+        participantAgentIds.filter((agentId) => agentId !== ctx.ownerAgentId)),
+  );
+  const repeatedPeer = requestedIds.find((agentId) => existingPeerIds.has(agentId));
+  if (repeatedPeer) {
+    return `Error: peer already has a subchat in this task: ${repeatedPeer}`;
+  }
 
   const budget = ctx.rt.budgetFor(ctx.taskId);
   const peerSet = new Set([...budget.peers, ...requestedIds]);
@@ -331,12 +341,20 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
     body,
   });
   emitSubchatEvent(ctx.io, ctx.db, subchatId, EVENTS.SUBCHAT_MESSAGE, message);
-  for (const participantId of participants) {
-    if (participantId !== ctx.actingAgentId && participantId !== ctx.ownerAgentId) {
-      ctx.rt.runPeer(subchatId, participantId);
+  if (ctx.actingAgentId === ctx.ownerAgentId) {
+    for (const participantId of participants) {
+      if (participantId !== ctx.ownerAgentId) {
+        ctx.rt.runPeer(subchatId, participantId);
+      }
     }
-  }
-  if (ctx.actingAgentId !== ctx.ownerAgentId) {
+  } else {
+    closeSubchatAndNotify(
+      ctx.db,
+      ctx.io,
+      subchatId,
+      'done',
+      'Closed: peer provided a response.',
+    );
     ctx.rt.wakeOwner(ctx.taskId);
   }
   return JSON.stringify(message);
