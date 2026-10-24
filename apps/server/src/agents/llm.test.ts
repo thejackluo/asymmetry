@@ -38,6 +38,31 @@ describe('LLM adapters', () => {
     expect(Object.hasOwn(params, 'tools')).toBe(false);
   });
 
+  it('maps an explicit tool choice to OpenAI function calling', async () => {
+    openAICompletionCreate.mockClear();
+    openAICompletionCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: null, tool_calls: [] } }],
+    });
+
+    const llm = openAILLM({ apiKey: 'test-key' });
+    const scopeTool: ToolSpec = {
+      name: 'set_task_scope',
+      description: 'Set the task scope.',
+      parameters: { type: 'object' },
+    };
+    await Reflect.apply(llm.chat, llm, [
+      [message],
+      [scopeTool],
+      { toolChoice: { name: 'set_task_scope' } },
+    ]);
+
+    const params = openAICompletionCreate.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(params.tool_choice).toEqual({
+      type: 'function',
+      function: { name: 'set_task_scope' },
+    });
+  });
+
   it('returns mock script steps in order and records each request', async () => {
     const llm = mockLLM([
       { reply: 'first' },

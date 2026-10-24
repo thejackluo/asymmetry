@@ -1,8 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import { mockLLM } from './llm.js';
+import type { LLMClient, LLMMessage, ToolSpec } from './llm.js';
 import { ALLOWED_FIELDS, deriveScope, validateScopeRequest } from './scope.js';
 
 describe('canonical task scope', () => {
+  it('forces the structured scope tool instead of accepting a text reply', async () => {
+    const calls: Array<{ toolChoice?: { name: string } }> = [];
+    const llm = {
+      async chat(
+        _messages: LLMMessage[],
+        _tools: ToolSpec[],
+        opts?: { signal?: AbortSignal; toolChoice?: { name: string } },
+      ) {
+        calls.push({ toolChoice: opts?.toolChoice });
+        return opts?.toolChoice?.name === 'set_task_scope'
+          ? {
+              toolCalls: [{
+                id: 'scope-1',
+                name: 'set_task_scope',
+                args: { purpose: 'find a summer room', fields: ['location_area', 'price', 'dates'] },
+              }],
+            }
+          : { reply: 'I will look for a room.' };
+      },
+    } satisfies LLMClient;
+
+    await expect(deriveScope(llm, {
+      title: 'Find a summer room',
+      mainThread: 'Near campus, May through August.',
+    })).resolves.toEqual({
+      purpose: 'find a summer room',
+      fields: ['location_area', 'price', 'dates'],
+    });
+    expect(calls[0]?.toolChoice).toEqual({ name: 'set_task_scope' });
+  });
+
   it('derives a deduplicated allowlisted scope with one internal tool call', async () => {
     const llm = mockLLM([{
       toolCalls: [{
@@ -24,6 +56,30 @@ describe('canonical task scope', () => {
     });
     expect(llm.calls).toHaveLength(1);
     expect(llm.calls[0]?.tools.map(({ name }) => name)).toEqual(['set_task_scope']);
+  });
+
+  it('describes housing fields and constrains the schema to allowed fields', async () => {
+    const llm = mockLLM([{
+      toolCalls: [{
+        id: 'scope-1',
+        name: 'set_task_scope',
+        args: { purpose: 'find a summer room', fields: ['location_area', 'price', 'dates'] },
+      }],
+    }]);
+
+    await deriveScope(llm, {
+      title: 'Find a summer room',
+      mainThread: 'Near campus, May through August.',
+    });
+
+    const scopeTool = llm.calls[0]?.tools[0];
+    const properties = scopeTool?.parameters.properties as {
+      fields?: { items?: { enum?: string[] } };
+    };
+    expect(scopeTool?.description).toContain(
+      'Housing tasks typically need location_area, price and dates.',
+    );
+    expect(properties.fields?.items?.enum).toEqual(ALLOWED_FIELDS);
   });
 
   it('fails closed for absent tool calls, malformed arguments, or empty allowed fields', async () => {
