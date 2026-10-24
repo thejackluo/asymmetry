@@ -17,6 +17,7 @@ export interface SocketClient {
   connect(token: string): void;
   on<T>(event: string, cb: (payload: T) => void): () => void;
   emit(event: string, payload: unknown, ack?: Ack): void;
+  connected(): boolean;
   disconnect(): void;
 }
 
@@ -59,6 +60,10 @@ export class RealSocketClient implements SocketClient {
     } else {
       this.socket?.emit(event, payload);
     }
+  }
+
+  connected(): boolean {
+    return this.socket?.connected ?? false;
   }
 
   disconnect(): void {

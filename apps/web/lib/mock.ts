@@ -213,6 +213,10 @@ export class MockSocketClient implements SocketClient {
     if (ack) this.after(120, () => ack({ ok: true, data: payload }));
   }
 
+  connected(): boolean {
+    return true; // mock transport never goes offline
+  }
+
   disconnect(): void {
     this.timers.forEach(clearTimeout);
     this.timers = [];

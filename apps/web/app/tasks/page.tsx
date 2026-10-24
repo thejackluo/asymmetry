@@ -100,6 +100,13 @@ export default function TasksPage() {
             selectedId={selectedId}
             onSelect={setSelectedId}
             onCreate={(title, done) => {
+              // While disconnected, socket.io buffers emits and replays them
+              // on reconnect — a retry would double-create the task. Fail fast
+              // instead so the title is restored and nothing is queued.
+              if (!getSocket().connected()) {
+                done(false);
+                return;
+              }
               let settled = false;
               getSocket().emit(EVT.TASK_CREATE, { title }, (result) => {
                 settled = true;
