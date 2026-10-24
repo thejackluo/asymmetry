@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3';
+import type BetterSqlite3 from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   Agent,
@@ -12,6 +12,8 @@ import type {
   TrustEdge,
   User,
 } from '@asymmetry/shared';
+
+type Database = BetterSqlite3.Database;
 
 type TaskRow = {
   id: string;

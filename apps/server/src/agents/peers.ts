@@ -1,6 +1,8 @@
-import type Database from 'better-sqlite3';
+import type BetterSqlite3 from 'better-sqlite3';
 import type { Agent, ID } from '@asymmetry/shared';
 import { outgoingTrustEdges } from './repo.js';
+
+type Database = BetterSqlite3.Database;
 
 export type PeerHop = 1 | 2 | 'discovered';
 

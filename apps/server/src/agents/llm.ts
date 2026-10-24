@@ -95,12 +95,12 @@ export function openAILLM({
   return {
     async chat(messages, tools, opts) {
       const apiMessages = messages.map(toOpenAIMessage);
-      const apiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = tools.map((tool) => ({
+      const apiTools: OpenAI.Chat.Completions.ChatCompletionFunctionTool[] = tools.map((tool) => ({
         type: 'function',
         function: {
           name: tool.name,
           description: tool.description,
-          parameters: tool.parameters as OpenAI.Chat.Completions.ChatCompletionTool['function']['parameters'],
+          parameters: tool.parameters,
         },
       }));
 
@@ -120,11 +120,16 @@ export function openAILLM({
       }
 
       const message = completion.choices[0]?.message;
-      const toolCalls = message?.tool_calls?.map((call) => ({
-        id: call.id,
-        name: call.function.name,
-        args: parseToolArguments(call.function.arguments),
-      }));
+      const toolCalls = message?.tool_calls?.flatMap((call) => {
+        if (call.type !== 'function') {
+          return [];
+        }
+        return [{
+          id: call.id,
+          name: call.function.name,
+          args: parseToolArguments(call.function.arguments),
+        }];
+      });
 
       return {
         ...(typeof message?.content === 'string' ? { reply: message.content } : {}),
