@@ -20,6 +20,9 @@ instead of claiming an arbitrary branch.
 - Commit and push meaningful checkpoints every 2-3 minutes while editing.
 - Poll GitHub issues, updated comments, Projects, and PR reviews every five
   minutes; act immediately on relevant blockers. Mentions are not a scheduler.
+- At startup, launch a background GitHub watcher (subagent/child session/
+  loop) that runs that poll even during long work (runbook §4a).
+- Stay in your own branch and paths; ask other roles through issues (§4b).
 - Keep one task claim per active role/session; never duplicate another claim.
 - Open a draft PR early; record requirements, tests, evidence, and blockers.
 - Run the layer's exact verification before declaring it ready.

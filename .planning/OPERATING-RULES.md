@@ -53,7 +53,9 @@ PLAN (discussion + specs)
   (`[D1]` platform, `[D2]` runtime, `[D3]` memory, `[D4]` web, `[ALL]` broadcast).
 - **GitHub Projects = task board.** Keep your own cards' status current.
 - **Poll every ~5 minutes** while working: `gh issue list` + your project
-  column. Respond wherever you're tagged.
+  column. Respond wherever you're tagged. Run this poll in a **background
+  watcher subagent/loop** started at session start, so it keeps going during
+  long edits and tests (AUTONOMOUS-RUNBOOK §4a). ACK direct asks within ~5 min.
 - **Addressing**: use verified handles in TEAM.md and the role prefix.
   Sessions must poll updated comments; mentions do not automatically wake them.
 - **Blocked on another layer?** File an issue, tag the owner, keep building on
