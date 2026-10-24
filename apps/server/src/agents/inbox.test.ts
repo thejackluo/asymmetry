@@ -266,12 +266,14 @@ describe('agent inbox handlers', () => {
       })],
       "Alice's Agent": [
         llmTool('open_subchat', { taskId: task.id, agentIds: [FIXTURE_IDS.agents.bob] }),
+        { reply: 'I reached out to Bob and am waiting for a response.' },
         llmTool('report_to_human', {
           taskId: task.id,
           status: 'done',
           summary: 'I found a room and can propose a warm introduction.',
         }),
       ],
+      "Bob's Agent": [{ reply: 'I found a room that is available this summer.' }],
     });
     const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm });
     try {
@@ -282,6 +284,12 @@ describe('agent inbox handlers', () => {
       await runtime.idle();
 
       expect(getTaskScope(db, task.id)?.fields).toEqual(['location_area', 'price', 'dates']);
+      expect(getTask(db, task.id)?.status).toBe('active');
+      const subchat = db.prepare('SELECT id FROM subchats WHERE task_id = ?')
+        .get(task.id) as { id: string };
+      runtime.runPeer(subchat.id, FIXTURE_IDS.agents.bob);
+      await runtime.idle();
+
       expect(getTask(db, task.id)?.status).toBe('done');
       expect(emissions
         .filter(({ event, payload }) => event === EVENTS.AGENT_STATUS
@@ -294,6 +302,8 @@ describe('agent inbox handlers', () => {
       expect(llm.calls.map(({ route }) => route)).toEqual([
         'scope',
         "Alice's Agent",
+        "Alice's Agent",
+        "Bob's Agent",
         "Alice's Agent",
       ]);
     } finally {

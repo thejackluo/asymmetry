@@ -447,6 +447,42 @@ describe('agent runtime queues and loops', () => {
     }
   });
 
+  it('reports model-call exhaustion as stuck even when a subchat is open', async () => {
+    const db = createFixtureDb();
+    const { io } = createFakeIO();
+    const task = createScopedTask(db);
+    const subchat = createSubchat(db, task.id, [
+      FIXTURE_IDS.agents.alice,
+      FIXTURE_IDS.agents.bob,
+    ]);
+    const llm = routedLLM({
+      "Alice's Agent": Array.from({ length: 30 }, () => ({ reply: 'I am waiting for Bob.' })),
+    });
+    const runtime = createAgentRuntime({
+      io,
+      db,
+      memory: createFakeMemory().memory,
+      llm,
+    });
+    try {
+      for (let index = 0; index < 31; index += 1) {
+        runtime.wakeOwner(task.id);
+        await runtime.idle();
+      }
+
+      expect(llm.calls).toHaveLength(30);
+      expect(getTask(db, task.id)?.status).toBe('stuck');
+      expect(listSubchatsByTask(db, task.id).find(({ id }) => id === subchat.id)).toMatchObject({
+        status: 'closed',
+        outcome: 'stuck',
+      });
+      expect(listMainThreadMessages(db, task.id).some(({ body }) =>
+        body.includes('task model-call budget exhausted'))).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+
   it('lets independent Bob and Carol peer conversations progress concurrently', async () => {
     const db = createFixtureDb();
     const { io } = createFakeIO();

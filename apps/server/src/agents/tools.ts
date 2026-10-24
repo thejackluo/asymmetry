@@ -53,6 +53,7 @@ export interface TrustedCtx {
   actingAgentId: ID;
   mode: 'owner' | 'peer';
   subchatId: ID | null;
+  allowOpenSubchatReport?: boolean;
 }
 
 export const AGENT_TOOLS: ToolSpec[] = [
@@ -348,14 +349,37 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
       }
     }
   } else {
-    closeSubchatAndNotify(
-      ctx.db,
-      ctx.io,
-      subchatId,
-      'done',
-      'Closed: peer provided a response.',
+    const senderRows = ctx.db.prepare(
+      `SELECT sender_id
+       FROM messages
+       WHERE subchat_id = ? AND sender_type = 'agent'
+       ORDER BY rowid`,
+    ).all(subchatId) as Array<{ sender_id: ID }>;
+    let latestOwnerMessage = -1;
+    for (let index = 0; index < senderRows.length; index += 1) {
+      if (senderRows[index]?.sender_id === ctx.ownerAgentId) {
+        latestOwnerMessage = index;
+      }
+    }
+    const responders = new Set(
+      senderRows
+        .slice(latestOwnerMessage + 1)
+        .map(({ sender_id }) => sender_id)
+        .filter((agentId) => agentId !== ctx.ownerAgentId),
     );
-    ctx.rt.wakeOwner(ctx.taskId);
+    const allPeersReplied = participants
+      .filter((agentId) => agentId !== ctx.ownerAgentId)
+      .every((agentId) => responders.has(agentId));
+    if (allPeersReplied) {
+      closeSubchatAndNotify(
+        ctx.db,
+        ctx.io,
+        subchatId,
+        'done',
+        'Closed: all peers provided a response.',
+      );
+      ctx.rt.wakeOwner(ctx.taskId);
+    }
   }
   return JSON.stringify(message);
 }
@@ -402,6 +426,12 @@ async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
   const task = getTask(ctx.db, ctx.taskId);
   if (!task || task.userId !== ctx.taskOwnerUserId) {
     return 'Error: task owner context is invalid';
+  }
+  if (
+    !ctx.allowOpenSubchatReport
+    && listSubchatsByTask(ctx.db, ctx.taskId).some(({ status }) => status === 'open')
+  ) {
+    return 'Error: peers are still replying; end your turn with a short status message and you will be woken when they answer.';
   }
 
   const report = `${args.summary}${releasedFactsAppendix(ctx)}`;
