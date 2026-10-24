@@ -1,6 +1,5 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { once } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import { Server } from 'socket.io';
 import { io as createClient, type Socket as ClientSocket } from 'socket.io-client';
@@ -26,10 +25,18 @@ function waitForEvent(
 }
 
 async function connect(socket: ClientSocket): Promise<void> {
-  await Promise.race([
-    once(socket, 'connect').then(() => undefined),
-    once(socket, 'connect_error').then(([error]) => Promise.reject(error)),
-  ]);
+  await new Promise<void>((resolve, reject) => {
+    const onConnect = () => {
+      socket.off('connect_error', onError);
+      resolve();
+    };
+    const onError = (error: Error) => {
+      socket.off('connect', onConnect);
+      reject(error);
+    };
+    socket.once('connect', onConnect);
+    socket.once('connect_error', onError);
+  });
 }
 
 describe('agent socket integration', () => {
