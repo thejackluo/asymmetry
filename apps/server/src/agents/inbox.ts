@@ -236,10 +236,14 @@ export function createInboxHandlers({
           await reportStuck(rt, task, 'task model-call budget exhausted');
           return;
         }
-        scope = await deriveScope(timedLLM, {
-          title: task.title,
-          mainThread: listMainThreadMessages(db, task.id),
-        });
+        const mainThread = listMainThreadMessages(db, task.id);
+        try {
+          scope = await deriveScope(timedLLM, { title: task.title, mainThread });
+        } catch (error) {
+          logAgentError('scope derivation', error);
+          await reportStuck(rt, task, safeFailureReason(error));
+          return;
+        }
         if (scope) {
           db.transaction(() => {
             const canonical = getTaskScope(db, task.id);

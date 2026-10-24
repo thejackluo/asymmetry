@@ -8,6 +8,7 @@ import { createFakeIO } from './test/fakeIO.js';
 import { createFakeMemory } from './test/fakeMemory.js';
 import { routedLLM } from './test/routedLLM.js';
 import { executeToolCall, type RuntimeHooks, type TrustedCtx } from './tools.js';
+import { safeFailureReason } from './errors.js';
 
 const SENTINEL = 'SENTINEL-7f3a private 726 Spring St';
 
@@ -224,5 +225,38 @@ describe('safe agent failures', () => {
     for (const db of dbs) {
       db.close();
     }
+  });
+});
+
+describe('provider error classification', () => {
+  const cases: Array<[string, unknown, string]> = [
+    ['credit_balance_exhausted',
+      Object.assign(new Error('secret'), { status: 429, code: 'credit_balance_exhausted' }),
+      'Model service credits are exhausted. Add credits or configure a funded API key, then create a new task.'],
+    ['insufficient_quota',
+      Object.assign(new Error('secret'), { status: 429, code: 'insufficient_quota' }),
+      'Model service credits are exhausted. Add credits or configure a funded API key, then create a new task.'],
+    ['generic 429',
+      Object.assign(new Error('secret'), { status: 429 }),
+      'Model service rate limit reached. Wait briefly, then create a new task.'],
+    ['429 unknown code',
+      Object.assign(new Error('secret'), { status: 429, code: 'some_arbitrary_code' }),
+      'Model service rate limit reached. Wait briefly, then create a new task.'],
+    ['401',
+      Object.assign(new Error('secret'), { status: 401 }),
+      'Model service access was denied. Check the server API credentials and permissions, then create a new task.'],
+    ['403',
+      Object.assign(new Error('secret'), { status: 403 }),
+      'Model service access was denied. Check the server API credentials and permissions, then create a new task.'],
+    ['unknown status', Object.assign(new Error('secret'), { status: 500 }), 'model request failed'],
+    ['string status', Object.assign(new Error('secret'), { status: '429' }), 'model request failed'],
+    ['plain error', new Error('anything'), 'model request failed'],
+  ];
+  it.each(cases)('%s maps safely', (_label, error, expected) => {
+    const reason = safeFailureReason(error);
+    expect(reason).toBe(expected);
+    expect(reason).not.toContain('secret');
+    expect(reason).not.toContain('credit_balance_exhausted');
+    expect(reason).not.toContain('some_arbitrary_code');
   });
 });
