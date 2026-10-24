@@ -1,5 +1,13 @@
 'use client';
 
+// Canonical demo scope + fixture truth: the peer releases exactly the
+// fields the scope requests and withholds the rest of its six facts.
+// Fixture facts/counts must agree or the demo teaches a false base path.
+export const DEMO_SCOPE_FIELDS = ['location_area', 'price', 'dates'] as const;
+export const DEMO_TOTAL_FACTS = 6;
+export const BOB_RELEASED_FACTS =
+  'Room 0.4mi from GT campus · $950/mo · May 15–Aug 10';
+
 import type {
   Agent,
   DisclosureNotice,
@@ -107,16 +115,35 @@ const seedSubchatMessages: Message[] = [
     subchatId,
     senderType: 'agent',
     senderId: 'a-bob',
-    body: 'Room available 0.4mi from GT campus, $950/mo, May 15–Aug 10, furnished.',
+    body: `Room available — ${BOB_RELEASED_FACTS}.`,
     createdAt: NOW - 3_100_000,
   },
 ];
 
-let network: NetworkPayload = {
-  agents: agents.slice(0, 3),
-  trusted: ['a-bob', 'a-carol'],
-  discovered: [],
-};
+const NETWORK_KEY = 'asym_mock_network';
+
+function loadNetwork(): NetworkPayload {
+  if (typeof window !== 'undefined') {
+    const raw = window.localStorage.getItem(NETWORK_KEY);
+    if (raw) {
+      try {
+        return JSON.parse(raw) as NetworkPayload;
+      } catch {
+        window.localStorage.removeItem(NETWORK_KEY);
+      }
+    }
+  }
+  return { agents: agents.slice(0, 3), trusted: ['a-bob', 'a-carol'], discovered: [] };
+}
+
+let network: NetworkPayload = loadNetwork();
+
+function saveNetwork(next: NetworkPayload) {
+  network = next;
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(NETWORK_KEY, JSON.stringify(next));
+  }
+}
 
 export const mockApi = {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -257,7 +284,7 @@ export class MockSocketClient implements SocketClient {
     const subchatMsgs: [string, string][] = [
       ['a-alice', "info_request {scope:['location_area','price','dates']}"],
       ['a-bob', 'query_memory → releasing permitted facts'],
-      ['a-bob', 'Room 0.4mi from GT campus · $950/mo · May 15–Aug 10 · furnished'],
+      ['a-bob', BOB_RELEASED_FACTS],
       ['a-alice', 'Ack. Summarizing for Alice.'],
     ];
     subchatMsgs.forEach(([sender, body], i) => {
@@ -279,7 +306,7 @@ export class MockSocketClient implements SocketClient {
       subchatId: scId,
       ownerAgentId: 'a-bob',
       releasedCount: 3,
-      withheldCount: 2,
+      withheldCount: 3,
       decision: 'partial',
     };
     at(6600, EVT.DISCLOSURE_LOGGED, notice);
@@ -301,11 +328,11 @@ export class MockSocketClient implements SocketClient {
     } satisfies Message);
     at(8200, EVT.TASK_UPDATED, { taskId: p.taskId, status: 'done' });
     this.after(8600, () => {
-      network = {
+      saveNetwork({
         agents,
         trusted: ['a-bob', 'a-carol'],
         discovered: ['a-erin'],
-      };
+      });
       this.fire(EVT.NETWORK_UPDATED, network);
     });
   }

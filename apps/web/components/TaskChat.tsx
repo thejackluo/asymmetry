@@ -222,13 +222,19 @@ export default function TaskChat({
     timersRef.current.push(t);
   }
 
+  const taskStatusStyle: Record<Task['status'], string> = {
+    active: 'border-blue-200 bg-blue-50 text-blue-700',
+    done: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    stuck: 'border-amber-200 bg-amber-50 text-amber-700',
+  };
+
   const pill = !connected ? (
-    <span className="ml-3 shrink-0 rounded-full border border-amber-500/50 px-2 py-0.5 font-mono text-[10px] text-amber-400">
+    <span className="shrink-0 whitespace-nowrap rounded-full border border-amber-500/50 px-2 py-0.5 font-mono text-[10px] text-amber-400">
       reconnecting…
     </span>
   ) : (
     <span
-      className={`ml-3 shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] ${statusStyle[agentStatus]}`}
+      className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 font-mono text-[10px] ${statusStyle[agentStatus]}`}
     >
       {agentStatus === 'idle' ? 'agent idle' : `agent ${agentStatus}…`}
     </span>
@@ -236,11 +242,18 @@ export default function TaskChat({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-2">
+      <div className="flex items-center justify-between gap-2 border-b border-neutral-200 bg-white px-4 py-2">
         <h2 className="truncate text-sm font-medium text-neutral-900">
           {task.title}
         </h2>
-        {pill}
+        <div className="flex shrink-0 items-center gap-2">
+          <span
+            className={`whitespace-nowrap rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase ${taskStatusStyle[task.status]}`}
+          >
+            {task.status}
+          </span>
+          {pill}
+        </div>
       </div>
       <div
         ref={scrollRef}
