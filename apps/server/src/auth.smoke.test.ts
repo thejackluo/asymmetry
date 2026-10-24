@@ -396,19 +396,24 @@ describe('foundation smoke', () => {
   it('stub mode rejects demo/production', () => {
     const savedMode = process.env.APP_MODE;
     const savedEnv = process.env.NODE_ENV;
+    const savedKey = process.env.OPENAI_API_KEY;
     const restore = (key: string, value: string | undefined): void => {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     };
     try {
+      delete process.env.OPENAI_API_KEY;
       process.env.APP_MODE = 'demo';
       expect(() => stubMemoryEngine()).toThrow();
+      expect(() => createServer({ databasePath: join(dir, 'demo.db') })).toThrow('OPENAI_API_KEY is required outside development/test stub mode');
       delete process.env.APP_MODE;
       process.env.NODE_ENV = 'production';
       expect(() => stubMemoryEngine()).toThrow();
+      expect(() => createServer({ databasePath: join(dir, 'prod.db') })).toThrow('OPENAI_API_KEY is required outside development/test stub mode');
     } finally {
       restore('APP_MODE', savedMode);
       restore('NODE_ENV', savedEnv);
+      restore('OPENAI_API_KEY', savedKey);
     }
   });
 
