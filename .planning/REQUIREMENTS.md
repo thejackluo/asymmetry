@@ -399,6 +399,8 @@ No checkbox is complete merely because a file or a UI mock exists.
 - Trust is checked as ownerUserId -> requesterUserId, not the reverse.
 - Bob trusting Alice permits Alice's scoped room query; Alice trusting Bob alone does not.
 - Private facts never become peer-visible through a trusted relationship.
+- In a group, every observing participant must independently qualify.
+- A trusted sender cannot launder a network fact to untrusted group members.
 - Acceptance: exercise all nine classification/requester matrix cells.
 - Acceptance: reverse-only trust fails the network release case.
 - Evidence: table-driven permission tests with actual trust_edges rows.
@@ -636,6 +638,7 @@ No checkbox is complete merely because a file or a UI mock exists.
 - Append live peer messages only to the matching task/subchat.
 - Closed pane shows done/stuck outcome and the persisted summary.
 - History must reconstruct membership, transcript, closed status, and summary.
+- History also returns authorized disclosure notices for exact replay.
 - Multiple panes remain independently expandable during concurrent work.
 - Never merge a group's messages into a pair just because participants overlap.
 - Acceptance: refresh two simultaneous subchats and recover their exact states.

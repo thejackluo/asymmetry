@@ -98,14 +98,15 @@ Full list with IDs in `.planning/REQUIREMENTS.md`. Summary:
 
 1. Seed: `npm run seed` (alice, bob, carol, dave, erin — CONTRACTS.md §7).
 2. Open app, log in as `alice` / `demo`.
-3. New task: "Find a summer sublet near Georgia Tech, May–Aug, under $1200/mo."
+3. Create a housing task, then send in its chat:
+   "Find a summer sublet near Georgia Tech, May 15-August 10, under $1200/mo."
 4. Alice's agent asks ≤2 clarifying questions (or proceeds if seeded memory
    already answers them).
 5. Agent opens subchat with Bob's agent → negotiation messages stream live.
 6. Bob's agent calls `query_memory` with Alice as the trusted requester and
    the persisted housing scope → releases atomic room facts (network-classified),
    withholds address + phone (private) → `disclosure:logged` shows
-   "shared 3 · withheld 2".
+   "shared 3 · withheld 3" for the six-fact Bob fixture and three-field scope.
 7. Alice's agent reports: "Bob has a room 0.4mi from GT, $950/mo, May 15–Aug
    10. Want a warm intro?"
 8. Also query Erin's public housing tip; open `/network` — Bob/Carol solid

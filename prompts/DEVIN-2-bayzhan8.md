@@ -19,7 +19,7 @@ Mandatory execution loop: read `.planning/AUTONOMOUS-RUNBOOK.md` and use `.plann
 2. `.planning/PROJECT.md` — charter + demo script
 3. `CONTRACTS.md` — **law**; esp. §2 permission flow, §3 socket protocol, §6 tools
 4. `.planning/phases/02-agent-runtime/02-SPEC.md` — falsifiable requirements
-5. `.planning/phases/02-agent-runtime/02-01-PLAN.md` — **your executable plan; work its tasks in order, run every `<verify>`, meet every `<acceptance_criteria>`**
+5. Execute `02-01-PLAN.md`, `02-02-PLAN.md`, then `02-03-PLAN.md` in your phase folder. Use `.planning/REQUIREMENTS.md` for detailed acceptance; inspect `.planning/CONTEXT.md` for locked decisions. Do not restart already completed work: map existing commits to these batches and close only remaining gaps.
 
 ## You own exclusively
 - `apps/server/src/agents/**` — nothing else. `index.ts`, `db.ts`, `auth.ts` are D1's; memory internals are D3's.

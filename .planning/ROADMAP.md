@@ -45,7 +45,10 @@ extension points where D2/D3 plug in.
  3. Disposable SQLite database contains all 12 current contract tables
  4. `npm test` runs the auth smoke test green
  5. PR merged to `main` — team notified via issue comment "Phase 0 landed"
-**Plans**: 1 plan — `phases/01-foundation/01-01-PLAN.md`
+**Plans**: three sequential GSD batches:
+- `01-01-PLAN.md`: workspace, shared types, dependencies.
+- `01-02-PLAN.md`: database, authentication, composition.
+- `01-03-PLAN.md`: foundation smoke checks and dependency handoff.
 
 ### Phase 2: Agent Runtime & A2A Messaging — DEVIN 2
 
@@ -60,7 +63,10 @@ zero code change when it swaps)
  3. Runaway A2A loop halts at turn cap (test proves it)
  4. `report_to_human` flips task status; `agent:status` events fire
  5. `npx vitest run src/agents` green
-**Plans**: 1 plan — `phases/02-agent-runtime/02-01-PLAN.md`
+**Plans**: three sequential GSD batches:
+- `02-01-PLAN.md`: injectable model and context boundary.
+- `02-02-PLAN.md`: inbox, tools, peer scheduling, budgets.
+- `02-03-PLAN.md`: handler wiring, pair/group tests, review.
 
 ### Phase 3: Memory, Classification & Permissioning — DEVIN 3
 
@@ -74,7 +80,10 @@ request is permission-checked, scope-filtered, and audit-logged.
  3. Every query wrote a `disclosures` row; `disclosure:logged` emitted
  4. `npm run seed` idempotently creates the §7 scenario
  5. `npx vitest run src/memory` green
-**Plans**: 1 plan — `phases/03-memory-permissions/03-01-PLAN.md`
+**Plans**: three sequential GSD batches:
+- `03-01-PLAN.md`: atomic ingest and scoped disclosure implementation.
+- `03-02-PLAN.md`: authenticated memory route and permission matrix.
+- `03-03-PLAN.md`: stable fixtures and housing disclosure verification.
 
 ### Phase 4: Frontend — DEVIN 4
 
@@ -88,7 +97,10 @@ subchat panes + a network graph distinguishing trusted vs discovered agents.
  3. Disclosure line ("withheld N") renders in subchat
  4. `/network` renders ≥4 nodes, 2 edge styles, live updates
  5. `npm run build` + `tsc --noEmit` green
-**Plans**: 1 plan — `phases/04-frontend/04-01-PLAN.md`
+**Plans**: three sequential GSD batches:
+- `04-01-PLAN.md`: frontend scaffold, transport, login.
+- `04-02-PLAN.md`: tasks, main/peer chat, disclosure routing.
+- `04-03-PLAN.md`: network, browser checks, build verification.
 
 ### Phase 5: Integration & Demo Hardening — ALL
 
@@ -98,10 +110,26 @@ subchat panes + a network graph distinguishing trusted vs discovered agents.
 **Success Criteria**:
  1. All phase PRs merged; `main` boots clean from fresh clone
  2. Demo script runs end-to-end twice in a row without code edits
- 3. Reset procedure documented (re-seed = clean demo state)
+ 3. Reset procedure uses a fresh disposable DB, never wiping the shared DB
  4. Any P0/P1 bugs filed as issues, owned, and fixed
-**Plans**: coordinated live — integration bugs go to the owning layer's Devin
-via `[Dn]`-tagged issues.
+**Plans**: `phases/05-integration/05-01-PLAN.md`.
+Integration defects go to the owning layer via named `[Dn]` issues.
+
+### GSD Execution Waves
+
+| Wave | Plans | Parallelism |
+|------|-------|-------------|
+| 1 | 01-01 | Foundation workspace |
+| 2 | 01-02 | Depends on 01-01 |
+| 3 | 01-03 | Foundation readiness gate |
+| 4 | 02-01, 03-01, 04-01 | Three independent owners in parallel |
+| 5 | 02-02, 03-02, 04-02 | Each depends on its own prior batch only |
+| 6 | 02-03, 03-03, 04-03 | Layer verification in parallel |
+| 7 | 05-01 | Cross-layer demo/privacy gate |
+
+Do not restart work already completed under the earlier larger plans.
+Map existing commits to these batches and implement only uncovered acceptance.
+The preserved requirement IDs and expanded REQUIREMENTS.md govern readiness.
 
 ## Timeline
 
