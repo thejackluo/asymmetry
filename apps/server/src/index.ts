@@ -179,7 +179,8 @@ export function createServer(options: ServerOptions = {}): AsymmetryServer {
     });
     app.use(express.json({ limit: '256kb' }));
     app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-      if (err instanceof SyntaxError || (typeof err === 'object' && err !== null && 'status' in err && (err as { status: number }).status === 400)) {
+      const status = typeof err === 'object' && err !== null && 'status' in err ? (err as { status: number }).status : 0;
+      if (err instanceof SyntaxError || status === 400 || status === 413) {
         res.status(400).json({ error: { code: 'BAD_INPUT', message: 'invalid request' } });
         return;
       }
