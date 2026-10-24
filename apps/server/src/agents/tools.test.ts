@@ -44,27 +44,49 @@ function setup() {
   const budget = new Budget('task');
   type ReleasedFact = { id: string; ownerAgentName: string; text: string };
   const releasedFacts = new Map<string, Map<string, ReleasedFact>>();
+  const releasedFactIdsBySubchat = new Map<string, Map<string, Set<string>>>();
   const rt: RuntimeHooks & {
-    recordPeerFacts(taskId: string, ownerAgentName: string, facts: Array<{ id: string; text: string }>): void;
+    recordPeerFacts(
+      taskId: string,
+      subchatId: string,
+      ownerAgentName: string,
+      facts: Array<{ id: string; text: string }>,
+    ): void;
+    hasReleasedPeerFacts(taskId: string, subchatId: string): boolean;
     takePeerFacts(taskId: string): ReleasedFact[];
   } = {
     budgetFor: vi.fn(() => budget),
     wakeOwner: vi.fn(),
     reportOwnerFailure: vi.fn(async () => {}),
     runPeer: vi.fn(),
-    recordPeerFacts(taskId, ownerAgentName, facts) {
+    recordPeerFacts(taskId, subchatId, ownerAgentName, facts) {
       let byId = releasedFacts.get(taskId);
       if (!byId) {
         byId = new Map();
         releasedFacts.set(taskId, byId);
       }
+      let bySubchat = releasedFactIdsBySubchat.get(taskId);
+      if (!bySubchat) {
+        bySubchat = new Map();
+        releasedFactIdsBySubchat.set(taskId, bySubchat);
+      }
+      let factIds = bySubchat.get(subchatId);
+      if (!factIds) {
+        factIds = new Set();
+        bySubchat.set(subchatId, factIds);
+      }
       for (const fact of facts) {
         byId.set(fact.id, { ...fact, ownerAgentName });
+        factIds.add(fact.id);
       }
+    },
+    hasReleasedPeerFacts(taskId, subchatId) {
+      return (releasedFactIdsBySubchat.get(taskId)?.get(subchatId)?.size ?? 0) > 0;
     },
     takePeerFacts(taskId) {
       const facts = [...(releasedFacts.get(taskId)?.values() ?? [])];
       releasedFacts.delete(taskId);
+      releasedFactIdsBySubchat.delete(taskId);
       return facts;
     },
   };
@@ -402,7 +424,7 @@ describe('trusted-context agent tools', () => {
     }
   });
 
-  it('closes a subchat done after one explicit peer reply and wakes the owner once', async () => {
+  it('closes a no-fact subchat as stuck after an explicit peer reply', async () => {
     const { db, ownerCtx, rt, emissions } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
@@ -421,11 +443,13 @@ describe('trusted-context agent tools', () => {
       expect(result.content).toContain('authorized room facts');
       expect(listSubchatsByTask(db, ownerCtx.taskId)[0]).toMatchObject({
         status: 'closed',
-        outcome: 'done',
+        outcome: 'stuck',
+        summary: 'Closed: peers had no matching information.',
       });
       expect(emissions.find(({ event }) => event === EVENTS.SUBCHAT_CLOSED)?.payload).toMatchObject({
         subchatId: subchat.id,
-        outcome: 'done',
+        outcome: 'stuck',
+        summary: 'Closed: peers had no matching information.',
       });
       expect(vi.mocked(rt.wakeOwner)).toHaveBeenCalledTimes(1);
       expect(vi.mocked(rt.wakeOwner)).toHaveBeenCalledWith(ownerCtx.taskId);
@@ -466,7 +490,8 @@ describe('trusted-context agent tools', () => {
       await sendPeerReply(FIXTURE_IDS.agents.carol, 'Carol has nothing relevant.');
       expect(listSubchatsByTask(db, ownerCtx.taskId)[0]).toMatchObject({
         status: 'closed',
-        outcome: 'done',
+        outcome: 'stuck',
+        summary: 'Closed: peers had no matching information.',
       });
       expect(vi.mocked(rt.wakeOwner)).toHaveBeenCalledTimes(1);
       expect(vi.mocked(rt.wakeOwner)).toHaveBeenCalledWith(ownerCtx.taskId);
@@ -538,7 +563,7 @@ describe('trusted-context agent tools', () => {
     }
   });
 
-  it('A2A-06: blocks peer completion and lets the owner report and close open subchats', async () => {
+  it('A2A-06: blocks peer completion and lets the owner report after a peer reply', async () => {
     const { db, ownerCtx, emissions } = setup();
     try {
       const subchat = createSubchat(db, ownerCtx.taskId, [
@@ -577,7 +602,8 @@ describe('trusted-context agent tools', () => {
         .some(({ body }) => body.includes('warm introduction'))).toBe(true);
       expect(emissions.some(({ event }) => event === EVENTS.TASK_UPDATED)).toBe(true);
       expect(emissions.some(({ event, payload }) => event === EVENTS.SUBCHAT_CLOSED
-        && (payload as { outcome?: string }).outcome === 'done')).toBe(true);
+        && (payload as { outcome?: string; summary?: string }).outcome === 'stuck'
+        && (payload as { summary?: string }).summary === 'Closed: peers had no matching information.')).toBe(true);
     } finally {
       db.close();
     }
@@ -636,14 +662,14 @@ describe('trusted-context agent tools', () => {
         && (payload as { subchatId?: string }).subchatId === erinSubchat.id);
       expect(erinClosure?.payload).toEqual({
         subchatId: erinSubchat.id,
-        outcome: 'done',
-        summary: 'Closed: all peers provided a response.',
+        outcome: 'stuck',
+        summary: 'Closed: peers had no matching information.',
       });
       expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(erinSubchat.id)).toEqual({
-        summary: 'Closed: all peers provided a response.',
+        summary: 'Closed: peers had no matching information.',
       });
       expect(db.prepare('SELECT summary FROM subchats WHERE id = ?').get(bobSubchat.id)).toEqual({
-        summary: 'Closed: all peers provided a response.',
+        summary: 'Closed: peers had no matching information.',
       });
     } finally {
       db.close();
@@ -924,7 +950,7 @@ describe('trusted-context agent tools', () => {
         .filter(({ room }) => room === userRoom(FIXTURE_IDS.users.erin))
         .map(({ event, payload }) => `${event} ${JSON.stringify(payload)}`)
         .join('\n');
-      expect(erinPayloads).toContain('Closed: all peers provided a response.');
+      expect(erinPayloads).toContain('Closed: peers had no matching information.');
       expect(erinPayloads).not.toContain('$950');
       expect(erinPayloads).not.toContain('0.4mi');
       expect(erinPayloads).not.toContain('OWNER-ONLY-SENTINEL');

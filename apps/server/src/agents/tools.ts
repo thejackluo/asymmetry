@@ -30,9 +30,11 @@ export interface RuntimeHooks {
   runPeer(subchatId: ID, agentId: ID): void;
   recordPeerFacts?(
     taskId: ID,
+    subchatId: ID,
     ownerAgentName: string,
     facts: Array<{ id: ID; text: string }>,
   ): void;
+  hasReleasedPeerFacts?(taskId: ID, subchatId: ID): boolean;
   takePeerFacts?(taskId: ID): ReleasedPeerFact[];
 }
 
@@ -227,6 +229,7 @@ async function queryMemory(ctx: TrustedCtx, args: Args): Promise<string> {
     if (ownerAgent) {
       ctx.rt.recordPeerFacts?.(
         ctx.taskId,
+        ctx.subchatId!,
         ownerAgent.name,
         result.items.map(({ id, content }) => ({ id, text: content })),
       );
@@ -371,12 +374,15 @@ async function sendSubchatMessage(ctx: TrustedCtx, args: Args): Promise<string> 
       .filter((agentId) => agentId !== ctx.ownerAgentId)
       .every((agentId) => responders.has(agentId));
     if (allPeersReplied) {
+      const releasedFacts = ctx.rt.hasReleasedPeerFacts?.(ctx.taskId, subchatId) ?? false;
       closeSubchatAndNotify(
         ctx.db,
         ctx.io,
         subchatId,
-        'done',
-        'Closed: all peers provided a response.',
+        releasedFacts ? 'done' : 'stuck',
+        releasedFacts
+          ? 'Closed: all peers provided a response.'
+          : 'Closed: peers had no matching information.',
       );
       ctx.rt.wakeOwner(ctx.taskId);
     }
