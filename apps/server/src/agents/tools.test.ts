@@ -87,25 +87,13 @@ describe('trusted-context agent tools', () => {
         }));
         expect(rejected.content).toMatch(/^Error:/);
       }
-      db.prepare(
-        `INSERT INTO users (id, username, display_name, pass_hash, agent_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      ).run('user-frank', 'frank', 'Frank', 'fixture-hash', 'agent-frank', 6);
-      db.prepare(
-        'INSERT INTO agents (id, user_id, name, status) VALUES (?, ?, ?, ?)',
-      ).run('agent-frank', 'user-frank', "Frank's Agent", 'idle');
       const capBudget = ownerCtx.rt.budgetFor(ownerCtx.taskId);
-      for (const agentId of [
-        FIXTURE_IDS.agents.bob,
-        FIXTURE_IDS.agents.carol,
-        FIXTURE_IDS.agents.dave,
-        FIXTURE_IDS.agents.erin,
-      ]) {
+      for (const agentId of ['agent-one', 'agent-two', 'agent-three', 'agent-four']) {
         capBudget.addPeer(agentId);
       }
       const capResult = await executeToolCall(ownerCtx, toolCall('open_subchat', {
         taskId: ownerCtx.taskId,
-        agentIds: ['agent-frank'],
+        agentIds: [FIXTURE_IDS.agents.erin],
       }));
       expect(capResult.content).toContain('peer cap');
 
