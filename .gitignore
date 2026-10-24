@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.next/
+*.tsbuildinfo
+.env
+.env.local
+asymmetry.db
+asymmetry.db-journal
+.DS_Store
+# NOTE: .planning/ and .claude/ are intentionally NOT ignored —
+# they are committed spec + tooling that all four Devins build against.
