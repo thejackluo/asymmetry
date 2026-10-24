@@ -14,7 +14,8 @@ showing trusted vs discovered agents — all over Socket.IO per CONTRACTS §3/§
 
 You own everything judges see (`apps/web/**`). Backend is built in parallel —
 your socket layer goes behind a `SocketClient` interface with a mock so you
-never block. Dark/hacker aesthetic; Tailwind only; no component library.
+never block. Design direction: issue #7 (Jack, supersedes earlier styling notes); Tailwind only; no component library.
+
 
 ## Requirements
 
@@ -62,6 +63,10 @@ optional utils tests inside apps/web.
 - If `@asymmetry/shared` resolves in the workspace use it; else copy §1 types
   to `lib/types.ts` and note it in the PR — don't block on it
 - Design for the demo script first (PROJECT.md §Demo Script), generic second
+- The UI is also operated by external agents (Muse / Claude computer use /
+  OpenAI agent) acting as the user (README "Vision"). Login, task input/send,
+  task list and results need visible text labels and stable `aria-label`s
+  (or `data-testid`), and no hover-only or icon-only critical controls
 
 ## Acceptance Criteria
 

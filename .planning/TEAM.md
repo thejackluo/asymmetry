@@ -18,6 +18,9 @@ three names supplied in chat. Change assignments here explicitly if needed.
 
 ## Jack's Coordinator Role
 
+- Jack is the head agent. When sessions or documents conflict, Jack's (D1)
+  decision overrides. Others raise disagreements in a GitHub issue; they do
+  not change D1-owned files directly.
 - Maintain the shared contracts and dependency/ownership decisions.
 - Coordinate foundation readiness and the integration merge sequence.
 - Route cross-layer blockers to Bayzhan, Jad, or Akash through GitHub issues.

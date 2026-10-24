@@ -52,6 +52,24 @@ one allowed inside `apps/server/src/agents/**`.
    contexts exclude unrelated goals and main-thread histories.
    - Acceptance: prompt builder rejects private/unrelated context and peer instructions
 
+8. **Network search depth (1–2 handshakes)**: the originating agent picks
+   peers by request. It asks directly trusted agents (hop 1) first. It widens
+   to discovered agents (hop 2, friends-of-friends) when the request needs a
+   wider net (housing, cars, jobs) or hop 1 returns too few options. Hop-2
+   peers release only `public` facts (CONTRACTS §2; discovered is not a
+   permission level). The total stays at ≤4 peers per task (IMPLEMENTATION-DECISIONS §5).
+   - Current: nothing
+   - Target: `report_to_human` summary lists a couple of options, each with a
+     warm-intro *proposal*; nothing is sent, booked or revealed without consent
+   - Acceptance: scripted LLMClient on Alice's sublet task contacts trusted
+     peers, then discovered Erin; never opens subchats with >4 peers; Erin's
+     replies contain only public facts
+
+9. **External agent as the human**: the task may be opened by the user's own
+   external agent (Muse / Claude computer use / OpenAI agent) driving the web
+   app as that user. The runtime treats it exactly like the human: same
+   authenticated identity, same task scope. It adds no new API or contract.
+
 ## Boundaries
 
 **In scope:** everything under `src/agents/**`; emitting all §3 events your

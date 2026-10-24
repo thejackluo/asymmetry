@@ -77,7 +77,38 @@ P1 for core-path failure; P2 for nonblocking polish.
   Jack. Never silently treat the task board as updated.
 - Before a session stops, post its last SHA, task status, and next action.
 
-## 5. Two-To-Three-Minute Checkpoints
+### 4a. Mandatory GitHub Watcher (Background Subagent)
+
+Coding work must not block communication, so the inbox loop runs on its own.
+- At startup, every session starts a background watcher alongside its main
+  work. The watcher can be a subagent, a child session, a background shell
+  loop, or a scheduled job, whatever the tool supports. It runs §4 every
+  five minutes on its own, even during long edits, builds, or tests.
+- The watcher reads issues, comments, PR reviews/requested changes, and
+  Projects. It reports new items addressed to this role (or `[ALL]`) back to
+  the main session, which acts on them at its next step.
+- The watcher may post read-receipts and status replies (`ACK Dn/session-id`,
+  "working on it, ETA …") and must never edit code, close others' issues,
+  merge, or change claims.
+- A direct question or a blocker that names this role gets at least an ACK
+  within ~5 minutes; answer it fully or route it to Jack within ~15.
+- Refresh the registry `last-seen` timestamp at least every 15 minutes. If a
+  session's `last-seen` is more than 15 minutes old, Jack may treat its claim
+  as stale and re-assign it after an issue comment.
+- If the tooling can't run a watcher, say so in the registry entry and poll
+  manually between steps (never more than five minutes apart).
+
+### 4b. Clean Separation
+
+- One role = one branch (`devin-N`) = one owned path set (TEAM.md). Never
+  edit another role's paths, even to unblock yourself. Instead, file
+  `[Dn Name]` with the exact request and keep working against your stub.
+- One claim per session. Each issue has one owner, and each PR covers one
+  coherent increment, linked to its issue and requirement IDs.
+- Every cross-role message goes in an issue or PR comment, not only in a
+  commit message, PR description, or code comment.
+- Jack (D1, head agent) has the final say on scope, ownership, and conflicts.
+
 
 Repository-owner author identity: use `Jack Luo <30420522+thejackluo@users.noreply.github.com>` for authorized project commits as requested by Jack. This session pushes through `@thejackluo`. Do not use Bayzhan/Jad/Akash as commit authors solely because they own a task. Never copy or share Jack's credentials; another operator without authorized account access must report the publishing blocker rather than impersonate an account. Git author metadata and authenticated push identity are separate checks.
 
@@ -85,7 +116,9 @@ Repository-owner author identity: use `Jack Luo <30420522+thejackluo@users.norep
 - Review the diff and stage explicit owned paths, not blind `git add -A`.
 - Check for secrets, fixture PII, unrelated files, and generated junk.
 - Commit a coherent checkpoint even if it is WIP; label incomplete work.
-- Push your role branch and keep its draft PR current.
+- Push your role branch and keep its draft PR current. Update the PR body
+  (status, tested SHA, blockers) at least every ~30 minutes; open the draft
+  PR within the first ~15 minutes of editing, not at the end.
 - Record the actual push result and SHA. A local commit is not a push.
 - If nothing meaningful changed, keep working; do not manufacture a commit.
 - If push is rejected, fetch and inspect. Do not force-push or rewrite shared
@@ -182,4 +215,46 @@ At the end of the active build window, each owner posts:
 - Remaining bugs, exact repro, next owner/action.
 
 Jack runs integrated verification and the live demo rehearsal.
+
+## 10a. Submission Deadline And Test-Driven Rule
+
+Hard deadline: **5:00 PM ET, 2026-10-24**, on the GT Hacker House dashboard
+(https://www.gthackerhouse.com/events/devin-hackathon/dashboard).
+
+| Time (ET) | Gate |
+|-----------|------|
+| 15:30 | All four layers merged to `main` (D1 first, then D3/D2/D4) |
+| 16:15 | Integrated base demo passes on `main` (automated, Jack's rehearsal) |
+| 16:30 | Freeze: bug fixes only; capture screenshots/recording |
+| 16:45 | Human operator submits |
+
+Prioritize the base housing demo over stretch goals. If a gate slips, cut
+scope; never move the deadline.
+
+Test-driven (operator request): failing test first, then code. Every
+requirement and bug fix has an automated regression test. Bug reports carry a
+failing test or exact repro. Evidence = command + exit code + SHA. Manual
+checks are not evidence. Mocked LLM and disposable DB in tests; live-OpenAI
+smoke runs are labelled separately.
+
+## 11. Keep Working Until The Project Is Done
+
+Operator request: all Devins keep working until the whole project is done.
+- A session does not stop when its own PR is ready or merged. The watcher
+  (§4a) keeps running, and the session takes the next item from this list,
+  in order:
+  1. its own review findings and bugs;
+  2. `[Dn]` issues routed to its role;
+  3. integration bugs Jack routes after merges;
+  4. more regression tests, and demo polish, in its own paths;
+  5. independent review of another role's PR, when it's a different model
+     from that PR's implementer.
+- Claim every item with `CLAIM Dn/session-id`. Never edit another role's
+  paths just to stay busy.
+- Done means: Jack posts `[ALL] DONE` after the demo script passes
+  end-to-end (PROJECT.md Definition of Done). Only then may sessions stop,
+  each after posting its last SHA/status (§10).
+- If a session must stop earlier (credits, crash, operator), it posts its
+  last SHA, status and next action in its claim issue so another session
+  can resume.
 No agent claims the application is complete based only on these documents.

@@ -11,6 +11,8 @@ across a trusted network. You build the differentiator: memory classified
 public/network/private (fail-closed) and scoped, audited disclosure — agents
 only ever see what a task strictly requires.
 
+First action: start a background GitHub watcher (subagent, child session, or loop) that polls issues, comments, PR reviews and Projects every five minutes and ACKs direct asks (runbook §4a); stay strictly inside your owned paths (§4b). Keep working until Jack posts `[ALL] DONE` (§11); a ready PR is not the end.
+
 Mandatory execution loop: read `.planning/AUTONOMOUS-RUNBOOK.md` and use `.planning/REVIEW-INSTRUCTIONS.md` for fresh different-model review of each pushed candidate SHA. Claim tasks, poll issues/comments/Projects every five minutes, commit and push meaningful checkpoints every 2-3 minutes, run the phase checks, fix findings, and send the reviewed SHA to Jack for merge. Report missing review capability as blocked; never fabricate approval.
 
 ## Your spec (read in this order)
