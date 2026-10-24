@@ -139,6 +139,7 @@ export function createAgentRuntime({
   const ownerWakeStates = new Map<ID, OwnerWakeState>();
   const queueTails = new Map<string, Promise<void>>();
   const releasedPeerFacts = new Map<ID, Map<ID, ReleasedPeerFact>>();
+  const releasedPeerFactIdsBySubchat = new Map<ID, Map<ID, Set<ID>>>();
   const idleWaiters = new Set<() => void>();
   let activeJobs = 0;
 
@@ -153,6 +154,7 @@ export function createAgentRuntime({
 
   function recordPeerFacts(
     taskId: ID,
+    subchatId: ID,
     ownerAgentName: string,
     facts: Array<{ id: ID; text: string }>,
   ): void {
@@ -161,14 +163,30 @@ export function createAgentRuntime({
       factsById = new Map();
       releasedPeerFacts.set(taskId, factsById);
     }
+    let factIdsBySubchat = releasedPeerFactIdsBySubchat.get(taskId);
+    if (!factIdsBySubchat) {
+      factIdsBySubchat = new Map();
+      releasedPeerFactIdsBySubchat.set(taskId, factIdsBySubchat);
+    }
+    let subchatFactIds = factIdsBySubchat.get(subchatId);
+    if (!subchatFactIds) {
+      subchatFactIds = new Set();
+      factIdsBySubchat.set(subchatId, subchatFactIds);
+    }
     for (const fact of facts) {
       factsById.set(fact.id, { ...fact, ownerAgentName });
+      subchatFactIds.add(fact.id);
     }
+  }
+
+  function hasReleasedPeerFacts(taskId: ID, subchatId: ID): boolean {
+    return (releasedPeerFactIdsBySubchat.get(taskId)?.get(subchatId)?.size ?? 0) > 0;
   }
 
   function takePeerFacts(taskId: ID): ReleasedPeerFact[] {
     const facts = [...(releasedPeerFacts.get(taskId)?.values() ?? [])];
     releasedPeerFacts.delete(taskId);
+    releasedPeerFactIdsBySubchat.delete(taskId);
     return facts;
   }
 
@@ -210,6 +228,7 @@ export function createAgentRuntime({
       reportOwnerFailure,
       runPeer,
       recordPeerFacts,
+      hasReleasedPeerFacts,
       takePeerFacts,
     };
     return {
@@ -298,7 +317,7 @@ export function createAgentRuntime({
             name: 'report_to_human',
             args: {
               taskId,
-              status: 'done',
+              status: subchats.some(({ outcome }) => outcome === 'done') ? 'done' : 'stuck',
               summary: result.reply,
             },
           });
