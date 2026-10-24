@@ -7,6 +7,7 @@ import { EVENTS } from './events.js';
 import {
   agentHasOtherActiveSubchat,
   agentById,
+  agentByUser,
   createSubchat,
   getTask,
   getTaskScope,
@@ -148,6 +149,34 @@ async function queryMemory(ctx: TrustedCtx, args: Args): Promise<string> {
   if (!actingOwner || args.ownerUserId !== actingOwner.id) {
     return 'Error: memory access is limited to the acting agent’s owner';
   }
+  const task = getTask(ctx.db, ctx.taskId);
+  if (!task) {
+    return 'Error: task is not available';
+  }
+  if (ctx.mode === 'owner' && task.userId !== actingOwner.id) {
+    return 'Error: owner memory reads require an owned task';
+  }
+  if (ctx.mode === 'peer') {
+    if (!ctx.subchatId) {
+      return 'Error: peer memory reads require a subchat';
+    }
+    const subchat = subchatById(ctx.db, ctx.subchatId);
+    const participants = subchat ? listParticipants(ctx.db, subchat.id) : [];
+    const taskOwnerAgent = agentByUser(ctx.db, ctx.taskOwnerUserId);
+    if (
+      !subchat
+      || subchat.taskId !== ctx.taskId
+      || subchat.status !== 'open'
+      || !participants.includes(ctx.actingAgentId)
+      || !participants.includes(ctx.ownerAgentId)
+      || !taskOwnerAgent
+      || taskOwnerAgent.id !== ctx.ownerAgentId
+      || !participants.includes(taskOwnerAgent.id)
+      || task.userId !== ctx.taskOwnerUserId
+    ) {
+      return 'Error: peer memory reads require task participants in an open subchat';
+    }
+  }
   const canonical = getTaskScope(ctx.db, ctx.taskId);
   if (!canonical) {
     return 'Error: canonical task scope is not available';
@@ -157,12 +186,20 @@ async function queryMemory(ctx: TrustedCtx, args: Args): Promise<string> {
     return `Error: fields outside the canonical task scope: ${scope.fields.join(', ')}`;
   }
   const requesterUserId = ctx.mode === 'owner' ? actingOwner.id : ctx.taskOwnerUserId;
-  const result = await ctx.memory.queryMemory(actingOwner.id, requesterUserId, {
-    taskId: ctx.taskId,
-    purpose: canonical.purpose,
-    fields: scope.fields,
-    ...(ctx.subchatId ? { subchatId: ctx.subchatId } : {}),
-  });
+  if (ctx.mode === 'peer' && !ctx.subchatId) {
+    return 'Error: peer memory reads require a subchat';
+  }
+  let result: Awaited<ReturnType<MemoryEngine['queryMemory']>>;
+  try {
+    result = await ctx.memory.queryMemory(actingOwner.id, requesterUserId, {
+      taskId: ctx.taskId,
+      purpose: canonical.purpose,
+      fields: scope.fields,
+      ...(ctx.mode === 'peer' ? { subchatId: ctx.subchatId! } : {}),
+    });
+  } catch {
+    return 'Error: no data available for this request';
+  }
   return JSON.stringify({
     facts: result.items.map((item) => item.content),
     withheldCount: result.withheldCount,

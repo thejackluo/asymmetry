@@ -1,4 +1,4 @@
-import type { ID, MemoryEngine, Message, Task } from '@asymmetry/shared';
+import type { CommandResult, ErrorCode, ID, MemoryEngine, Message, Task } from '@asymmetry/shared';
 import { userRoom } from '@asymmetry/shared';
 import type { Server, Socket } from 'socket.io';
 import type { Database } from '../db.js';
@@ -22,11 +22,11 @@ import { deriveScope } from './scope.js';
 import type { RuntimeHooks } from './tools.js';
 import { buildOwnerPrompt } from './persona.js';
 
-export type InboxAck = (result: { ok: true; task?: Task; message?: Message } | { ok: false; error: string }) => void;
+export type InboxAck<T> = (result: CommandResult<T>) => void;
 
 export interface AgentInboxHandlers {
-  handleTaskCreate(socket: Socket, payload: unknown, ack?: InboxAck): Promise<void>;
-  handleChatSend(socket: Socket, payload: unknown, ack?: InboxAck): Promise<void>;
+  handleTaskCreate(socket: Socket, payload: unknown, ack?: InboxAck<Task>): Promise<void>;
+  handleChatSend(socket: Socket, payload: unknown, ack?: InboxAck<Message>): Promise<void>;
 }
 
 interface CreateInboxHandlersOptions {
@@ -45,6 +45,12 @@ interface RecordValue {
 function isRecord(value: unknown): value is RecordValue {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
+
+function ackError<T>(code: ErrorCode, message: string): CommandResult<T> {
+  return { ok: false, error: { code, message } };
+}
+
+const INTERNAL_ERROR_MESSAGE = 'Internal server error';
 
 function errorReason(error: unknown, timeoutMs: number): string {
   if (error instanceof LLMTimeoutError) {
@@ -100,20 +106,28 @@ export function createInboxHandlers({
 }: CreateInboxHandlersOptions): AgentInboxHandlers {
   const timedLLM = withTimeout(llm, timeoutMs);
 
-  async function handleTaskCreate(socket: Socket, payload: unknown, ack?: InboxAck): Promise<void> {
+  async function handleTaskCreate(
+    socket: Socket,
+    payload: unknown,
+    ack?: InboxAck<Task>,
+  ): Promise<void> {
     const userId = socket.data.userId;
     if (typeof userId !== 'string' || userId.length === 0) {
-      ack?.({ ok: false, error: 'authenticated user is required' });
+      ack?.(ackError('UNAUTHORIZED', 'authenticated user is required'));
       return;
     }
     const title = isRecord(payload) && typeof payload.title === 'string' ? payload.title.trim() : '';
     if (title.length < 1 || title.length > 200) {
-      ack?.({ ok: false, error: 'title must be between 1 and 200 characters' });
+      ack?.(ackError('BAD_INPUT', 'title must be between 1 and 200 characters'));
       return;
     }
-    const task = createTask(db, userId, title);
-    io.to(userRoom(userId)).emit(EVENTS.TASK_CREATED, task);
-    ack?.({ ok: true, task });
+    try {
+      const task = createTask(db, userId, title);
+      io.to(userRoom(userId)).emit(EVENTS.TASK_CREATED, task);
+      ack?.({ ok: true, data: task });
+    } catch {
+      ack?.(ackError('INTERNAL_ERROR', INTERNAL_ERROR_MESSAGE));
+    }
   }
 
   async function askClarifyingQuestion(task: Task, agentId: ID, clarificationsUsed: number): Promise<void> {
@@ -149,41 +163,64 @@ export function createInboxHandlers({
     }
   }
 
-  async function handleChatSend(socket: Socket, payload: unknown, ack?: InboxAck): Promise<void> {
+  async function handleChatSend(
+    socket: Socket,
+    payload: unknown,
+    ack?: InboxAck<Message>,
+  ): Promise<void> {
     const userId = socket.data.userId;
     if (typeof userId !== 'string' || userId.length === 0) {
-      ack?.({ ok: false, error: 'authenticated user is required' });
+      ack?.(ackError('UNAUTHORIZED', 'authenticated user is required'));
       return;
     }
     if (
       !isRecord(payload)
       || typeof payload.taskId !== 'string'
+      || payload.taskId.trim().length === 0
       || typeof payload.body !== 'string'
       || payload.body.trim().length === 0
       || payload.body.length > 4000
     ) {
-      ack?.({ ok: false, error: 'taskId and a non-empty body of at most 4000 characters are required' });
+      ack?.(ackError('BAD_INPUT', 'taskId and a non-empty body of at most 4000 characters are required'));
       return;
     }
-    const task = getTask(db, payload.taskId);
+    let task: Task | undefined;
+    try {
+      task = getTask(db, payload.taskId);
+    } catch {
+      ack?.(ackError('INTERNAL_ERROR', INTERNAL_ERROR_MESSAGE));
+      return;
+    }
     if (!task || task.userId !== userId) {
-      ack?.({ ok: false, error: 'task not found or not owned by this user' });
+      ack?.(ackError('NOT_FOUND', 'task not found or not owned by this user'));
       return;
     }
-    const ownerAgent = agentByUser(db, userId);
+    let ownerAgent;
+    try {
+      ownerAgent = agentByUser(db, userId);
+    } catch {
+      ack?.(ackError('INTERNAL_ERROR', INTERNAL_ERROR_MESSAGE));
+      return;
+    }
     if (!ownerAgent) {
-      ack?.({ ok: false, error: 'task owner agent is unavailable' });
+      ack?.(ackError('INTERNAL_ERROR', INTERNAL_ERROR_MESSAGE));
       return;
     }
 
-    const humanMessage = insertMessage(db, {
-      taskId: task.id,
-      senderType: 'human',
-      senderId: userId,
-      body: payload.body,
-    });
-    emitMainMessage(io, userId, humanMessage);
-    ack?.({ ok: true, message: humanMessage });
+    let humanMessage: Message;
+    try {
+      humanMessage = insertMessage(db, {
+        taskId: task.id,
+        senderType: 'human',
+        senderId: userId,
+        body: payload.body,
+      });
+      emitMainMessage(io, userId, humanMessage);
+      ack?.({ ok: true, data: humanMessage });
+    } catch {
+      ack?.(ackError('INTERNAL_ERROR', INTERNAL_ERROR_MESSAGE));
+      return;
+    }
 
     try {
       await memory.ingest(userId, payload.body, 'chat');

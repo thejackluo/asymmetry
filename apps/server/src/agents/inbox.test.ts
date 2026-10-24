@@ -26,7 +26,7 @@ describe('agent inbox handlers', () => {
     const llm = routedLLM({});
     const runtime = createAgentRuntime({ io, db, memory: createFakeMemory().memory, llm });
     try {
-      const createdAck = vi.fn(() => {
+      const createdAck = vi.fn((_result: unknown) => {
         expect(db.prepare('SELECT COUNT(*) AS count FROM tasks').get()).toEqual({ count: 1 });
       });
       await runtime.handleTaskCreate(fakeSocket(FIXTURE_IDS.users.alice), { title: '  Find a room  ' }, createdAck);
@@ -34,7 +34,7 @@ describe('agent inbox handlers', () => {
         ok: true,
         data: expect.objectContaining({ title: 'Find a room' }),
       });
-      expect(Object.keys(createdAck.mock.calls[0]?.[0] as object).sort()).toEqual(['data', 'ok']);
+      expect(Object.keys(createdAck.mock.calls[0]?.[0] as Record<string, unknown>).sort()).toEqual(['data', 'ok']);
       expect(emissions.filter(({ event }) => event === EVENTS.TASK_CREATED)).toHaveLength(1);
       expect(llm.calls).toHaveLength(0);
 
@@ -154,7 +154,7 @@ describe('agent inbox handlers', () => {
     });
     const runtime = createAgentRuntime({ io, db, memory, llm });
     try {
-      const ack = vi.fn(() => {
+      const ack = vi.fn((_result: unknown) => {
         expect(listMainThreadMessages(db, task.id)
           .some(({ senderType, body }) => senderType === 'human' && body === 'Need a summer room.')).toBe(true);
       });
@@ -171,7 +171,7 @@ describe('agent inbox handlers', () => {
           body: 'Need a summer room.',
         }),
       });
-      expect(Object.keys(ack.mock.calls[0]?.[0] as object).sort()).toEqual(['data', 'ok']);
+      expect(Object.keys(ack.mock.calls[0]?.[0] as Record<string, unknown>).sort()).toEqual(['data', 'ok']);
       expect(listMainThreadMessages(db, task.id).filter(({ senderType }) => senderType === 'human')).toHaveLength(1);
       expect(emissions.filter(({ event, payload }) =>
         event === EVENTS.CHAT_MESSAGE && (payload as { senderType?: string }).senderType === 'human')).toHaveLength(1);

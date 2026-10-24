@@ -48,6 +48,17 @@ type MessageRow = {
   created_at: number;
 };
 
+type SubchatRow = {
+  id: ID;
+  task_id: ID;
+  kind: Subchat['kind'];
+  status: Subchat['status'];
+  outcome: Subchat['outcome'];
+  summary: string | null;
+  closed_at: number | null;
+  created_at: number;
+};
+
 function taskFromRow(row: TaskRow): Task {
   return {
     id: row.id,
@@ -156,12 +167,26 @@ export function createSubchat(
     kind: participantIds.length === 2 ? 'pair' : 'group',
     participantAgentIds: participantIds,
     status: 'open',
+    outcome: null,
+    summary: null,
+    closedAt: null,
     createdAt: Date.now(),
   };
   db.transaction(() => {
     db.prepare(
-      'INSERT INTO subchats (id, task_id, kind, status, created_at) VALUES (?, ?, ?, ?, ?)',
-    ).run(subchat.id, subchat.taskId, subchat.kind, subchat.status, subchat.createdAt);
+      `INSERT INTO subchats
+        (id, task_id, kind, status, outcome, summary, closed_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      subchat.id,
+      subchat.taskId,
+      subchat.kind,
+      subchat.status,
+      subchat.outcome,
+      subchat.summary,
+      subchat.closedAt,
+      subchat.createdAt,
+    );
     const insertParticipant = db.prepare(
       'INSERT INTO subchat_participants (subchat_id, agent_id) VALUES (?, ?)',
     );
@@ -180,8 +205,17 @@ export function listParticipants(db: Database, subchatId: ID): ID[] {
   ).map(({ agent_id }) => agent_id);
 }
 
-export function closeSubchat(db: Database, subchatId: ID): boolean {
-  return db.prepare('UPDATE subchats SET status = ? WHERE id = ?').run('closed', subchatId).changes > 0;
+export function closeSubchat(
+  db: Database,
+  subchatId: ID,
+  outcome: Subchat['outcome'],
+  summary: string,
+  closedAt = Date.now(),
+): boolean {
+  return db.prepare(
+    `UPDATE subchats SET status = 'closed', outcome = ?, summary = ?, closed_at = ?
+     WHERE id = ? AND status = 'open'`,
+  ).run(outcome, summary, closedAt, subchatId).changes > 0;
 }
 
 export interface InsertMessageInput {
@@ -264,20 +298,18 @@ export function listSubchatMessages(db: Database, subchatId: ID): Message[] {
 
 export function listSubchatsByTask(db: Database, taskId: ID): Subchat[] {
   const rows = db.prepare(
-    'SELECT id, task_id, kind, status, created_at FROM subchats WHERE task_id = ? ORDER BY created_at, rowid',
-  ).all(taskId) as Array<{
-    id: ID;
-    task_id: ID;
-    kind: Subchat['kind'];
-    status: Subchat['status'];
-    created_at: number;
-  }>;
+    `SELECT id, task_id, kind, status, outcome, summary, closed_at, created_at
+     FROM subchats WHERE task_id = ? ORDER BY created_at, rowid`,
+  ).all(taskId) as SubchatRow[];
   return rows.map((row) => ({
     id: row.id,
     taskId: row.task_id,
     kind: row.kind,
     participantAgentIds: listParticipants(db, row.id),
     status: row.status,
+    outcome: row.outcome,
+    summary: row.summary,
+    closedAt: row.closed_at,
     createdAt: row.created_at,
   }));
 }
@@ -323,14 +355,10 @@ export function outgoingTrustEdges(db: Database, ownerUserId: ID): TrustEdge[] {
 
 export function subchatById(db: Database, subchatId: ID): Subchat | undefined {
   const row = db
-    .prepare('SELECT id, task_id, kind, status, created_at FROM subchats WHERE id = ?')
-    .get(subchatId) as {
-    id: ID;
-    task_id: ID;
-    kind: Subchat['kind'];
-    status: Subchat['status'];
-    created_at: number;
-  } | undefined;
+    .prepare(
+      'SELECT id, task_id, kind, status, outcome, summary, closed_at, created_at FROM subchats WHERE id = ?',
+    )
+    .get(subchatId) as SubchatRow | undefined;
   if (!row) {
     return undefined;
   }
@@ -340,6 +368,9 @@ export function subchatById(db: Database, subchatId: ID): Subchat | undefined {
     kind: row.kind,
     participantAgentIds: listParticipants(db, subchatId),
     status: row.status,
+    outcome: row.outcome,
+    summary: row.summary,
+    closedAt: row.closed_at,
     createdAt: row.created_at,
   };
 }

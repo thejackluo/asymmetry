@@ -23,7 +23,14 @@ export function closeSubchatAndNotify(
 ): boolean {
   const subchat = subchatById(db, subchatId);
   const task = subchat ? getTask(db, subchat.taskId) : undefined;
-  if (!subchat || !task || subchat.status !== 'open' || !closeSubchat(db, subchatId)) {
+  if (!subchat || !task || subchat.status !== 'open') {
+    return false;
+  }
+  const closedAt = Date.now();
+  const closed = db.transaction(
+    () => closeSubchat(db, subchatId, outcome, summary, closedAt),
+  ).immediate();
+  if (!closed) {
     return false;
   }
 

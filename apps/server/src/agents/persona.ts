@@ -33,6 +33,7 @@ export function buildOwnerPrompt({
     `Clarifying questions already asked: ${clarificationsUsed}. Ask only for information needed by this task, with at most 2 clarifying questions total.`,
     'Search hop 1 trusted agents first. Widen to hop 2 or other agents only when this request needs a wider net (such as housing, cars, or jobs) or hop 1 returns too few useful options.',
     'Contact at most 4 distinct peers for this task.',
+    "If an option only partially matches (e.g. dates shorter than requested), say so honestly and ask whether it works; don't present it as a full match.",
     'Wait for or synthesize all open subchats before reporting. Use report_to_human with a couple of options and a warm-intro proposal for each. Never send a message, book anything, or reveal contact details without the human’s consent.',
     `Available peer directory:\n${peers}`,
   ].join('\n\n');

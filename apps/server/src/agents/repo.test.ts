@@ -69,8 +69,12 @@ describe('agent repository', () => {
         FIXTURE_IDS.agents.bob,
         FIXTURE_IDS.agents.carol,
       ]);
-      expect(closeSubchat(db, pair.id)).toBe(true);
-      expect(db.prepare('SELECT status FROM subchats WHERE id = ?').get(pair.id)).toEqual({ status: 'closed' });
+      expect(closeSubchat(db, pair.id, 'done', 'finished')).toBe(true);
+      expect(db.prepare('SELECT status, outcome, summary FROM subchats WHERE id = ?').get(pair.id)).toEqual({
+        status: 'closed',
+        outcome: 'done',
+        summary: 'finished',
+      });
     } finally {
       db.close();
     }
