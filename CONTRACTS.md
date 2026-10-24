@@ -83,6 +83,7 @@ export interface MemoryItem {
   userId: ID;               // whose memory
   content: string;          // natural language fact
   classification: Classification;
+  fieldTags: string[];      // atomic facts; explicit allowlist matching
   source: 'chat' | 'seed';
   createdAt: number;
 }
@@ -101,6 +102,7 @@ export interface InfoScope {
   taskId: ID;
   purpose: string;          // "find summer sublet for Alice"
   fields: string[];         // e.g. ["location_area","price","dates"]
+  subchatId?: ID;           // runtime-supplied context for exact notice routing
 }
 
 export interface Disclosure {
@@ -112,6 +114,16 @@ export interface Disclosure {
   withheldCount: number;
   decision: 'released' | 'partial' | 'denied';
   createdAt: number;
+}
+
+export interface DisclosureNotice {
+  id: ID;
+  taskId: ID;
+  subchatId: ID | null;
+  ownerAgentId: ID;
+  releasedCount: number;
+  withheldCount: number;
+  decision: 'released' | 'partial' | 'denied';
 }
 ```
 
@@ -128,12 +140,12 @@ Given `queryMemory(ownerUserId, requesterUserId, scope)`:
 | `private`  | ✅ | ❌ | ❌ |
 
 Additional rules (all enforced server-side, never by the LLM):
-1. **Scope filter:** only items semantically matching `scope.fields`/`purpose`
-   are candidates. The classifier tags each MemoryItem with field tags at
-   ingest; query matches on tags + purpose embedding-lite (keyword match is
-   fine for the hackathon).
+1. **Scope filter:** each atomic fact must match an explicitly allowed field
+   tag from the canonical task scope. Purpose text cannot bypass this filter.
+   Canonical task scope is persisted after human clarification.
 2. **Every query writes a `Disclosure` row** — released ids, withheld count,
-   decision. The UI can show "3 items withheld" as a trust signal.
+   decision. Withheld count is total owner facts considered minus returned
+   facts, including both classification and scope denials.
 3. The requesting agent never sees withheld content — only the count.
 
 ### Ingest classification (LLM, on every user chat message + seed)
@@ -146,8 +158,9 @@ when uncertain → `private` (fail closed).
 ## 3. Socket.IO protocol
 
 **Handshake:** `io(url, { auth: { token } })` — token from `POST /api/login`.
-Server middleware verifies token → `socket.data.userId`. On connect, server
-auto-joins `user:{userId}` and `agent:{agentId}`.
+Server middleware verifies token → `socket.data.userId`. On connect, the
+browser auto-joins only `user:{userId}`. Agent inboxes are internal runtime
+routing, not browser subscriptions to other agents' tasks.
 
 ### Room naming
 
@@ -163,7 +176,9 @@ auto-joins `user:{userId}` and `agent:{agentId}`.
 |---|---|---|
 | `task:create` | `{ title }` | creates Task, returns `task:created` |
 | `chat:send` | `{ taskId, body }` | human message → agent runtime |
-| `agent:info_request` | `{ toAgentId, scope: InfoScope, subchatId? }` | server-side only (D2 emits internally) |
+
+`agent:info_request` is an internal runtime operation, not an accepted client
+event. Sender identity is always derived server-side, never from tool args.
 
 ### Events (server → client)
 
@@ -176,11 +191,12 @@ auto-joins `user:{userId}` and `agent:{agentId}`.
 | `subchat:message` | `Message` (subchatId set) | agent→agent traffic |
 | `subchat:closed` | `{ subchatId, outcome: 'done'|'stuck', summary }` | thread resolved |
 | `agent:status` | `{ agentId, status: AgentStatus }` | agent state change (idle→clarifying→negotiating→done/stuck) |
-| `network:updated` | `{ nodes: Agent[], trusted: ID[], discovered: ID[] }` | push on any graph change |
-| `disclosure:logged` | `Disclosure` | so UI can show "withheld N items" |
+| `network:updated` | `{ agents: Agent[], trusted: ID[], discovered: ID[] }` | per-user graph change |
+| `disclosure:logged` | `DisclosureNotice` | scoped notice to authorized task/data owners only |
 
-**Contract for D4:** human↔agent messages have `subchatId: null` and
-`senderType 'human'`; agent↔agent messages always carry a `subchatId`.
+**Contract for D4:** main-thread messages have `subchatId: null`; senderType
+may be human, agent, or system. Agent-to-agent messages have a subchatId.
+Never globally broadcast disclosures or join every browser to subchat rooms.
 
 ---
 
@@ -190,7 +206,7 @@ auto-joins `user:{userId}` and `agent:{agentId}`.
 |---|---|---|
 | POST | `/api/login` | `{username,password}` → `{token, user}` (auto-register if new user) |
 | GET  | `/api/tasks` | → `Task[]` for session user |
-| GET  | `/api/tasks/:id/messages` | → `Message[]` incl. subchat messages |
+| GET  | `/api/tasks/:id/messages` | → `{ task: Task, messages: Message[], subchats: Subchat[] }`, task owner only |
 | GET  | `/api/network` | → `{agents: Agent[], trusted: ID[], discovered: ID[]}` |
 | GET  | `/api/memory` | → `MemoryItem[]` for session user (debug page optional) |
 
@@ -215,6 +231,9 @@ CREATE TABLE trust_edges (
 CREATE TABLE tasks (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active', created_at INTEGER NOT NULL);
+CREATE TABLE task_scopes (
+  task_id TEXT PRIMARY KEY REFERENCES tasks(id),
+  purpose TEXT NOT NULL, fields_json TEXT NOT NULL);
 CREATE TABLE subchats (
   id TEXT PRIMARY KEY, task_id TEXT NOT NULL, kind TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL);
@@ -259,9 +278,9 @@ export interface MemoryEngine {
     Promise<{ items: MemoryItem[]; withheldCount: number; disclosure: Disclosure }>;
   extractGoals(userId: ID, taskId: ID, text: string): Promise<Goal[]>;
 }
-// llm is injectable (tests mock it); io is optional so the engine can emit
-// disclosure:logged — tests may pass undefined (see Changelog 2026-10-24)
-export function createMemoryEngine(db: Database, llm: LLMClient, io?: Server): MemoryEngine;
+// OpenAI SDK client; tests may supply a compatible mock at the SDK boundary.
+// No dependency on D2's internal LLMClient.
+export function createMemoryEngine(db: Database, openai: OpenAI, io?: Server): MemoryEngine;
 export function registerMemory(app: Express, db: Database): void; // debug REST
 
 // OpenAI tools available to the runtime (D2 calls, backed by D3's engine):
@@ -280,18 +299,27 @@ fixed sample items — D2 codes against `MemoryEngine`, never the stub directly.
 
 ## 7. Seed scenario (owned by D3, content fixed here)
 
-Users (password `demo` for all): **alice**, **bob**, **carol**, **dave**
+Users (password `demo` for all): **alice**, **bob**, **carol**, **dave**, **erin**
 
 Trust edges: alice→bob, alice→carol, bob→alice, carol→alice, bob→dave.
 
 Memory (pre-classified):
 - alice: private — "Works at Stripe, salary $185k", "SSN on file"
 - alice: network — "Looking for summer sublet near Georgia Tech, May–Aug, <$1200/mo"
-- bob: network — "Has a room for sublet, 0.4mi from GT campus, $950/mo, May 15–Aug 10, furnished"
+- bob: network — separate atomic facts: room 0.4mi from GT campus
+  (`location_area`), $950/mo (`price`), May 15–Aug 10 (`dates`),
+  furnished (`furnished`)
 - bob: private — "Exact address: 726 Spring St NW Apt 4", "Phone 404-555-0182"
 - carol: network — "Knows a trusted mechanic (Mike's Auto) for pre-purchase inspection"
 - carol: public — "Sells handmade ceramics"
 - dave: network — "Selling 2019 Honda Civic, 62k miles, $14,500 OBO, clean title"
+- erin: public — "Public housing tip: GT summer sublet listings are available
+  through the campus housing board" (`location_area`)
+
+Seed is additive/idempotent. Use stable fixture IDs and a fresh disposable
+database for resets; never wipe an existing demo database.
+Alice discovers Erin without gaining network/private access. Alice has two
+directly trusted peers, Bob and Carol.
 
 Demo path: alice creates the sublet task → her agent subchats bob's agent →
 bob's agent releases the network-classified room facts, withholds address/phone

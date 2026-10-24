@@ -1,5 +1,8 @@
 # Asymmetry
 
+Start with [implementation decisions](.planning/IMPLEMENTATION-DECISIONS.md).
+They resolve historical examples in the plans and define the binding behavior.
+
 Personal AI agents ("digital twins") that negotiate across a trusted network to
 surface mutually beneficial opportunities — jobs, housing, buyers/sellers,
 introductions — that no human would have found alone.
@@ -25,8 +28,9 @@ filtered after the fact.
    that requester *and* that match the scope.
 4. Agents negotiate, then the originating agent reports `done` (with result)
    or `stuck` (with reason) to its human.
-5. All agent-to-agent (A2A) messages render as subchat panes in the UI, and
-   every participating agent appears as "discovered" on the network page.
+5. Authorized observers see agent-to-agent (A2A) messages in subchat panes.
+   Previously unknown participating agents appear as discovered; discovery
+   does not grant trusted access.
 
 ## Stack
 
@@ -38,7 +42,7 @@ Planned (greenfield — see [GST.md](GST.md) for the full spec):
 - **`packages/shared`** — `@asymmetry/shared`, all contract types & event constants
 - **Persistence:** SQLite via `better-sqlite3` (`asymmetry.db`)
 - **Agent runtime:** chat completions + OpenAI function calling
-  (`query_memory` / `request_disclosure` / `send_agent_message`), `gpt-4o-mini`
+  (`query_memory` / `open_subchat` / `send_subchat_message` / `report_to_human`), `gpt-4o-mini`
   via `OPENAI_MODEL`
 
 ## Repo layout
@@ -48,8 +52,8 @@ asymmetry/
 ├── GST.md            # Goal / Spec / Tasks — the hackathon plan (read first)
 ├── CONTRACTS.md      # Frozen interfaces between Devins — single source of truth
 ├── prompts/          # Kickoff prompts for each parallel Devin (DEVIN-1 … DEVIN-4)
-├── .claude/          # GSD install (local, not committed) — see below
-└── .planning/        # GSD working artifacts (phases, plans, state)
+├── .claude/          # Committed local GSD installation — see portability note
+└── .planning/        # Committed project specifications, plans, and state
 ```
 
 Once the build lands:
@@ -71,26 +75,29 @@ The project is built by 4 parallel Devins with **zero file overlap**:
 | D3 | `apps/server/src/memory/**` + seed data — scoped disclosure engine | [prompts/DEVIN-3.md](prompts/DEVIN-3.md) |
 | D4 | `apps/web/**` — the entire frontend | [prompts/DEVIN-4.md](prompts/DEVIN-4.md) |
 
-Operating rules (full details in GST.md):
+Operating rules (full details in `.planning/OPERATING-RULES.md` and the binding decisions):
 
-- Each Devin works on its own `devin-N` branch, pushing WIP at least every 30 min
-- **Draft PR on day one**; a *different* model reviews every PR
+- Each Devin works on its own `devin-N` branch, committing and pushing meaningful
+  checkpoints every 2-3 minutes while actively editing; no empty commits
+- **Draft PR in the first work session**; a *different* model reviews every PR
 - **CONTRACTS.md is law** — interface changes require agreement + a dated
   Changelog entry. If code disagrees with CONTRACTS.md, the code is wrong.
 - **GitHub is the team chat** — Issues are the message board (`[Dn]` title
   prefix routes to the owning layer), Projects is the task board, and each
-  Devin polls `gh issue list` every ~5 minutes while working
+  Devin polls issues, updated comments, review threads, and Projects every
+  ~5 minutes while working; mentions alone do not wake running sessions
 - `main` must always boot; never force-push `main`
 
 ## Getting started
 
-Once the code lands (Phase 0 → Phase 1 per GST.md):
+These are target commands, not runnable application instructions yet.
+Once the code lands (foundation followed by parallel phases per the roadmap):
 
 ```bash
 npm install
-cp apps/server/.env.example .env   # set OPENAI_API_KEY
+cp .env.example .env              # set OPENAI_API_KEY locally; never commit it
 npm run dev                         # boots server (and web)
-npm run seed                        # demo seed data
+npm run seed                        # additive/idempotent demo seed data
 npm test                            # all workspaces' tests
 ```
 
@@ -99,25 +106,31 @@ Env vars: `OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4o-mini`), `PORT`
 
 ## Working with GSD (Get Shit Done)
 
-This repo has [GSD](https://github.com/numman-ali/get-shit-done) **v1.42.3**
+This repo has [GSD](https://github.com/gsd-build/get-shit-done) **v1.42.3**
 installed under `.claude/` (full profile). GSD is a Claude Code framework that
 drives hierarchical, phase-based project planning and execution — it provides
 `/gsd:*` slash commands, a library of specialized subagents
 (`.claude/agents/gsd-*.md`), workflow hooks, and a `.planning/` workspace for
 all generated artifacts.
 
-The `.claude/` directory is **local-only** (not committed) — each developer
-installs it into their own checkout.
+Both `.claude/` and `.planning/` are committed. Some installed Claude command
+references contain the original checkout's absolute path. Regenerate the local
+installation before using those commands in another checkout. Devin sessions
+can read the Markdown execution plans directly; Claude commands are not
+automatically native Devin commands.
 
 ### Install / update
 
 From the repo root:
 
 ```bash
-npx get-shit-done-cc@latest
+npx get-shit-done-cc@1.42.3 --claude --local
 ```
 
-This installs (or updates) the commands, agents, hooks, and the
+The installed npm package emitted a deprecation warning; it is pinned here
+to document what was installed, not as a recommendation for a maintained
+upstream release. Reinstallation is optional for Markdown-only execution.
+The installer writes the commands, agents, hooks, and the
 `get-shit-done/` runtime under `.claude/`. Version and integrity state are
 tracked in `.claude/get-shit-done/VERSION` and
 `.claude/gsd-file-manifest.json`.
@@ -125,7 +138,8 @@ tracked in `.claude/get-shit-done/VERSION` and
 ### Core workflow
 
 ```
-/gsd:new-project  →  /gsd:plan-phase N  →  /gsd:execute-phase N  →  repeat
+1. PLAN: discussion and planning together, captured in .planning/
+2. EXECUTE: implementation, tests, PR, different-model review, fixes, ship
 ```
 
 Run inside Claude Code:
@@ -146,10 +160,12 @@ Run inside Claude Code:
 | `/gsd:help` | Full command reference |
 | `/gsd:update` | Check for and apply GSD updates |
 
-For this repo specifically, `GST.md` already plays the role of
-`ROADMAP.md` — phases 0–3 are defined there — so use GSD's phase commands
-(`discuss-phase`, `plan-phase`, `execute-phase`) against that structure rather
-than running `new-project` from scratch.
+For this repo, `.planning/ROADMAP.md` defines phases 1-5.
+Each of the four build phases has a SPEC and executable PLAN.
+Phase 5 is integration owned by D1 with layer fixes owned by D2-D4.
+Do not rerun project initialization or add separate human discussion gates.
+The command reference is available for optional Claude Code use, not a
+requirement to run the Devin handoff.
 
 ### Where GSD writes
 
