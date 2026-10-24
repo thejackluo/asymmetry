@@ -11,7 +11,13 @@ import type {
   Task,
 } from '@/lib/types';
 import { EVT } from '@/lib/types';
-import { mergeMessages, partitionMessages, routeDisclosures } from '@/lib/utils';
+import {
+  applySubchatClosed,
+  mergeMessages,
+  mergeSubchats,
+  partitionMessages,
+  routeDisclosures,
+} from '@/lib/utils';
 import MessageBubble from './MessageBubble';
 import SubchatPane from './SubchatPane';
 
@@ -74,11 +80,7 @@ export default function TaskChat({
     getTaskMessages(task.id)
       .then((h) => {
         setMessages((prev) => mergeMessages(prev, h.messages));
-        setSubchats((prev) =>
-          h.subchats.map(
-            (s) => prev.find((x) => x.id === s.id) ?? s,
-          ),
-        );
+        setSubchats((prev) => mergeSubchats(prev, h.subchats));
         if (h.disclosures) {
           setDisclosures((prev) =>
             [...prev, ...h.disclosures!].filter(
@@ -136,19 +138,7 @@ export default function TaskChat({
       socket.on(
         EVT.SUBCHAT_CLOSED,
         (c: { subchatId: string; outcome: 'done' | 'stuck'; summary: string }) => {
-          setSubchats((prev) =>
-            prev.map((s) =>
-              s.id === c.subchatId
-                ? {
-                    ...s,
-                    status: 'closed',
-                    outcome: c.outcome,
-                    summary: c.summary,
-                    closedAt: Date.now(),
-                  }
-                : s,
-            ),
-          );
+          setSubchats((prev) => applySubchatClosed(prev, c));
         },
       ),
       socket.on(EVT.DISCLOSURE_LOGGED, (n: DisclosureNotice) => {

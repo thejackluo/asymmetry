@@ -1,4 +1,4 @@
-import type { DisclosureNotice, Message } from './types';
+import type { DisclosureNotice, Message, Subchat } from './types';
 
 export interface PartitionedMessages {
   main: Message[];
@@ -61,6 +61,35 @@ export function routeDisclosures(
     }
   }
   return { main, bySubchat };
+}
+
+// Merge a history-replay subchat list into live state: replayed entries
+// replace known ones (they're authoritative) and unknown ones append.
+export function mergeSubchats(existing: Subchat[], incoming: Subchat[]): Subchat[] {
+  const byId = new Map(existing.map((s) => [s.id, s]));
+  for (const s of incoming) byId.set(s.id, s);
+  const seen = new Set(incoming.map((s) => s.id));
+  const kept = existing.filter((s) => !seen.has(s.id));
+  return [...kept, ...incoming].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+// subchat:closed writes the closure back onto the entity — the pane reads
+// outcome/summary from the Subchat itself, not a side channel (UI-05).
+export function applySubchatClosed(
+  subchats: Subchat[],
+  closure: { subchatId: string; outcome: 'done' | 'stuck'; summary: string },
+): Subchat[] {
+  return subchats.map((s) =>
+    s.id === closure.subchatId
+      ? {
+          ...s,
+          status: 'closed',
+          outcome: closure.outcome,
+          summary: closure.summary,
+          closedAt: s.closedAt ?? Date.now(),
+        }
+      : s,
+  );
 }
 
 export function formatTime(ts: number): string {

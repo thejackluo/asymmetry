@@ -1,6 +1,65 @@
 import { describe, expect, it } from 'vitest';
-import type { DisclosureNotice, Message } from './types';
-import { mergeMessages, partitionMessages, routeDisclosures } from './utils';
+import type { DisclosureNotice, Message, Subchat } from './types';
+import {
+  applySubchatClosed,
+  mergeMessages,
+  mergeSubchats,
+  partitionMessages,
+  routeDisclosures,
+} from './utils';
+
+const subchat = (id: string, createdAt: number, closed = false): Subchat => ({
+  id,
+  taskId: 't',
+  kind: 'pair',
+  participantAgentIds: ['a-1', 'a-2'],
+  status: closed ? 'closed' : 'open',
+  outcome: closed ? 'done' : null,
+  summary: closed ? 'closed summary' : null,
+  closedAt: closed ? createdAt + 100 : null,
+  createdAt,
+});
+
+describe('mergeSubchats', () => {
+  it('replay replaces known subchats and appends unknown ones, sorted', () => {
+    const live = [subchat('sc-1', 10), subchat('sc-live', 30)];
+    const replay = [subchat('sc-2', 20), subchat('sc-1', 10, true)];
+    const merged = mergeSubchats(live, replay);
+    expect(merged.map((s) => s.id)).toEqual(['sc-1', 'sc-2', 'sc-live']);
+    // replayed sc-1 is closed-with-summary — entity state wins
+    expect(merged[0].status).toBe('closed');
+    expect(merged[0].summary).toBe('closed summary');
+  });
+
+  it('keeps live subchats absent from replay (arrived mid-fetch)', () => {
+    const merged = mergeSubchats([subchat('sc-live', 5)], [subchat('sc-1', 1)]);
+    expect(merged.map((s) => s.id)).toEqual(['sc-1', 'sc-live']);
+  });
+});
+
+describe('applySubchatClosed', () => {
+  it('writes outcome + summary onto the entity the pane renders', () => {
+    const [s] = applySubchatClosed([subchat('sc-1', 1)], {
+      subchatId: 'sc-1',
+      outcome: 'stuck',
+      summary: 'turn cap reached',
+    });
+    expect(s.status).toBe('closed');
+    expect(s.outcome).toBe('stuck');
+    expect(s.summary).toBe('turn cap reached');
+    expect(s.closedAt).not.toBeNull();
+  });
+
+  it('ignores closures for unknown or other subchats', () => {
+    const out = applySubchatClosed([subchat('sc-1', 1)], {
+      subchatId: 'sc-9',
+      outcome: 'done',
+      summary: 'n/a',
+    });
+    expect(out[0].status).toBe('open');
+    expect(out[0].outcome).toBeNull();
+  });
+});
 
 const msg = (id: string, subchatId: string | null): Message => ({
   id,
