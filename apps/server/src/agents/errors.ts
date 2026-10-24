@@ -1,4 +1,4 @@
-import { LLMTimeoutError } from './llm.js';
+import { ArgsParseError, LLMTimeoutError } from './llm.js';
 
 export function safeFailureReason(error: unknown): string {
   if (error instanceof LLMTimeoutError) {
@@ -11,6 +11,8 @@ export function safeFailureReason(error: unknown): string {
 }
 
 export function logAgentError(context: string, error: unknown): void {
-  const errorName = error instanceof Error ? error.name : 'UnknownError';
-  console.error(`[agents] ${context} failed: ${errorName}`);
+  const category = error instanceof LLMTimeoutError
+    ? 'timeout'
+    : error instanceof ArgsParseError ? 'bad_args' : 'error';
+  console.error(`[agents] ${context} failed: ${category}`);
 }

@@ -110,6 +110,8 @@ function peerHistory(
       agent,
       ownerDisplayName,
       requesterAgentName: ownerAgent.name,
+      taskId: task.id,
+      subchatId,
       scope,
     }),
   }];
@@ -279,7 +281,13 @@ export function createAgentRuntime({
     if (!task) {
       return;
     }
-    closeSubchatAndNotify(db, io, subchatId, 'stuck', reason);
+    closeSubchatAndNotify(
+      db,
+      io,
+      subchatId,
+      'stuck',
+      'Closed: a peer agent stopped before completing this subchat.',
+    );
     const peerName = agentById(db, agentId)?.name ?? 'Peer agent';
     wakeOwner(taskId, `${peerName} stopped: ${reason}`);
   }
@@ -296,15 +304,16 @@ export function createAgentRuntime({
     }
     const ownerAgent = agentByUser(db, task.userId);
     const ownerUser = ownerAgent ? userByAgent(db, ownerAgent.id) : undefined;
+    const peerUser = userByAgent(db, agentId);
     const peerAgent = agentById(db, agentId);
-    if (!ownerAgent || !ownerUser || !peerAgent || agentId === ownerAgent.id) {
+    if (!ownerAgent || !ownerUser || !peerUser || !peerAgent || agentId === ownerAgent.id) {
       return;
     }
     if (!getTaskScope(db, task.id)) {
       await failPeer(subchatId, agentId, task.id, 'canonical task scope is missing');
       return;
     }
-    const messages = peerHistory(db, task, subchatId, agentId, ownerUser.displayName, ownerAgent.id);
+    const messages = peerHistory(db, task, subchatId, agentId, peerUser.displayName, ownerAgent.id);
     const ctx = contextFor(task, ownerAgent.id, agentId, 'peer', subchatId);
 
     for (let iteration = 0; iteration < TOOL_ITER_CAP; iteration += 1) {

@@ -331,11 +331,14 @@ async function reportToHuman(ctx: TrustedCtx, args: Args): Promise<string> {
   });
   emitMainMessage(ctx.io, ctx.taskOwnerUserId, message);
 
+  const closureSummary = args.status === 'done'
+    ? 'Closed: the requesting agent finished the task.'
+    : 'Closed: the requesting agent stopped the task.';
   for (const subchat of listSubchatsByTask(ctx.db, ctx.taskId)) {
     if (subchat.status !== 'open') {
       continue;
     }
-    closeSubchatAndNotify(ctx.db, ctx.io, subchat.id, args.status, args.summary);
+    closeSubchatAndNotify(ctx.db, ctx.io, subchat.id, args.status, closureSummary);
   }
   setTaskStatus(ctx.db, ctx.taskId, args.status);
 
