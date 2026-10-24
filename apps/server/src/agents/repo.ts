@@ -263,8 +263,33 @@ export function listSubchatMessages(db: Database, subchatId: ID): Message[] {
   ).map(messageFromRow);
 }
 
+export function listSubchatsByTask(db: Database, taskId: ID): Subchat[] {
+  const rows = db.prepare(
+    'SELECT id, task_id, kind, status, created_at FROM subchats WHERE task_id = ? ORDER BY created_at, id',
+  ).all(taskId) as Array<{
+    id: ID;
+    task_id: ID;
+    kind: Subchat['kind'];
+    status: Subchat['status'];
+    created_at: number;
+  }>;
+  return rows.map((row) => ({
+    id: row.id,
+    taskId: row.task_id,
+    kind: row.kind,
+    participantAgentIds: listParticipants(db, row.id),
+    status: row.status,
+    createdAt: row.created_at,
+  }));
+}
+
 export function setAgentStatus(db: Database, agentId: ID, status: AgentStatus): boolean {
   return db.prepare('UPDATE agents SET status = ? WHERE id = ?').run(status, agentId).changes > 0;
+}
+
+export function agentById(db: Database, agentId: ID): Agent | undefined {
+  const row = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId) as AgentRow | undefined;
+  return row ? agentFromRow(row) : undefined;
 }
 
 export function agentByUser(db: Database, userId: ID): Agent | undefined {
@@ -318,4 +343,22 @@ export function subchatById(db: Database, subchatId: ID): Subchat | undefined {
     status: row.status,
     createdAt: row.created_at,
   };
+}
+
+export function agentHasOtherActiveSubchat(
+  db: Database,
+  agentId: ID,
+  excludedTaskId: ID,
+): boolean {
+  return Boolean(db.prepare(
+    `SELECT 1
+     FROM subchat_participants
+     JOIN subchats ON subchats.id = subchat_participants.subchat_id
+     JOIN tasks ON tasks.id = subchats.task_id
+     WHERE subchat_participants.agent_id = ?
+       AND tasks.id <> ?
+       AND tasks.status = 'active'
+       AND subchats.status = 'open'
+     LIMIT 1`,
+  ).get(agentId, excludedTaskId));
 }

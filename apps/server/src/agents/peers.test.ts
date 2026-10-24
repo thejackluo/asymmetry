@@ -45,8 +45,8 @@ describe('peer directory', () => {
       const payload = networkPayload(db, FIXTURE_IDS.users.alice);
       expect(payload.trusted).toEqual([FIXTURE_IDS.agents.bob, FIXTURE_IDS.agents.carol]);
       expect(payload.discovered).toEqual([FIXTURE_IDS.agents.dave, FIXTURE_IDS.agents.erin]);
-      expect(payload.agents.map(({ id }) => id)).not.toContain(FIXTURE_IDS.agents.alice);
-      expect(payload.agents).toHaveLength(4);
+      expect(payload.agents.map(({ id }) => id)).toContain(FIXTURE_IDS.agents.alice);
+      expect(payload.agents).toHaveLength(5);
     } finally {
       db.close();
     }

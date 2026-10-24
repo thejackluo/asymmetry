@@ -101,9 +101,9 @@ export function networkPayload(db: Database, userId: ID): NetworkPayload {
     | undefined;
   const agents = (db.prepare(
     `SELECT agents.id, agents.user_id, agents.name, agents.status
-     FROM agents WHERE agents.user_id <> ?
+     FROM agents
      ORDER BY agents.name, agents.id`,
-  ).all(userId) as AgentRow[]).map((agent) => ({
+  ).all() as AgentRow[]).map((agent) => ({
     id: agent.id,
     userId: agent.user_id,
     name: agent.name,
