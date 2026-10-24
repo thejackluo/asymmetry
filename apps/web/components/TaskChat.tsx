@@ -236,7 +236,9 @@ export default function TaskChat({
     <span
       className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 font-mono text-[10px] ${statusStyle[agentStatus]}`}
     >
-      {agentStatus === 'idle' ? 'agent idle' : `agent ${agentStatus}…`}
+      {agentStatus === 'idle'
+        ? 'agent idle'
+        : `agent ${agentStatus}${agentStatus === 'done' || agentStatus === 'stuck' ? '' : '…'}`}
     </span>
   );
 
