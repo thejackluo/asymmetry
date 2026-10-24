@@ -3,7 +3,7 @@ import { userRoom } from '@asymmetry/shared';
 import type { Server, Socket } from 'socket.io';
 import type { Database } from '../db.js';
 import { CLARIFY_CAP, MODEL_TIMEOUT_MS } from './budgets.js';
-import { emitAgentStatus, emitMainMessage, emitTaskUpdated } from './emit.js';
+import { emitAgentStatus, emitMainMessage } from './emit.js';
 import { EVENTS } from './events.js';
 import { LLMTimeoutError, withTimeout, type LLMClient, type LLMMessage } from './llm.js';
 import { buildDirectory } from './peers.js';

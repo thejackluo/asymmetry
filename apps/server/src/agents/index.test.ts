@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { Server } from 'socket.io';
 import { io as createClient, type Socket as ClientSocket } from 'socket.io-client';
+import { userRoom } from '@asymmetry/shared';
 import { EVENTS } from './events.js';
 import { registerAgents } from './index.js';
 import { createFixtureDb, FIXTURE_IDS } from './test/fixtures.js';
@@ -50,11 +51,17 @@ describe('agent socket integration', () => {
     let alice: ClientSocket | undefined;
     let dave: ClientSocket | undefined;
     try {
+      registerAgents(ioServer, db, memory);
       ioServer.use((socket, next) => {
         socket.data.userId = socket.handshake.auth.userId;
         next();
       });
-      registerAgents(ioServer, db, memory);
+      ioServer.on('connection', (socket) => {
+        const userId = socket.data.userId;
+        if (typeof userId === 'string') {
+          socket.join(userRoom(userId));
+        }
+      });
       await new Promise<void>((resolve) => httpServer.listen(0, resolve));
       const { port } = httpServer.address() as AddressInfo;
       const endpoint = `http://127.0.0.1:${port}`;

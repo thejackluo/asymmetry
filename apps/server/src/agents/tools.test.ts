@@ -34,6 +34,7 @@ function setup() {
   const rt: RuntimeHooks = {
     budgetFor: vi.fn(() => budget),
     wakeOwner: vi.fn(),
+    reportOwnerFailure: vi.fn(async () => {}),
     runPeer: vi.fn(),
   };
   const task = createTask(db, FIXTURE_IDS.users.alice, 'Find a summer sublet');

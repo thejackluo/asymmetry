@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import Database from 'better-sqlite3';
-import type BetterSqlite3 from 'better-sqlite3';
+import type { Database as DatabaseType } from '../../db.js';
 
 export const FIXTURE_IDS = {
   users: {
@@ -27,7 +27,7 @@ const PEOPLE = [
   ['erin', 'Erin'],
 ] as const;
 
-export function createFixtureDb(): BetterSqlite3.Database {
+export function createFixtureDb(): DatabaseType {
   const db = new Database(':memory:');
   db.exec(readFileSync(new URL('../../schema.sql', import.meta.url), 'utf8'));
 
