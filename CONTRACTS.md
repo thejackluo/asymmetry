@@ -74,6 +74,9 @@ export interface Subchat {
   kind: 'pair' | 'group';
   participantAgentIds: ID[];   // ≥2 agents; NO humans in subchats
   status: 'open' | 'closed';
+  outcome: 'done' | 'stuck' | null;
+  summary: string | null;
+  closedAt: number | null;
   createdAt: number;
 }
 
@@ -208,7 +211,7 @@ Never globally broadcast disclosures or join every browser to subchat rooms.
 |---|---|---|
 | POST | `/api/login` | `{username,password}` → `{token, user}` (auto-register if new user) |
 | GET  | `/api/tasks` | → `Task[]` for session user |
-| GET  | `/api/tasks/:id/messages` | → `{ task: Task, messages: Message[], subchats: Subchat[] }`, task owner only |
+| GET  | `/api/tasks/:id/messages` | → `{ task: Task, messages: Message[], subchats: Subchat[], disclosures: DisclosureNotice[] }`, task owner only |
 | GET  | `/api/network` | → `{agents: Agent[], trusted: ID[], discovered: ID[]}` |
 | GET  | `/api/memory` | → `MemoryItem[]` for session user (debug page optional) |
 
@@ -238,7 +241,8 @@ CREATE TABLE task_scopes (
   purpose TEXT NOT NULL, fields_json TEXT NOT NULL);
 CREATE TABLE subchats (
   id TEXT PRIMARY KEY, task_id TEXT NOT NULL, kind TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL);
+  status TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL,
+  outcome TEXT, summary TEXT, closed_at INTEGER);
 CREATE TABLE subchat_participants (
   subchat_id TEXT NOT NULL, agent_id TEXT NOT NULL,
   PRIMARY KEY (subchat_id, agent_id));
@@ -325,13 +329,19 @@ directly trusted peers, Bob and Carol.
 
 Demo path: alice creates the sublet task → her agent subchats bob's agent →
 bob's agent releases the network-classified room facts, withholds address/phone
-(Disclosure row: `partial`, withheldCount 2 — this is the money shot) →
+(Disclosure row: `partial`; exactly three facts released and three withheld
+when Bob has only the six defined facts and scope is area/price/dates) →
 alice's agent reports back with the warm intro. Stretch: dave's Civic task
 pulls carol's mechanic knowledge into a **group** subchat.
 
 ---
 
 ## Changelog
+
+- 2026-10-24: Detailed requirement contracts added without changing their IDs.
+  Subchat closure fields persist outcome/summary/closedAt. Task history returns
+  scoped disclosure notices for replay. These are additive schema/type changes;
+  D1 must migrate existing disposable development DBs without deleting records.
 
 - 2026-10-24: `createMemoryEngine` signature is `(db, llm, io?)` — takes the
   injectable LLM client (mocked in tests) and optional Socket.IO server so the
@@ -341,3 +351,80 @@ pulls carol's mechanic knowledge into a **group** subchat.
 - 2026-10-24: Spec package migrated to GSD `.planning/` layout — requirements
   now have IDs (PLAT/AUTH/MEM/PERM/A2A/UI/SEED/OPS) tracked in
   `.planning/REQUIREMENTS.md`.
+
+## 8. Execution Precision And Error Behavior
+
+These details settle previously open implementation choices.
+They apply to all four role plans and the expanded requirements.
+
+### Commands And Acknowledgements
+
+Socket commands accept an optional Socket.IO acknowledgement callback.
+The browser supplies it for task creation and human sends.
+Success: `{ ok: true, data: Task }` or `{ ok: true, data: Message }`.
+Failure: `{ ok: false, error: { code, message } }`.
+Codes: BAD_INPUT, UNAUTHORIZED, NOT_FOUND, CONFLICT, INTERNAL_ERROR.
+Do not echo raw exceptions, model prompts, or submitted secrets in errors.
+Commit before successful ack/event delivery.
+The browser uses a five-second ack timeout as delivery-uncertain, not a retry.
+Refetch history before the human deliberately resends uncertain text.
+No automatic command retries are required for this demo.
+
+task:create takes `{title}` with 1-200 trimmed characters.
+It creates/selects an active task but does not start a model request.
+The human then sends the actual request using chat:send.
+chat:send takes `{taskId,body}` with 1-4000 non-whitespace characters.
+Server-supplied identity and conversation context always override model input.
+Unknown browser privileged events have no effect.
+
+HTTP error body is `{error:{code,message}}`.
+Use 400 for invalid input, 401 for missing/invalid sessions, 404 for unknown
+or unowned tasks, and 500 for handled internal failures.
+The public GET /health returns `{ok:true,service:"asymmetry-api"}`.
+Do not return memory, tokens, usernames, or model configuration from health.
+Persist dates/times as epoch milliseconds and order histories by createdAt/id.
+
+### Peer Memory Context
+
+The trusted runtime supplies owner and requester IDs.
+It strips those IDs from arbitrary model arguments.
+For a peer read, scope.subchatId is required.
+Verify the subchat belongs to scope.taskId.
+Verify both the owner agent and requester agent are participants.
+Verify the task owner's agent is also a participant.
+Verify the task's canonical scope exists and allows every requested field.
+No keyword match can enlarge scope.
+For owner-self reads without a subchat, the task must belong to that owner.
+
+In a group, every other participant may observe the response.
+Therefore authorize each candidate fact for every other participant's user.
+A network fact requires its owner to trust each recipient, not only the sender.
+If any observer lacks access, omit that fact from the group response.
+Private remains unavailable to every peer even in an otherwise trusted group.
+Tests cover Alice trusted by Bob while Carol is not: Bob's network fact is
+withheld from the group rather than leaked to Carol.
+This all-observers check also applies to the human owners observing the group.
+
+### Closure And History Replay
+
+Persist subchat status, outcome, summary, and closed_at together.
+Emit subchat:closed only after that transaction commits.
+Read history using explicit task ownership before selecting child records.
+Return messages, subchat metadata, and browser-safe disclosure notices.
+Reconstruct notices from stored audits filtered to that task/subchat context.
+Never include raw released-ID lists or withheld content in browser history.
+An unknown historical notice must not be attached to the first active pane.
+D1 adds closure columns idempotently for existing schema files.
+Do not drop or truncate tables to make the updated schema match.
+
+### Exact Base Housing Fixture
+
+Alice's demo request specifies flexible or exact dates explicitly.
+For an exact-match rehearsal use May 15-August 10 and budget below $1200.
+Bob offers 0.4mi from campus, $950/month, and May 15-August 10.
+Bob's six facts are area, price, dates, furnished, exact address, phone.
+With fields location_area/price/dates, return three facts and withhold three.
+If furnished is explicitly added to canonical scope, return four/withhold two.
+Never count only private denials while ignoring other out-of-scope facts.
+If Alice needs dates beyond Bob's availability, report a partial match honestly
+and ask whether the shorter interval works; do not mark it a full match.

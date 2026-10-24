@@ -17,7 +17,7 @@ Mandatory execution loop: read `.planning/AUTONOMOUS-RUNBOOK.md` and use `.plann
 2. `.planning/PROJECT.md` — charter + demo script
 3. `CONTRACTS.md` — **law**; implement §1/§3/§4/§5/§6 verbatim
 4. `.planning/phases/01-foundation/01-SPEC.md` — falsifiable requirements
-5. `.planning/phases/01-foundation/01-01-PLAN.md` — **your executable plan; work its tasks in order, run every `<verify>`, meet every `<acceptance_criteria>`**
+5. Execute `01-01-PLAN.md`, `01-02-PLAN.md`, then `01-03-PLAN.md` in your phase folder. Use `.planning/REQUIREMENTS.md` for detailed acceptance; inspect `.planning/CONTEXT.md` for locked decisions. Do not restart already completed work: map existing commits to these batches and close only remaining gaps.
 
 ## You own exclusively
 - repo root configs, `packages/shared/**`
