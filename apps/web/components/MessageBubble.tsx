@@ -33,13 +33,23 @@ export default function MessageBubble({
     ? align === 'right'
     : message.senderType === 'human';
   const sender =
-    message.senderType === 'human' ? 'You' : agentName(message.senderId);
+    message.senderType === 'agent' ? agentName(message.senderId) : null;
   return (
     <div
       className={`flex items-end gap-2 ${
         isOutgoing ? 'justify-end' : 'justify-start'
       } ${showName ? 'mt-2.5' : 'mt-0.5'}`}
     >
+      {!isOutgoing && (
+        <span
+          aria-hidden="true"
+          className={`flex shrink-0 items-end ${compact ? 'w-8' : 'w-10'}`}
+        >
+          {showAvatar && sender && (
+            <Avatar name={sender} size={compact ? 'sm' : 'md'} />
+          )}
+        </span>
+      )}
       <div
         className={`relative max-w-[75%] rounded-[18px] px-3 ${
           compact ? 'py-2' : 'py-2.5'
@@ -49,7 +59,7 @@ export default function MessageBubble({
             : 'rounded-bl-[4px] border border-[#e5e5ea] bg-white text-neutral-900'
         }`}
       >
-        {showName && (
+        {showName && sender && (
           <div
             className={`mb-0.5 text-[11px] font-medium ${
               isOutgoing ? 'text-blue-100' : 'text-neutral-500'
@@ -58,16 +68,16 @@ export default function MessageBubble({
             {sender}
           </div>
         )}
-        <div className="relative pb-2">
+        <div>
           <p
-            className={`whitespace-pre-wrap break-words pr-9 ${
+            className={`whitespace-pre-wrap break-words ${
               compact ? 'text-xs leading-4' : 'text-sm leading-5'
             }`}
           >
             {message.body}
           </p>
           <time
-            className={`absolute bottom-0 right-0 text-[10px] leading-3 ${
+            className={`mt-1 block text-right text-[10px] leading-3 ${
               isOutgoing ? 'text-blue-100' : 'text-neutral-400'
             }`}
           >
@@ -75,9 +85,6 @@ export default function MessageBubble({
           </time>
         </div>
       </div>
-      {!isOutgoing && showAvatar && (
-        <Avatar name={sender} size={compact ? 'sm' : 'md'} />
-      )}
     </div>
   );
 }

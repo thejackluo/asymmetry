@@ -263,7 +263,7 @@ export function createInboxHandlers({
 
       rt.wakeOwner(task.id);
     } catch (error) {
-      logAgentError('chat post-persistence', error);
+      logAgentError('chat post-persistence', error, true);
       try {
         await reportStuck(rt, task, 'Task stopped after an internal error.');
       } catch (reportError) {

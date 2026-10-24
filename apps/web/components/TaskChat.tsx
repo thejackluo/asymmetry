@@ -254,7 +254,7 @@ export default function TaskChat({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex min-h-[68px] items-center justify-between gap-3 border-b border-neutral-200 bg-white px-4 py-2.5">
+      <div className="flex min-h-[68px] items-center gap-3 border-b border-neutral-200 bg-white px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-3">
           <Avatar name={task.title} />
           <div className="min-w-0">
@@ -266,16 +266,6 @@ export default function TaskChat({
             </p>
           </div>
         </div>
-        <span
-          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] ${
-            connected
-              ? 'bg-emerald-50 text-emerald-700'
-              : 'bg-amber-50 text-amber-700'
-          }`}
-          role="status"
-        >
-          {connected ? 'connected' : 'reconnecting…'}
-        </span>
       </div>
       <div
         ref={scrollRef}
