@@ -183,6 +183,7 @@ requirement to run the Devin handoff.
 
 ## Key docs
 
+- [docs/PRODUCT-PLAN.md](docs/PRODUCT-PLAN.md), [docs/EXECUTION-BRIEF.md](docs/EXECUTION-BRIEF.md), [docs/STATUS.md](docs/STATUS.md) — post-hackathon product roadmap, working rules, progress
 - [GST.md](GST.md) — goal, spec, phases, operating rules, definition of done
 - [CONTRACTS.md](CONTRACTS.md) — domain model, socket events, REST API, DB
   schema, memory-engine interface

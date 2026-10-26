@@ -2,6 +2,14 @@
 
 Team: Jack / @thejackluo (Devin 1, coordinator); Bayzhan / @bayzhan8 (Devin 2); Jad / @jmb245 (Devin 3); Akash / @AkashSingirikonda (Devin 4).
 
+## Product Roadmap (post-hackathon)
+
+Roadmap work follows `docs/EXECUTION-BRIEF.md` (rules and privacy invariants),
+`docs/PRODUCT-PLAN.md` (phases and exit criteria) and `docs/STATUS.md`
+(current item, owner, open decisions). Read all three first, take one item from
+`docs/STATUS.md`, and update it in your PR. The hackathon startup list below
+still applies for contracts and decisions.
+
 ## Required Startup
 
 Read these files before implementing:
