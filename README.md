@@ -26,8 +26,8 @@ filtered after the fact.
 npm install && npm run demo
 ```
 
-Open http://localhost:3000/demo for a ~17-second network animation: Jack's agent finds a
-summer sublet two hops out (Jack → Carol → Bob) across a 23-agent demo network,
+Open http://localhost:3000/demo for a ~17-second network animation: Jack's agent finds an
+apartment and a car two hops out (Jack → Carol → Bob, Jack → Akash → Justus) across a 23-agent demo network,
 sharing only scoped facts. Details, links and credits: [docs/DEMO.md](docs/DEMO.md).
 
 ## How it works

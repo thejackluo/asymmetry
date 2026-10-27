@@ -1,8 +1,9 @@
 # Asymmetry: shareable demo
 
-`/demo` is a continuous, full-screen network animation (about 17 seconds) that
-shows what Asymmetry does: one person's agent asks its trusted friends' agents,
-the request ripples out, and a match two hops away comes back through a friend.
+`/demo` is a continuous, full-screen network animation (about 20 seconds) that
+shows what Asymmetry does: Jack's agent asks his trusted friends' agents for an
+apartment and a car, the request ripples out, and both are found two hops away
+and introduced through a friend.
 It runs entirely in the browser: no backend, no database, no OpenAI key.
 
 ## Run it (one command)
@@ -27,7 +28,7 @@ Alice ↔ Bob negotiation from `lib/mock.ts`.
 
 ## Recording and screenshots
 
-- Recording (0:20, 1280×720 mp4): [`demo-assets/asymmetry-demo.mp4`](demo-assets/asymmetry-demo.mp4)
+- Recording (0:22, 1280×720 mp4): [`demo-assets/asymmetry-demo.mp4`](demo-assets/asymmetry-demo.mp4)
   ([direct download](https://github.com/thejackluo/asymmetry/raw/demo/linkedin-shareable-demo/docs/demo-assets/asymmetry-demo.mp4))
 - Frames and the links overlay: [`demo-assets/`](demo-assets/)
 
@@ -35,23 +36,22 @@ Alice ↔ Bob negotiation from `lib/mock.ts`.
 
 ## What it shows
 
-The housing story is the seeded one in `apps/server/src/seed.ts` (Alice wants a
-summer sublet near Georgia Tech, May–Aug, under $1200/mo; Bob has a furnished room
-0.4mi from campus, $950/mo, May 15–Aug 10), retold with **Jack** as the requester. There are no slides and almost no text:
-the story is told by the graph.
+The story is illustrative (not the seed data): Jack wants an apartment near
+Georgia Tech under $1.5k/mo and a reliable used car under $15k. There are no
+slides; a few small cards are the only text besides names.
 
-1. **Ask.** Jack's node glows. Three blue dots (the in-scope request:
-   `location_area`, `price`, `dates`) orbit him; two grey dots and a lock with a
-   `2` (his private facts) stay put.
+1. **Ask.** Jack's node glows and a small card shows what he is looking for.
+   Three blue dots (the in-scope request) orbit him; two grey dots and a lock
+   with a `2` (his private facts) stay put.
 2. **Ripple.** The camera pulls back as curved edges draw out to his 6 trusted
-   friends, then their 12 friends. Nodes bloom in as the request arrives and
-   spring into place (d3-force). 4 more agents are seen along dashed grey edges
-   but are **never asked**.
-3. **Match.** The camera glides (d3 `interpolateZoom`) to Jack → Carol → Bob as
-   the path turns orange. Bob's 3 in-scope facts travel back through Carol;
-   his other 3 stay orbiting him behind a lock with a `3`.
-4. **Intro.** Carol pulses and reaches both sides at once: the intro goes
-   through the trusted connection.
+   friends, then their 12 friends. Nodes bloom in and spring into place
+   (d3-force). 4 more agents are seen along dashed grey edges but are **never asked**.
+3. **Apartment.** The camera glides (d3 `interpolateZoom`) to Jack → Carol → Bob
+   as it turns orange. A card at Bob shows only what he shares
+   (`1BR · 0.4 mi from GT · $1,350/mo`); his other 3 facts stay behind a lock with a `3`.
+   The facts travel back through Carol, and Carol makes the intro.
+4. **Car.** Same for Jack → Akash → Justus in green (`2019 Civic · 41k mi · $13,900`, 2 withheld).
+   Jack's card now lists what he found, and via whom.
 5. **Everyone.** Coloured searches start from other people's agents across the
    same network, then `asymmetry.` / *let the agents talk*.
 
@@ -59,7 +59,7 @@ the story is told by the graph.
 
 23 nodes: `Jack — start`, 6 trusted hop-1 friends, 12 hop-2 friends of friends,
 and 4 discovered agents. Trusted edges are solid blue, discovered edges are dashed
-grey, and the match path Jack → Carol → Bob is highlighted in orange. Discovered
+grey, and the match paths are highlighted (Jack → Carol → Bob in orange, Jack → Akash → Justus in green). Discovered
 nodes appear as the search spreads. Names are first names only and illustrative.
 
 The network and timeline live in `apps/web/lib/demo-network.ts` and are drawn on a canvas by

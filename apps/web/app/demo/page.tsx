@@ -99,7 +99,8 @@ function Demo() {
         </span>
         <span className="flex items-center gap-1.5">
           <svg width="20" height="6" aria-hidden>
-            <line x1="0" y1="3" x2="20" y2="3" stroke={PALETTE.accent} strokeWidth="2.4" />
+            <line x1="0" y1="3" x2="10" y2="3" stroke={PALETTE.accent} strokeWidth="2.4" />
+            <line x1="10" y1="3" x2="20" y2="3" stroke="#34d399" strokeWidth="2.4" />
           </svg>
           match
         </span>

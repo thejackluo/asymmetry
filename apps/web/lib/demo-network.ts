@@ -1,10 +1,9 @@
-// Demo-only network for the /demo walkthrough. Illustrative fixture data:
-// it is NOT seed.ts and is never written to the database. The housing story
-// mirrors the seeded Alice ↔ Bob sublet in apps/server/src/seed.ts, retold
-// with Jack as the requester so the match is found two hops out.
+// Demo-only network for the /demo animation. Illustrative fixture data: it is
+// NOT seed.ts and is never written to the database. Jack's agent asks for an
+// apartment and a car; both are found two hops out through trusted friends.
 //
-// Privacy: Bob's private facts are represented ONLY as counts here. Their
-// content must never appear in this file, the demo UI, screenshots or docs.
+// Privacy: matched people's private facts are represented ONLY as counts here.
+// Bob's seed.ts private facts must never appear in this file, the UI or docs.
 
 export type DemoNodeKind = 'start' | 'hop1' | 'hop2' | 'discovered';
 export type DemoEdgeKind = 'trusted' | 'discovered';
@@ -27,29 +26,51 @@ export interface DemoEdge {
 }
 
 export const DEMO_REQUEST =
-  'Find me a summer sublet near Georgia Tech, May–Aug, under $1200/mo.';
+  'Find me an apartment near Georgia Tech under $1,500/mo, and a reliable used car under $15k.';
 
 // Fields the request scope asks for (same scope as lib/mock.ts DEMO_SCOPE_FIELDS).
 export const DEMO_SCOPE = ['location_area', 'price', 'dates'] as const;
 
-// Jack's side of the request: only these network facts leave his agent.
-export const JACK_SHARED_FACTS = [
-  { field: 'location_area', value: 'Summer sublet near Georgia Tech' },
-  { field: 'dates', value: 'May–Aug' },
-  { field: 'price', value: 'Under $1200/mo' },
+/** What Jack's agent shares: only these leave his agent. */
+export const JACK_WANTS = [
+  { id: 'apartment', text: 'apartment · near GT · ≤ $1.5k/mo' },
+  { id: 'car', text: 'used car · reliable · ≤ $15k' },
 ] as const;
 export const JACK_PRIVATE_WITHHELD = 2;
 
-// Bob's released facts are his seed.ts `network` facts whose field tags are in
-// DEMO_SCOPE (verified against seed.ts by demo-network.test.ts).
-export const BOB_RELEASED = [
-  { field: 'location_area', value: 'Has a room for sublet 0.4mi from Georgia Tech campus' },
-  { field: 'price', value: 'Room rent is $950/mo' },
-  { field: 'dates', value: 'Room available May 15–Aug 10' },
-] as const;
-/** Out-of-scope network facts + private facts. Shown as a count only. */
-export const BOB_WITHHELD_COUNT = 3;
-export const BOB_PRIVATE_WITHHELD = 2;
+export type DemoMatchId = (typeof JACK_WANTS)[number]['id'];
+
+export interface DemoMatch {
+  id: DemoMatchId;
+  /** Jack → introducer → match. Never a direct edge. */
+  path: readonly [string, string, string];
+  introducer: string;
+  /** In-scope facts the match's agent releases. */
+  card: string;
+  /** What Jack ends up with. */
+  found: string;
+  /** Facts the match's agent keeps. Shown as a count only. */
+  withheld: number;
+}
+
+export const DEMO_MATCHES: readonly DemoMatch[] = [
+  {
+    id: 'apartment',
+    path: ['jack', 'carol', 'bob'],
+    introducer: 'carol',
+    card: '1BR · 0.4 mi from GT · $1,350/mo',
+    found: 'apartment · $1,350/mo · via Carol',
+    withheld: 3,
+  },
+  {
+    id: 'car',
+    path: ['jack', 'akash', 'justus'],
+    introducer: 'akash',
+    card: '2019 Civic · 41k mi · $13,900',
+    found: 'Civic · $13,900 · via Akash',
+    withheld: 2,
+  },
+];
 
 const hop1 = (id: string, name: string, reply: string): DemoNode => ({
   id,
@@ -85,13 +106,13 @@ export const DEMO_NODES: DemoNode[] = [
   hop1('arman', 'Arman', 'No match. Forwarding.'),
   hop1('sheila', 'Sheila', 'No match. Forwarding.'),
 
-  hop2('bob', 'Bob', 'carol', 'Match: room 0.4mi from GT, $950/mo, May 15–Aug 10.'),
+  hop2('bob', 'Bob', 'carol', 'Match: 1BR 0.4mi from GT, $1,350/mo.'),
   hop2('kevin', 'Kevin', 'carol', 'No sublet.'),
   hop2('alex', 'Alex', 'jad', 'Lease starts in June.'),
   hop2('ryan', 'Ryan', 'jad', 'No sublet.'),
   hop2('leo', 'Leo', 'bayzhan', 'Over budget.'),
   hop2('ivan', 'Ivan', 'bayzhan', 'No sublet.'),
-  hop2('justus', 'Justus', 'akash', 'Near Emory, not GT.'),
+  hop2('justus', 'Justus', 'akash', 'Match: 2019 Civic, 41k mi, $13,900.'),
   hop2('albert', 'Albert', 'akash', 'No sublet.'),
   hop2('bailey', 'Bailey', 'arman', 'Only June–July.'),
   hop2('jamie', 'Jamie', 'arman', 'No sublet.'),
@@ -110,8 +131,8 @@ export const DEMO_EDGES: DemoEdge[] = DEMO_NODES.filter((n) => n.via).map((n) =>
   kind: n.kind === 'discovered' ? 'discovered' : 'trusted',
 }));
 
-export const MATCH_PATH = ['jack', 'carol', 'bob'] as const;
-export const INTRODUCER = 'carol';
+export const MATCH_PATH = DEMO_MATCHES[0].path;
+export const INTRODUCER = DEMO_MATCHES[0].introducer;
 
 export const countByKind = (kind: DemoNodeKind): number =>
   DEMO_NODES.filter((n) => n.kind === kind).length;
@@ -121,7 +142,7 @@ export const askedNodes = (): DemoNode[] =>
   DEMO_NODES.filter((n) => n.kind === 'hop1' || n.kind === 'hop2');
 
 export const isOnMatchPath = (e: DemoEdge): boolean =>
-  MATCH_PATH.some((id, i) => i > 0 && MATCH_PATH[i - 1] === e.from && id === e.to);
+  DEMO_MATCHES.some(({ path }) => path.some((id, i) => i > 0 && path[i - 1] === e.from && id === e.to));
 
 // ── Layout: Jack near the centre, friends around him, friends of friends
 // further out near their friend, discovered agents at the edge. Small fixed
@@ -200,12 +221,15 @@ export function seenTimes(): Map<string, number> {
 }
 
 const lastArrival = Math.max(...arrivalTimes().values());
-const matchAt = lastArrival + 350;
-const factsAt = matchAt + 450;
-const factsEnd = factsAt + 1900;
-const introAt = factsEnd + 250;
-const futureAt = introAt + 2000;
-const outroAt = futureAt + 5200;
+const MATCH_GAP = 3200;
+const matches = DEMO_MATCHES.map((_, i) => {
+  const matchAt = lastArrival + 350 + i * MATCH_GAP;
+  const factsAt = matchAt + 450;
+  const factsEnd = factsAt + 1500;
+  return { matchAt, factsAt, factsEnd, introAt: factsEnd + 200 };
+});
+const futureAt = matches[matches.length - 1].introAt + 1800;
+const outroAt = futureAt + 5000;
 
-export const PHASES = { matchAt, factsAt, factsEnd, introAt, futureAt, outroAt } as const;
+export const PHASES = { matchAt: matches[0].matchAt, matches, futureAt, outroAt } as const;
 export const DEMO_TOTAL_MS = outroAt + 3000;

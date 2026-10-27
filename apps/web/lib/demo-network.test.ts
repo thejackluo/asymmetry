@@ -3,10 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   askedNodes,
-  BOB_RELEASED,
-  BOB_WITHHELD_COUNT,
   countByKind,
   DEMO_EDGES,
+  DEMO_MATCHES,
   DEMO_NODES,
   DEMO_REQUEST,
   DEMO_SCOPE,
@@ -20,7 +19,7 @@ import {
   seenTimes,
 } from './demo-network';
 import { DEMO_LINK_GROUPS } from './demo-links';
-import { BOB_RELEASED_FACTS, DEMO_SCOPE_FIELDS, DEMO_TOTAL_FACTS } from './mock';
+import { DEMO_SCOPE_FIELDS } from './mock';
 
 const repo = (rel: string) => fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
 
@@ -46,7 +45,8 @@ describe('demo network graph', () => {
     expect(countByKind('discovered')).toBe(4);
     const start = DEMO_NODES.find((n) => n.kind === 'start')!;
     expect(start.label).toBe('Jack — start');
-    expect(DEMO_REQUEST).toMatch(/summer sublet near Georgia Tech, May–Aug, under \$1200\/mo/);
+    expect(DEMO_REQUEST).toMatch(/apartment near Georgia Tech/);
+    expect(DEMO_REQUEST).toMatch(/used car/);
   });
 
   it('hop-1 hang off Jack, hop-2 off hop-1, discovered off hop-2', () => {
@@ -75,9 +75,19 @@ describe('demo network graph', () => {
     expect(bob.kind).toBe('hop2');
     expect(bob.via).toBe('carol');
     expect(INTRODUCER).toBe('carol');
-    expect(DEMO_EDGES.filter(isOnMatchPath).map((e) => `${e.from}>${e.to}`)).toEqual(['jack>carol', 'carol>bob']);
-    // Bob is not a direct contact of Jack.
-    expect(DEMO_EDGES.some((e) => e.from === 'jack' && e.to === 'bob')).toBe(false);
+    expect(DEMO_EDGES.filter(isOnMatchPath).map((e) => `${e.from}>${e.to}`).sort()).toEqual(
+      ['akash>justus', 'carol>bob', 'jack>akash', 'jack>carol'],
+    );
+    expect(DEMO_MATCHES.map((m) => m.id)).toEqual(['apartment', 'car']);
+    for (const m of DEMO_MATCHES) {
+      const end = DEMO_NODES.find((n) => n.id === m.path[2])!;
+      expect(end.kind).toBe('hop2');
+      expect(end.via).toBe(m.introducer);
+      expect(m.path[1]).toBe(m.introducer);
+      // Matches are never direct contacts of Jack.
+      expect(DEMO_EDGES.some((e) => e.from === 'jack' && e.to === end.id)).toBe(false);
+      expect(m.withheld).toBeGreaterThan(0);
+    }
   });
 
   it('lays out every node inside the viewBox without overlap', () => {
@@ -105,8 +115,12 @@ describe('demo network graph', () => {
       expect(seen.get(n.id)!).toBeGreaterThan(arr.get(n.via!)!);
     }
     expect(Math.max(...arr.values())).toBeLessThan(PHASES.matchAt);
-    expect(PHASES.matchAt < PHASES.factsAt && PHASES.factsEnd < PHASES.introAt).toBe(true);
-    expect(PHASES.introAt < PHASES.futureAt && PHASES.futureAt < PHASES.outroAt).toBe(true);
+    let prev = 0;
+    for (const ph of PHASES.matches) {
+      expect(prev < ph.matchAt && ph.matchAt < ph.factsAt && ph.factsEnd < ph.introAt).toBe(true);
+      prev = ph.introAt;
+    }
+    expect(prev < PHASES.futureAt && PHASES.futureAt < PHASES.outroAt).toBe(true);
     expect(DEMO_TOTAL_MS).toBeLessThan(120_000);
   });
 });
@@ -114,15 +128,9 @@ describe('demo network graph', () => {
 describe('demo privacy invariants vs seed.ts', () => {
   const bob = seedFacts('bob');
 
-  it('releases exactly Bob’s in-scope network facts', () => {
-    const inScope = bob.filter(
-      (f) => f.classification !== 'private' && f.tags.some((t) => (DEMO_SCOPE as readonly string[]).includes(t)),
-    );
-    expect(BOB_RELEASED.map((f) => f.value).sort()).toEqual(inScope.map((f) => f.content).sort());
+  it('shares only scoped fields and shows withheld facts as counts', () => {
     expect([...DEMO_SCOPE]).toEqual([...DEMO_SCOPE_FIELDS]);
-    expect(bob).toHaveLength(DEMO_TOTAL_FACTS);
-    expect(BOB_WITHHELD_COUNT).toBe(bob.length - inScope.length);
-    expect(BOB_RELEASED_FACTS).toContain('$950/mo');
+    for (const m of DEMO_MATCHES) expect(`${m.card} ${m.found}`).not.toMatch(/address|phone|\d{3}-\d{3}-\d{4}/i);
   });
 
   it('never includes Bob’s private fact content in demo code or docs', () => {

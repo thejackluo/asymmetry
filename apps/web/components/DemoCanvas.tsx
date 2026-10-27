@@ -6,21 +6,22 @@ import { interpolateZoom, type ZoomView } from 'd3-interpolate';
 import { easeBackOut, easeCubicInOut, easeCubicOut } from 'd3-ease';
 import {
   arrivalTimes,
-  BOB_WITHHELD_COUNT,
   DEMO_EDGES,
+  DEMO_MATCHES,
   DEMO_NODES,
   DEMO_TOTAL_MS,
   GRAPH_H,
   GRAPH_W,
-  INTRODUCER,
   isOnMatchPath,
   JACK_PRIVATE_WITHHELD,
+  JACK_WANTS,
   layout,
   PHASES,
   R1,
   R2,
   seenTimes,
   TIMING,
+  type DemoMatchId,
   type DemoNodeKind,
 } from '@/lib/demo-network';
 
@@ -48,7 +49,8 @@ type P = { x: number; y: number };
 const TARGET = layout();
 const ARR = arrivalTimes();
 const SEEN = seenTimes();
-const { matchAt, factsAt, factsEnd, introAt, futureAt, outroAt } = PHASES;
+const { matchAt, futureAt, outroAt } = PHASES;
+const MATCH_HUE: Record<DemoMatchId, string> = { apartment: PALETTE.accent, car: '#34d399' };
 const CX = GRAPH_W / 2;
 const CY = GRAPH_H / 2;
 const STEP_MS = 16;
@@ -62,15 +64,18 @@ const departAt = (id: string, kind: DemoNodeKind) =>
   kind === 'start' ? -1 : kind === 'discovered' ? SEEN.get(id)! - 500 : ARR.get(id)! - TIMING.travel;
 
 // ── Camera: smooth zoom/pan between shots (van Wijk & Nuij via d3-interpolate).
-const pathCentre = (() => {
-  const ps = ['jack', 'carol', 'bob'].map((id) => TARGET.get(id)!);
-  return { x: ps.reduce((s, p) => s + p.x, 0) / 3, y: ps.reduce((s, p) => s + p.y, 0) / 3 };
-})();
+const centreOf = (ids: readonly string[]) => {
+  const ps = ids.map((id) => TARGET.get(id)!);
+  return { x: ps.reduce((s, p) => s + p.x, 0) / ps.length, y: ps.reduce((s, p) => s + p.y, 0) / ps.length };
+};
 const SHOTS: { at: number; dur: number; view: ZoomView }[] = [
   { at: 0, dur: 0, view: [CX, CY, 140] },
   { at: TIMING.hop1At - 300, dur: 1600, view: [CX, CY, 520] },
   { at: TIMING.hop1At + 1400, dur: 1300, view: [CX, CY, 900] },
-  { at: matchAt - 100, dur: 1300, view: [pathCentre.x, pathCentre.y, 640] },
+  ...DEMO_MATCHES.map((mt, i) => {
+    const c = centreOf(mt.path);
+    return { at: PHASES.matches[i].matchAt - 100, dur: 1100, view: [c.x, c.y + 30, 720] as ZoomView };
+  }),
   { at: futureAt - 200, dur: 1800, view: [CX, CY, 960] },
   { at: outroAt - 400, dur: 4200, view: [CX, CY, 1250] },
 ];
@@ -155,6 +160,58 @@ function lockBadge(ctx: CanvasRenderingContext2D, p: P, m: number, count: number
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(count), p.x + 6 * m, p.y - 0.6 * m);
+}
+
+type CardLine = { text: string; color: string; dot?: string };
+function card(
+  ctx: CanvasRenderingContext2D,
+  anchor: P,
+  gap: number,
+  lines: CardLine[],
+  alpha: number,
+  pop: number,
+  m: number,
+  font: string,
+) {
+  if (alpha <= 0 || !lines.length) return;
+  const fs = Math.min(17, Math.max(10, 10.5 * m));
+  ctx.font = `${fs}px ${font}`;
+  const padX = fs * 0.9;
+  const padY = fs * 0.65;
+  const lh = fs * 1.5;
+  const w = Math.max(...lines.map((l) => ctx.measureText(l.text).width + (l.dot ? fs : 0))) + padX * 2;
+  const h = (lines.length - 1) * lh + fs + padY * 2;
+  const x = anchor.x - w / 2;
+  const y = anchor.y + gap;
+  const sc = 0.86 + 0.14 * easeBackOut(pop);
+  ctx.save();
+  ctx.translate(anchor.x, y);
+  ctx.scale(sc, sc);
+  ctx.translate(-anchor.x, -y);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(13,14,24,0.9)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, fs * 0.6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  lines.forEach((l, i) => {
+    const ly = y + padY + fs / 2 + i * lh;
+    let lx = x + padX;
+    if (l.dot) {
+      ctx.fillStyle = l.dot;
+      ctx.beginPath();
+      ctx.arc(lx + fs * 0.25, ly, fs * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      lx += fs;
+    }
+    ctx.fillStyle = l.color;
+    ctx.fillText(l.text, lx, ly);
+  });
+  ctx.restore();
 }
 
 function createSim() {
@@ -264,51 +321,53 @@ function draw(
     }
   }
 
-  // Match: the path lights up from Bob back to Jack, then flows.
-  const pathCurves = curves.filter((x) => isOnMatchPath(x.e));
-  const toCarol = pathCurves.find((x) => x.e.to === INTRODUCER)!;
-  const toBob = pathCurves.find((x) => x.e.from === INTRODUCER)!;
-  const litBob = easeCubicOut(prog(t, matchAt, 500));
-  const litCarol = easeCubicOut(prog(t, matchAt + 400, 500));
-  ctx.strokeStyle = PALETTE.accent;
-  ctx.shadowColor = PALETTE.accent;
-  ctx.shadowBlur = 14 * m;
-  ctx.lineWidth = 2.2 * m;
-  ctx.globalAlpha = 0.9 * (1 - 0.5 * prog(t, futureAt, 900));
-  if (litBob > 0) strokeCurve(ctx, toBob.a, toBob.c, toBob.b, 1 - litBob, 1);
-  if (litCarol > 0) strokeCurve(ctx, toCarol.a, toCarol.c, toCarol.b, 1 - litCarol, 1);
-  ctx.shadowBlur = 0;
-  if (litCarol >= 1) {
-    ctx.setLineDash([5 * m, 16 * m]);
-    ctx.lineDashOffset = (t * 0.05 * m) % (21 * m);
-    ctx.strokeStyle = '#ffd2b8';
-    ctx.lineWidth = 1.6 * m;
-    strokeCurve(ctx, toCarol.a, toCarol.c, toCarol.b, 0, 1);
-    strokeCurve(ctx, toBob.a, toBob.c, toBob.b, 0, 1);
-    ctx.setLineDash([]);
-  }
-
-  // Bob's three in-scope facts travel back via Carol. The rest stay with Bob.
-  for (let j = 0; j < 3; j++) {
-    const p = prog(t, factsAt + j * 180, 1500);
-    if (p <= 0 || p >= 1) continue;
-    const at =
-      p < 0.5
-        ? quad(toBob.a, toBob.c, toBob.b, 1 - easeCubicInOut(p * 2))
-        : quad(toCarol.a, toCarol.c, toCarol.b, 1 - easeCubicInOut((p - 0.5) * 2));
-    glowDot(ctx, at, 3.2 * m, PALETTE.accent, 1);
-  }
-
-  // Intro through Carol: she reaches out to both sides at once.
-  const carol = pos(INTRODUCER);
-  for (let q = 0; q < 2; q++) {
-    const f = prog(t, introAt + q * 350, 1100);
-    if (f > 0 && f < 1) ring(ctx, carol, (9 + 42 * easeCubicOut(f)) * m, PALETTE.accent, 0.8 * (1 - f), 1.5 * m);
-  }
-  const hs = prog(t, introAt + 300, 900);
-  if (hs > 0 && hs < 1) {
-    glowDot(ctx, quad(toCarol.a, toCarol.c, toCarol.b, 1 - easeCubicInOut(hs)), 3.4 * m, '#ffe2cf', 1);
-    glowDot(ctx, quad(toBob.a, toBob.c, toBob.b, easeCubicInOut(hs)), 3.4 * m, '#ffe2cf', 1);
+  // Each match: its path lights up from the match back to Jack, its in-scope
+  // facts travel back through the introducer, then the introducer makes the intro.
+  for (const [mi, mt] of DEMO_MATCHES.entries()) {
+    const ph = PHASES.matches[mi];
+    const hue = MATCH_HUE[mt.id];
+    const [, mid, end] = mt.path;
+    const first = curves.find((x) => x.e.from === 'jack' && x.e.to === mid)!;
+    const second = curves.find((x) => x.e.from === mid && x.e.to === end)!;
+    const litEnd = easeCubicOut(prog(t, ph.matchAt, 500));
+    const litMid = easeCubicOut(prog(t, ph.matchAt + 400, 500));
+    ctx.strokeStyle = hue;
+    ctx.shadowColor = hue;
+    ctx.shadowBlur = 14 * m;
+    ctx.lineWidth = 2.2 * m;
+    ctx.globalAlpha = 0.9 * (1 - 0.5 * prog(t, futureAt, 900));
+    if (litEnd > 0) strokeCurve(ctx, second.a, second.c, second.b, 1 - litEnd, 1);
+    if (litMid > 0) strokeCurve(ctx, first.a, first.c, first.b, 1 - litMid, 1);
+    ctx.shadowBlur = 0;
+    if (litMid >= 1) {
+      ctx.setLineDash([5 * m, 16 * m]);
+      ctx.lineDashOffset = (t * 0.05 * m) % (21 * m);
+      ctx.strokeStyle = '#ffffff';
+      ctx.globalAlpha = 0.45 * (1 - 0.5 * prog(t, futureAt, 900));
+      ctx.lineWidth = 1.4 * m;
+      strokeCurve(ctx, first.a, first.c, first.b, 0, 1);
+      strokeCurve(ctx, second.a, second.c, second.b, 0, 1);
+      ctx.setLineDash([]);
+    }
+    for (let j = 0; j < 3; j++) {
+      const p = prog(t, ph.factsAt + j * 150, 1200);
+      if (p <= 0 || p >= 1) continue;
+      const at =
+        p < 0.5
+          ? quad(second.a, second.c, second.b, 1 - easeCubicInOut(p * 2))
+          : quad(first.a, first.c, first.b, 1 - easeCubicInOut((p - 0.5) * 2));
+      glowDot(ctx, at, 3.2 * m, hue, 1);
+    }
+    const intro = pos(mid);
+    for (let q = 0; q < 2; q++) {
+      const f = prog(t, ph.introAt + q * 350, 1100);
+      if (f > 0 && f < 1) ring(ctx, intro, (9 + 42 * easeCubicOut(f)) * m, hue, 0.8 * (1 - f), 1.5 * m);
+    }
+    const hs = prog(t, ph.introAt + 300, 900);
+    if (hs > 0 && hs < 1) {
+      glowDot(ctx, quad(first.a, first.c, first.b, 1 - easeCubicInOut(hs)), 3.4 * m, '#ffffff', 1);
+      glowDot(ctx, quad(second.a, second.c, second.b, easeCubicInOut(hs)), 3.4 * m, '#ffffff', 1);
+    }
   }
 
   // Everyone else's agents start searching too.
@@ -349,12 +408,17 @@ function draw(
     const p = pos(n.id);
     const base = n.kind === 'start' ? 11 : n.kind === 'hop1' ? 7.5 : n.kind === 'hop2' ? 6 : 4;
     const r = base * m * easeBackOut(vis);
-    const onPath = n.id === 'bob' ? t > matchAt : n.id === INTRODUCER ? t > matchAt + 400 : false;
+    let matchHue: string | null = null;
+    DEMO_MATCHES.forEach((mt, mi) => {
+      const idx = mt.path.indexOf(n.id);
+      if (idx > 0 && t > PHASES.matches[mi].matchAt + (idx === 1 ? 400 : 0)) matchHue = MATCH_HUE[mt.id];
+    });
+    const onPath = matchHue != null;
     const color =
       n.kind === 'start'
         ? PALETTE.ink
-        : onPath
-          ? PALETTE.accent
+        : matchHue
+          ? matchHue
           : n.kind === 'hop1'
             ? PALETTE.hop1
             : n.kind === 'hop2'
@@ -386,14 +450,14 @@ function draw(
     ctx.setLineDash([]);
 
     ctx.globalAlpha = alpha * (n.kind === 'discovered' ? 0.6 : 0.85);
-    ctx.fillStyle = n.kind === 'start' ? PALETTE.ink : onPath ? PALETTE.accent : '#c9c8d8';
+    ctx.fillStyle = n.kind === 'start' ? PALETTE.ink : (matchHue ?? '#c9c8d8');
     ctx.font = n.kind === 'start' ? `600 ${labelPx * 1.2}px ${font}` : `${labelPx}px ${font}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(DEMO_NODES[n.i].label, p.x, p.y + r + 5 * m);
   }
 
-  // Private facts orbit their owner and never leave: Jack keeps 2, Bob keeps 3.
+  // Private facts orbit their owner and never leave; peers only see the count.
   const orbit = (c: P, count: number, color: string, alpha: number, phase: number) => {
     for (let j = 0; j < count; j++) {
       const a = t * 0.0016 + phase + (j * Math.PI * 2) / count;
@@ -404,28 +468,51 @@ function draw(
   orbit(jack, 3, PALETTE.trusted, prog(t, TIMING.askAt, 400) * (1 - prog(t, TIMING.hop1At, 300)), 0.4);
   orbit(jack, JACK_PRIVATE_WITHHELD, PALETTE.muted, prog(t, TIMING.askAt, 400) * 0.9 * fadeOut, 0);
   lockBadge(ctx, { x: jack.x + 20 * m, y: jack.y - 17 * m }, m, JACK_PRIVATE_WITHHELD, prog(t, TIMING.askAt + 300, 400) * 0.85 * fadeOut, font);
-  const bob = pos('bob');
-  orbit(bob, BOB_WITHHELD_COUNT, PALETTE.muted, prog(t, matchAt, 400) * 0.9 * fadeOut, 1.2);
-  lockBadge(ctx, { x: bob.x + 15 * m, y: bob.y - 14 * m }, m, BOB_WITHHELD_COUNT, prog(t, matchAt + 200, 400) * 0.85 * fadeOut, font);
-  orbit(bob, 3, PALETTE.accent, prog(t, matchAt, 300) * (1 - prog(t, factsAt, 200)), 0.6);
 
-  // Two quiet captions: what Jack asked for, and what came back.
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.font = `${Math.max(10, 11.5 * m)}px ${font}`;
-  const capY = jack.y + 11 * m + 26 * m;
-  const ask = prog(t, TIMING.askAt, 500) * (1 - prog(t, TIMING.hop1At + 1700, 600));
-  if (ask > 0) {
-    ctx.globalAlpha = ask * 0.9;
-    ctx.fillStyle = '#9fb6ff';
-    ctx.fillText('summer sublet · near GT · May–Aug · < $1200/mo', jack.x, capY);
-  }
-  const got = prog(t, factsEnd, 500) * fadeOut;
-  if (got > 0) {
-    ctx.globalAlpha = got;
-    ctx.fillStyle = PALETTE.accent;
-    ctx.fillText('0.4 mi · $950/mo · May 15–Aug 10', jack.x, capY);
-  }
+  // Minimal cards: what Jack wants, what each match shares, what Jack ends up with.
+  const shown = (at: number, until: number) => prog(t, at, 300) * (1 - prog(t, until, 350));
+  const labelGap = 11 * m + 28 * m;
+  DEMO_MATCHES.forEach((mt, mi) => {
+    const ph = PHASES.matches[mi];
+    const hue = MATCH_HUE[mt.id];
+    const endPos = pos(mt.path[2]);
+    orbit(endPos, mt.withheld, PALETTE.muted, prog(t, ph.matchAt, 400) * 0.9 * fadeOut, 1.2 + mi);
+    lockBadge(ctx, { x: endPos.x + 15 * m, y: endPos.y - 14 * m }, m, mt.withheld, prog(t, ph.matchAt + 200, 400) * 0.85 * fadeOut, font);
+    orbit(endPos, 3, hue, prog(t, ph.matchAt, 300) * (1 - prog(t, ph.factsAt, 200)), 0.6);
+    card(ctx, endPos, 6 * m + 24 * m, [{ text: mt.card, color: hue }], shown(ph.matchAt + 250, ph.introAt + 1300), prog(t, ph.matchAt + 250, 450), m, font);
+  });
+  const askOn = TIMING.askAt + 150;
+  card(
+    ctx,
+    jack,
+    labelGap,
+    [
+      { text: 'looking for', color: PALETTE.muted },
+      ...JACK_WANTS.map((w) => ({ text: w.text, color: '#d9dbf5', dot: MATCH_HUE[w.id] })),
+    ],
+    shown(askOn, TIMING.hop1At + 1900),
+    prog(t, askOn, 450),
+    m,
+    font,
+  );
+  const firstFound = PHASES.matches[0].factsEnd;
+  card(
+    ctx,
+    jack,
+    labelGap,
+    [
+      { text: 'found', color: PALETTE.muted },
+      ...DEMO_MATCHES.filter((_, mi) => t > PHASES.matches[mi].factsEnd).map((mt) => ({
+        text: mt.found,
+        color: '#d9dbf5',
+        dot: MATCH_HUE[mt.id],
+      })),
+    ],
+    shown(firstFound, outroAt),
+    prog(t, firstFound, 450),
+    m,
+    font,
+  );
 
   // Outro wordmark.
   const out = prog(t, outroAt, 1400);
