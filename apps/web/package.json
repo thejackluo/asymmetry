@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "demo": "NEXT_PUBLIC_SOCKET_MODE=mock next dev --port 3000",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

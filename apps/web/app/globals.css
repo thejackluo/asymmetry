@@ -27,3 +27,21 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* /demo walkthrough */
+@keyframes demo-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+.demo-progress {
+  animation-name: demo-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes demo-edge-pulse {
+  0%, 100% { stroke-opacity: 1; }
+  50% { stroke-opacity: 0.35; }
+}
+.demo-edge-pulse {
+  animation: demo-edge-pulse 1.2s ease-in-out infinite;
+}

@@ -55,3 +55,4 @@ From `docs/PRODUCT-PLAN.md`. Record the answer and date here once decided.
 ## Log
 
 - 2026-10-24: plan, execution brief and status tracker added.
+- 2026-10-27: shareable `/demo` walkthrough (mock mode, demo-only graph) added on `demo/linkedin-shareable-demo`; see `docs/DEMO.md`.

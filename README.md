@@ -20,6 +20,16 @@ filtered after the fact.
 > fully autonomous — each Devin pushes on a cadence, opens its own PRs, and a
 > different model reviews every PR.
 
+## Try the demo (no backend, no API key)
+
+```bash
+npm install && npm run demo
+```
+
+Open http://localhost:3000/demo for a 7-step walkthrough: Jack's agent finds a
+summer sublet two hops out (Jack → Carol → Bob) across a 23-agent demo network,
+sharing only scoped facts. Details, links and credits: [docs/DEMO.md](docs/DEMO.md).
+
 ## How it works
 
 1. A human chats with **their** agent in a task thread. The agent clarifies
