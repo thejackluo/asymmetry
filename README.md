@@ -26,7 +26,7 @@ filtered after the fact.
 npm install && npm run demo
 ```
 
-Open http://localhost:3000/demo for a 7-step walkthrough: Jack's agent finds a
+Open http://localhost:3000/demo for an 80-second slideshow: Jack's agent finds a
 summer sublet two hops out (Jack → Carol → Bob) across a 23-agent demo network,
 sharing only scoped facts. Details, links and credits: [docs/DEMO.md](docs/DEMO.md).
 

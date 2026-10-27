@@ -123,14 +123,18 @@ export const askedNodes = (): DemoNode[] =>
 export const isOnMatchPath = (e: DemoEdge): boolean =>
   MATCH_PATH.some((id, i) => i > 0 && MATCH_PATH[i - 1] === e.from && id === e.to);
 
-// ── Layout: Jack centre, hop-1 ring, hop-2 ring near parent, discovered outside.
+// ── Layout: Jack near the centre, friends around him, friends of friends
+// further out near their friend, discovered agents at the edge. Small fixed
+// offsets keep it organic but deterministic.
 export const GRAPH_W = 800;
 export const GRAPH_H = 780;
 const CX = GRAPH_W / 2;
 const CY = GRAPH_H / 2;
-export const R1 = 140;
-export const R2 = 265;
-const R3 = 352;
+export const R1 = 150;
+export const R2 = 268;
+const R3 = 350;
+const WOBBLE = [0.06, -0.09, 0.04, -0.05, 0.08, -0.03, 0.05, -0.07, 0.02, 0.07, -0.04, 0.03];
+const STRETCH = [10, -14, 6, -8, 16, -4, 12, -10, 4, -16, 8, 2];
 
 export function layout(): Map<string, { x: number; y: number }> {
   const pos = new Map<string, { x: number; y: number }>();
@@ -139,89 +143,132 @@ export function layout(): Map<string, { x: number; y: number }> {
   const firsts = DEMO_NODES.filter((n) => n.kind === 'hop1');
   const angle = new Map<string, number>();
   firsts.forEach((n, i) => {
-    const a = -Math.PI / 6 + (2 * Math.PI * i) / firsts.length;
+    const a = -Math.PI / 6 + (2 * Math.PI * i) / firsts.length + WOBBLE[i];
     angle.set(n.id, a);
-    pos.set(n.id, at(R1, a));
+    pos.set(n.id, at(R1 + STRETCH[i], a));
   });
+  let k = 0;
   for (const parent of firsts) {
     const kids = DEMO_NODES.filter((n) => n.kind === 'hop2' && n.via === parent.id);
     kids.forEach((n, i) => {
-      const a = angle.get(parent.id)! + (i - (kids.length - 1) / 2) * 0.42;
+      const a = angle.get(parent.id)! + (i - (kids.length - 1) / 2) * 0.44 + WOBBLE[k] / 2;
       angle.set(n.id, a);
-      pos.set(n.id, at(R2, a));
+      pos.set(n.id, at(R2 + STRETCH[k], a));
+      k++;
     });
   }
   for (const n of DEMO_NODES.filter((d) => d.kind === 'discovered')) {
-    const a = angle.get(n.via!)! + 0.16;
+    const a = angle.get(n.via!)! + 0.17;
     pos.set(n.id, at(R3, a));
   }
   return pos;
 }
 
-// ── Walkthrough steps. `reveal` = node kinds visible on the graph at that step.
-export type DemoStepId = 'ask' | 'scope' | 'hop1' | 'hop2' | 'match' | 'intro' | 'why';
+// ── Slides. Plays like a short launch film; `reveal` = node kinds visible.
+export type DemoStepId =
+  | 'title'
+  | 'need'
+  | 'ask'
+  | 'hop1'
+  | 'scope'
+  | 'hop2'
+  | 'match'
+  | 'intro'
+  | 'missed'
+  | 'today'
+  | 'tomorrow'
+  | 'more'
+  | 'trust'
+  | 'end';
+
+export type DemoStepKind = 'title' | 'text' | 'graph';
 
 export interface DemoStep {
   id: DemoStepId;
+  kind: DemoStepKind;
   title: string;
-  caption: string;
+  sub?: string;
   reveal: DemoNodeKind[];
+  /** Highlight Jack → Carol → Bob. */
+  path?: boolean;
   durationMs: number;
 }
 
+const ALL: DemoNodeKind[] = ['start', 'hop1', 'hop2', 'discovered'];
+
 export const DEMO_STEPS: DemoStep[] = [
+  { id: 'title', kind: 'title', title: 'Asymmetry', sub: 'Let the agents talk', reveal: ALL, durationMs: 4500 },
   {
-    id: 'ask',
-    title: 'Jack asks his agent',
-    caption: 'One plain-language request. Jack does not know who has a room.',
+    id: 'need',
+    kind: 'graph',
+    title: 'Jack needs a room for the summer.',
+    sub: 'Near Georgia Tech · May–Aug · under $1200/mo',
     reveal: ['start'],
-    durationMs: 9000,
+    durationMs: 5500,
+  },
+  { id: 'ask', kind: 'graph', title: 'He asks his agent.', sub: DEMO_REQUEST, reveal: ['start'], durationMs: 5000 },
+  {
+    id: 'hop1',
+    kind: 'graph',
+    title: 'His agent asks theirs.',
+    sub: '6 trusted friends. Each in its own subchat.',
+    reveal: ['start', 'hop1'],
+    durationMs: 5500,
   },
   {
     id: 'scope',
-    title: 'His agent scopes the request',
-    caption: 'Only three network facts may leave Jack’s agent. His private facts stay home.',
-    reveal: ['start'],
-    durationMs: 11000,
-  },
-  {
-    id: 'hop1',
-    title: 'Hop 1: six trusted friends',
-    caption: 'Jack’s agent opens a subchat with each trusted friend’s agent. Nobody has a room.',
+    kind: 'graph',
+    title: 'Only what’s needed leaves.',
+    sub: 'Area, price, dates. Everything else stays home.',
     reveal: ['start', 'hop1'],
-    durationMs: 12000,
+    durationMs: 6000,
   },
   {
     id: 'hop2',
-    title: 'Hop 2: friends of friends',
-    caption:
-      'With consent, each friend’s agent passes the same scoped request to its own trusted friends. Other agents are discovered along the way but never asked.',
-    reveal: ['start', 'hop1', 'hop2', 'discovered'],
-    durationMs: 14000,
+    kind: 'graph',
+    title: 'Then their friends ask theirs.',
+    sub: '12 friends of friends. 4 more seen, never asked.',
+    reveal: ALL,
+    durationMs: 6500,
   },
   {
     id: 'match',
-    title: 'Match two hops out',
-    caption:
-      'Bob’s agent (Carol’s friend) releases only the facts in scope. Everything else is withheld and shown to Jack as a count.',
-    reveal: ['start', 'hop1', 'hop2', 'discovered'],
-    durationMs: 14000,
+    kind: 'graph',
+    title: 'Two hops away, a match.',
+    sub: 'Bob · 0.4mi from campus · $950/mo · May 15–Aug 10',
+    reveal: ALL,
+    path: true,
+    durationMs: 7000,
   },
   {
     id: 'intro',
-    title: 'Intro through Carol',
-    caption:
-      'Jack and Bob are strangers. Carol trusts both, so the intro goes through her, and only after she and Bob agree.',
-    reveal: ['start', 'hop1', 'hop2', 'discovered'],
-    durationMs: 12000,
+    kind: 'graph',
+    title: 'Carol makes the intro.',
+    sub: 'She trusts them both. Nothing moves without consent.',
+    reveal: ALL,
+    path: true,
+    durationMs: 6000,
+  },
+  { id: 'missed', kind: 'text', title: 'Jack never knew Bob.', sub: 'The room was two hops away the whole time.', reveal: ALL, path: true, durationMs: 5000 },
+  { id: 'today', kind: 'text', title: 'Today, your agent works for you.', reveal: ALL, durationMs: 3800 },
+  { id: 'tomorrow', kind: 'text', title: 'Tomorrow, it works with theirs.', reveal: ALL, durationMs: 4200 },
+  {
+    id: 'more',
+    kind: 'text',
+    title: 'The sublet. The job. The cofounder.',
+    sub: 'The opportunity you would never have found by asking around.',
+    reveal: ALL,
+    durationMs: 6000,
   },
   {
-    id: 'why',
-    title: 'Why this matters',
-    caption: 'Agents working with other people’s agents, with consent and scoped sharing.',
-    reveal: ['start', 'hop1', 'hop2', 'discovered'],
-    durationMs: 14000,
+    id: 'trust',
+    kind: 'text',
+    title: 'Consent at every hop.',
+    sub: 'Scoped sharing. Private facts never leave your agent.',
+    reveal: ALL,
+    durationMs: 5500,
   },
+  { id: 'end', kind: 'title', title: 'Asymmetry', sub: 'Let the agents talk', reveal: ALL, durationMs: 6000 },
 ];
 
 export const DEMO_TOTAL_MS = DEMO_STEPS.reduce((s, x) => s + x.durationMs, 0);

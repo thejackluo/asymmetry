@@ -1,198 +1,205 @@
 'use client';
 
+import { useEffect, useMemo, useRef } from 'react';
 import {
   DEMO_EDGES,
   DEMO_NODES,
   GRAPH_H,
   GRAPH_W,
-  INTRODUCER,
   isOnMatchPath,
   layout,
   MATCH_PATH,
-  R1,
-  R2,
-  type DemoNode,
   type DemoNodeKind,
 } from '@/lib/demo-network';
 
-const BLUE = '#2563eb';
-const GREY = '#94a3b8';
-const MATCH = '#10b981';
+export const INK = '#1c1c1a';
+export const MUTED = '#8a8984';
+export const TRUSTED = '#4f74d1';
+export const DISCOVERED = '#b9b8b2';
+export const ACCENT = '#e07a4f';
 
-const RADIUS: Record<DemoNodeKind, number> = { start: 40, hop1: 28, hop2: 23, discovered: 18 };
-const POS = layout();
+const RADIUS: Record<DemoNodeKind, number> = { start: 15, hop1: 10, hop2: 9, discovered: 7 };
 
-// Order within a ring, used to stagger nodes so the search visibly spreads.
-const ORDER = new Map(DEMO_NODES.map((n) => [n.id, DEMO_NODES.filter((m) => m.kind === n.kind).indexOf(n)]));
-
-export default function DemoGraph({
-  reveal,
-  matchFound,
-  introDone,
-  active,
-}: {
+interface Props {
   reveal: DemoNodeKind[];
-  matchFound: boolean;
-  introDone: boolean;
-  /** Ring currently being asked; its edges pulse. */
-  active: DemoNodeKind | null;
-}) {
-  const shown = (n: DemoNode) => reveal.includes(n.kind);
-  const byId = new Map(DEMO_NODES.map((n) => [n.id, n]));
-  const delay = (n: DemoNode) =>
-    n.kind === 'start' ? 0 : (ORDER.get(n.id) ?? 0) * (n.kind === 'discovered' ? 450 : 160) + (n.kind === 'discovered' ? 1600 : 0);
+  path: boolean;
+  /** Changes per slide, so the travelling pulses replay. */
+  pulseKey: string;
+  pulse: 'none' | 'hop1' | 'hop2' | 'path';
+}
 
-  const labelFor = (n: DemoNode) => {
-    if (n.id === MATCH_PATH[2] && matchFound) return 'Bob — match';
-    if (n.id === INTRODUCER && introDone) return 'Carol — intro';
-    return n.label;
+export default function DemoGraph({ reveal, path, pulseKey, pulse }: Props) {
+  const pos = useMemo(() => layout(), []);
+  const shown = new Set(reveal);
+  const kindOf = useMemo(() => new Map(DEMO_NODES.map((n) => [n.id, n.kind])), []);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const visible = DEMO_NODES.filter((n) => shown.has(n.kind)).length;
+
+  useEffect(() => {
+    svgRef.current
+      ?.querySelectorAll<SVGAnimationElement>('[data-pulse] animateMotion, [data-pulse] animate')
+      .forEach((a) => a.beginElement());
+  }, [pulseKey]);
+
+  const delay = (id: string) => {
+    const n = DEMO_NODES.find((d) => d.id === id)!;
+    const same = DEMO_NODES.filter((d) => d.kind === n.kind);
+    return same.indexOf(n) * 110 + (n.kind === 'discovered' ? 900 : 0);
   };
 
-  const visibleCount = DEMO_NODES.filter(shown).length;
+  const pulseEdges =
+    pulse === 'hop1' || pulse === 'hop2'
+      ? DEMO_EDGES.filter((e) => e.kind === 'trusted' && kindOf.get(e.to) === pulse)
+      : [];
+  const p = (id: string) => pos.get(id)!;
+  const pathD = MATCH_PATH.map((id, i) => `${i ? 'L' : 'M'}${p(id).x} ${p(id).y}`).join(' ');
 
   return (
-    <figure className="relative w-full">
-      <div className="absolute left-3 top-3 z-10 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800">
-        Demo-only network · illustrative
-      </div>
-      <div className="absolute right-3 top-3 z-10 rounded-full border border-neutral-200 bg-white/90 px-2.5 py-0.5 font-mono text-[11px] text-neutral-600">
-        {visibleCount} / {DEMO_NODES.length} agents
-      </div>
+    <figure className="h-full w-full" aria-label="Demo-only network graph">
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${GRAPH_W} ${GRAPH_H}`}
-        className="h-auto w-full"
+        className="h-full w-full"
         role="img"
-        aria-label={`Demo network of ${DEMO_NODES.length} agents starting at Jack. Match path Jack to Carol to Bob.`}
+        aria-label={`Demo-only network: ${visible} of ${DEMO_NODES.length} agents visible. Jack is the start.`}
       >
-        <circle cx={GRAPH_W / 2} cy={GRAPH_H / 2} r={R1} fill="none" stroke="#e5e7eb" strokeDasharray="2 6" />
-        <circle cx={GRAPH_W / 2} cy={GRAPH_H / 2} r={R2} fill="none" stroke="#e5e7eb" strokeDasharray="2 6" />
-
         {DEMO_EDGES.map((e) => {
-          const to = byId.get(e.to)!;
-          const a = POS.get(e.from)!;
-          const b = POS.get(e.to)!;
-          const visible = shown(to);
-          const onPath = matchFound && isOnMatchPath(e);
-          const pulsing = active !== null && to.kind === active;
-          return (
-            <g
+          const a = p(e.from);
+          const b = p(e.to);
+          const on = shown.has(kindOf.get(e.to)!);
+          const t = { transitionDelay: `${on ? delay(e.to) : 0}ms` };
+          return e.kind === 'trusted' ? (
+            <line
               key={`${e.from}-${e.to}`}
-              style={{ opacity: visible ? 1 : 0, transitionDelay: visible ? `${delay(to)}ms` : '0ms' }}
-              className="transition-opacity duration-700"
-            >
-              {onPath && (
-                <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={MATCH} strokeWidth={10} strokeLinecap="round" opacity={0.35} />
-              )}
-              <line
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                stroke={e.kind === 'trusted' ? BLUE : GREY}
-                strokeWidth={e.kind === 'trusted' ? (onPath ? 3 : 1.6) : 1.4}
-                strokeDasharray={e.kind === 'discovered' ? '6 5' : undefined}
-                className={pulsing ? 'demo-edge-pulse' : undefined}
-              />
-            </g>
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke={TRUSTED}
+              strokeOpacity={0.55}
+              strokeWidth={1.4}
+              pathLength={1}
+              strokeDasharray="1"
+              strokeDashoffset={on ? 0 : 1}
+              style={{ ...t, transitionProperty: 'stroke-dashoffset', transitionDuration: '900ms', transitionTimingFunction: 'ease-out' }}
+            />
+          ) : (
+            <line
+              key={`${e.from}-${e.to}`}
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke={DISCOVERED}
+              strokeWidth={1.2}
+              strokeDasharray="4 5"
+              opacity={on ? 1 : 0}
+              style={{ ...t, transitionProperty: 'opacity', transitionDuration: '700ms', transitionTimingFunction: 'ease-out' }}
+            />
           );
         })}
 
-        {DEMO_NODES.map((n) => {
-          const p = POS.get(n.id)!;
-          const r = RADIUS[n.kind];
-          const visible = shown(n);
-          const isMatch = n.id === MATCH_PATH[2] && matchFound;
-          const isIntro = n.id === INTRODUCER && introDone;
-          const fill =
-            n.kind === 'start' ? '#1d4ed8' : isMatch ? '#ecfdf5' : n.kind === 'discovered' ? '#f8fafc' : '#ffffff';
-          const stroke = n.kind === 'discovered' ? GREY : isMatch || isIntro ? MATCH : BLUE;
-          const label = labelFor(n);
-          const labelY = r + 16;
-          const labelAbove = n.kind === 'hop2' && p.y < GRAPH_H / 2;
+        {DEMO_EDGES.filter(isOnMatchPath).map((e) => {
+          const a = p(e.from);
+          const b = p(e.to);
           return (
-            <g
-              key={n.id}
-              transform={`translate(${p.x},${p.y})`}
-              style={{ opacity: visible ? 1 : 0, transitionDelay: visible ? `${delay(n)}ms` : '0ms' }}
-              className="transition-opacity duration-700"
-            >
-              {(isMatch || n.kind === 'start') && (
-                <circle r={r + 7} fill="none" stroke={isMatch ? MATCH : BLUE} strokeOpacity={0.3} strokeWidth={4} />
-              )}
-              <circle
-                r={r}
-                fill={fill}
-                stroke={stroke}
-                strokeWidth={n.kind === 'start' ? 0 : isMatch || isIntro ? 3 : 1.6}
-                strokeDasharray={n.kind === 'discovered' ? '4 3' : undefined}
+            <line
+              key={`path-${e.to}`}
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke={ACCENT}
+              strokeWidth={3}
+              strokeLinecap="round"
+              pathLength={1}
+              strokeDasharray="1"
+              strokeDashoffset={path ? 0 : 1}
+              style={{
+                transitionProperty: 'stroke-dashoffset',
+                transitionDuration: '1100ms',
+                transitionTimingFunction: 'ease-in-out',
+                transitionDelay: path && e.from !== 'jack' ? '700ms' : '0ms',
+              }}
+            />
+          );
+        })}
+
+        <g data-pulse key={pulseKey}>
+          {pulseEdges.map((e) => (
+            <circle key={e.to} r={3.5} fill={TRUSTED} opacity={0}>
+              <animateMotion
+                begin="indefinite"
+                dur="1.1s"
+                fill="freeze"
+                path={`M${p(e.from).x} ${p(e.from).y} L${p(e.to).x} ${p(e.to).y}`}
               />
-              <text
-                textAnchor="middle"
-                dy={4}
-                fill={n.kind === 'start' ? '#ffffff' : n.kind === 'discovered' ? '#64748b' : '#0f172a'}
-                fontSize={n.kind === 'start' ? 16 : n.kind === 'discovered' ? 11 : n.kind === 'hop1' ? 13 : 12}
-                fontWeight={n.kind === 'start' ? 700 : 600}
-                fontFamily="ui-sans-serif, system-ui, sans-serif"
+              <animate attributeName="opacity" begin="indefinite" dur="1.3s" values="0;1;1;0" fill="freeze" />
+            </circle>
+          ))}
+          {pulse === 'path' && (
+            <circle r={5} fill={ACCENT}>
+              <animateMotion begin="indefinite" dur="2.4s" repeatCount="indefinite" path={pathD} />
+            </circle>
+          )}
+        </g>
+
+        {DEMO_NODES.map((n) => {
+          const { x, y } = p(n.id);
+          const r = RADIUS[n.kind];
+          const on = shown.has(n.kind);
+          const lit = path && (MATCH_PATH as readonly string[]).includes(n.id);
+          const start = n.kind === 'start';
+          const label = start ? 'Jack — start' : n.name;
+          return (
+            <g key={n.id} transform={`translate(${x} ${y})`}>
+              <g
+                style={{
+                  opacity: on ? 1 : 0,
+                  transform: on ? 'scale(1)' : 'scale(0.4)',
+                  transitionProperty: 'opacity, transform',
+                  transitionDuration: '600ms',
+                  transitionTimingFunction: 'ease-out',
+                  transitionDelay: `${on ? delay(n.id) : 0}ms`,
+                }}
               >
-                {n.name}
-              </text>
-              {n.kind === 'start' ? (
-                <g transform={`translate(0,${labelY + 6})`}>
-                  <rect x={-60} y={-14} width={120} height={25} rx={12.5} fill="#1e3a8a" />
-                  <text textAnchor="middle" dy={4} fill="#ffffff" fontSize={14} fontWeight={700} fontFamily="ui-sans-serif, system-ui, sans-serif">
-                    {label}
-                  </text>
-                </g>
-              ) : label !== n.name ? (
+                <circle
+                  r={r}
+                  fill={start ? INK : lit ? ACCENT : '#f6f5f1'}
+                  stroke={n.kind === 'discovered' ? DISCOVERED : lit ? ACCENT : INK}
+                  strokeWidth={n.kind === 'discovered' ? 1.2 : 1.6}
+                  strokeDasharray={n.kind === 'discovered' ? '2.5 2.5' : undefined}
+                  style={{ transition: 'fill 600ms, stroke 600ms' }}
+                />
                 <text
+                  y={r + 17}
                   textAnchor="middle"
-                  y={labelAbove ? -r - 14 : labelY}
-                  fill={MATCH === stroke ? '#047857' : '#334155'}
-                  fontSize={13}
-                  fontWeight={700}
-                  fontFamily="ui-sans-serif, system-ui, sans-serif"
+                  fontFamily="var(--font-geist-mono), ui-monospace, monospace"
+                  fontSize={start ? 17 : n.kind === 'discovered' ? 12 : 14}
+                  fontWeight={start || lit ? 700 : 400}
+                  fill={lit ? ACCENT : n.kind === 'discovered' ? DISCOVERED : start ? INK : '#4a4a46'}
+                  style={{ transition: 'fill 600ms' }}
                 >
                   {label}
                 </text>
-              ) : n.kind === 'discovered' ? (
-                <text textAnchor="middle" y={labelY} fill="#94a3b8" fontSize={10} fontFamily="ui-sans-serif, system-ui, sans-serif">
-                  never asked
-                </text>
-              ) : null}
+              </g>
             </g>
           );
         })}
       </svg>
-
-      <figcaption className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-neutral-600">
-        <span className="flex items-center gap-1.5">
-          <svg width="28" height="8" aria-hidden>
-            <line x1="0" y1="4" x2="28" y2="4" stroke={BLUE} strokeWidth="2" />
-          </svg>
-          Trusted (asked with consent)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <svg width="28" height="8" aria-hidden>
-            <line x1="0" y1="4" x2="28" y2="4" stroke={GREY} strokeWidth="2" strokeDasharray="5 4" />
-          </svg>
-          Discovered (never asked)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <svg width="28" height="10" aria-hidden>
-            <line x1="0" y1="5" x2="28" y2="5" stroke={MATCH} strokeWidth="8" strokeOpacity="0.35" strokeLinecap="round" />
-            <line x1="0" y1="5" x2="28" y2="5" stroke={BLUE} strokeWidth="2.5" />
-          </svg>
-          Match path Jack → Carol → Bob
-        </span>
+      <figcaption className="sr-only">
+        <ul>
+          {DEMO_NODES.map((n) => (
+            <li key={n.id}>
+              {n.kind === 'start'
+                ? 'Jack — start'
+                : n.kind === 'discovered'
+                  ? `${n.name}: discovered via ${n.via}, never asked`
+                  : `${n.name}: trusted, asked via ${n.via}`}
+            </li>
+          ))}
+        </ul>
       </figcaption>
-
-      <ul className="sr-only">
-        {DEMO_NODES.map((n) => (
-          <li key={`l-${n.id}`}>
-            {n.label}: {n.kind === 'start' ? 'start' : n.kind === 'discovered' ? `discovered via ${n.via}, never asked` : `trusted, reached via ${n.via}`}
-          </li>
-        ))}
-      </ul>
     </figure>
   );
 }

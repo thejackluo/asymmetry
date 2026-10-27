@@ -17,7 +17,7 @@ export const DEMO_LINK_GROUPS: DemoLinkGroup[] = [
       { label: 'Asymmetry repo', href: 'https://github.com/thejackluo/asymmetry' },
       { label: 'Asymmetry demo video', href: 'https://www.youtube.com/watch?v=7YhwRBV33PU' },
       {
-        label: 'HackerHouse project page (2nd place)',
+        label: 'HackerHouse project page',
         href: 'https://www.gthackerhouse.com/events/devin-hackathon/projects/481d499f-9e34-4b73-8805-a96aa4eea89d',
       },
       {
@@ -43,10 +43,10 @@ export const DEMO_LINK_GROUPS: DemoLinkGroup[] = [
     ],
   },
   {
-    title: 'Event',
+    title: 'Community',
     links: [
       {
-        label: 'Devin Hackathon projects (HackerHouse)',
+        label: 'HackerHouse projects',
         href: 'https://www.gthackerhouse.com/events/devin-hackathon/projects',
       },
       { label: 'Event page (Luma)', href: 'https://luma.com/7my0pg5g' },

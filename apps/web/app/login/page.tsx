@@ -86,7 +86,7 @@ export default function LoginPage() {
         <p className="mt-4 text-center text-xs text-neutral-500">
           New here?{' '}
           <Link href="/demo" className="text-blue-700 hover:underline">
-            Watch the 2-minute demo
+            Watch the demo
           </Link>
         </p>
       </div>

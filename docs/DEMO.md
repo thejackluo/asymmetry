@@ -1,7 +1,8 @@
 # Asymmetry: shareable demo
 
-A self-contained, 7-step walkthrough of Asymmetry at `/demo`. It runs entirely in
-the browser: no backend, no database, no OpenAI key.
+`/demo` is a minimal, full-screen slideshow (about 80 seconds, autoplays like a
+launch film) showing what Asymmetry does and where it is going. It runs entirely
+in the browser: no backend, no database, no OpenAI key.
 
 ## Run it (one command)
 
@@ -18,15 +19,15 @@ Then open **http://localhost:3000/demo**.
 (`/login`, `/tasks`, `/network`) also runs in mock mode, replaying the seeded
 Alice ↔ Bob negotiation from `lib/mock.ts`.
 
-- `/demo?step=4` opens a specific step (1–7). `/demo?autoplay=1` plays it (about 1:26).
-- ← / → keys move between steps.
+- It autoplays from the start. `/demo?step=7` opens a slide (1–14), paused.
+- ← / → move between slides, space pauses, click advances. `links` (top right) opens links and credits.
 
 ## Recording and screenshots
 
-- Recording (1:34, mp4): [`demo-assets/asymmetry-demo.mp4`](demo-assets/asymmetry-demo.mp4)
-- Screenshots of steps 1–7 and the links section: [`demo-assets/`](demo-assets/)
+- Recording (1:14, mp4): [`demo-assets/asymmetry-demo.mp4`](demo-assets/asymmetry-demo.mp4)
+- Screenshots of slides 1–14 and the links overlay: [`demo-assets/`](demo-assets/)
 
-![Step 6: intro through Carol](demo-assets/step-6.png)
+![Slide 7: two hops away, a match](demo-assets/step-7.png)
 
 ## What it shows
 
@@ -34,13 +35,17 @@ The housing story is the seeded one in `apps/server/src/seed.ts` (Alice wants a
 summer sublet near Georgia Tech, May–Aug, under $1200/mo; Bob has a furnished room
 0.4mi from campus, $950/mo, May 15–Aug 10), retold with **Jack** as the requester:
 
-1. **Jack asks his agent** for a summer sublet near Georgia Tech, May–Aug, under $1200/mo.
-2. **His agent scopes the request** to `location_area`, `price`, `dates`. Jack's 2 private facts are withheld (count only).
-3. **Hop 1:** subchats with 6 trusted friends. No one has a room.
-4. **Hop 2:** with consent, friends' agents pass the same scoped request to 12 friends of friends. 4 agents are discovered along the way and are **never asked**.
-5. **Match two hops out:** Bob (Carol's friend) releases only his 3 in-scope facts; 3 facts are withheld and shown to Jack only as a count.
-6. **Intro through Carol**, the trusted connection, after Carol approves and Bob opts in.
-7. **Why this matters:** agents working with other people's agents to find opportunities we would otherwise miss, with consent and scoped sharing.
+1. **Asymmetry.** Let the agents talk.
+2. **Jack needs a room for the summer.** Near Georgia Tech, May–Aug, under $1200/mo.
+3. **He asks his agent.**
+4. **His agent asks theirs:** 6 trusted friends, each in its own subchat.
+5. **Only what's needed leaves:** `location_area`, `price`, `dates`. Jack's 2 private facts are withheld (count only).
+6. **Then their friends ask theirs:** 12 friends of friends. 4 more agents are discovered but **never asked**.
+7. **Two hops away, a match:** Bob (Carol's friend) releases only his 3 in-scope facts; 3 are withheld and shown as a count.
+8. **Carol makes the intro**, the trusted connection, with consent.
+9. **Jack never knew Bob.**
+10–13. **The future:** today your agent works for you; tomorrow it works with theirs. The sublet, the job, the cofounder. Consent at every hop, scoped sharing, private facts never leave your agent.
+14. **Asymmetry.** Replay, links, GitHub.
 
 ### The graph (demo-only)
 
