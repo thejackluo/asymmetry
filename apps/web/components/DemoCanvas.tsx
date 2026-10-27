@@ -499,20 +499,7 @@ export default function DemoCanvas({ paused, frozenAt, replayKey, onEnd }: Props
     let ended = false;
     let raf = 0;
     let last = performance.now();
-    const loop = (now: number) => {
-      const dt = Math.min(100, now - last);
-      last = now;
-      if (frozenAt == null && !pausedRef.current && t < DEMO_TOTAL_MS) {
-        t = Math.min(DEMO_TOTAL_MS, t + dt);
-        advance(t);
-      } else if (frozenAt == null && !pausedRef.current) {
-        simT += STEP_MS;
-        stepSim(world, simT);
-      }
-      if (!ended && t >= DEMO_TOTAL_MS) {
-        ended = true;
-        onEndRef.current?.();
-      }
+    const render = () => {
       const dpr = window.devicePixelRatio || 1;
       const W = canvas.clientWidth;
       const H = canvas.clientHeight;
@@ -522,10 +509,27 @@ export default function DemoCanvas({ paused, frozenAt, replayKey, onEnd }: Props
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       draw(ctx, W, H, t, world, font);
-      raf = requestAnimationFrame(loop);
+    };
+    const loop = (now: number) => {
+      const dt = Math.min(100, now - last);
+      last = now;
+      if (frozenAt == null && !pausedRef.current) {
+        t = Math.min(DEMO_TOTAL_MS, t + dt);
+        advance(t);
+      }
+      render();
+      if (!ended && t >= DEMO_TOTAL_MS) {
+        ended = true;
+        onEndRef.current?.();
+      }
+      if (frozenAt == null && !ended) raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    window.addEventListener('resize', render);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', render);
+    };
   }, [frozenAt, replayKey]);
 
   return <canvas ref={ref} className="absolute inset-0 h-full w-full font-mono" aria-hidden />;
