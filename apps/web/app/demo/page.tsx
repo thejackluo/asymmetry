@@ -23,10 +23,11 @@ const KIND_LABEL = {
 
 function Demo() {
   const params = useSearchParams();
-  const tParam = params.get('t');
+  const tSec = Number(params.get('t') ?? NaN);
+  const tParam = Number.isFinite(tSec) && tSec >= 0 ? tSec : null;
   const [frozenAt, setFrozenAt] = useState<number | null>(() =>
     tParam != null
-      ? Number(tParam) * 1000
+      ? tParam * 1000
       : typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
         ? 9000
         : null,
