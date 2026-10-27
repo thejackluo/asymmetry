@@ -10,12 +10,14 @@ import {
   DEMO_NODES,
   DEMO_REQUEST,
   DEMO_SCOPE,
-  DEMO_STEPS,
+  arrivalTimes,
   DEMO_TOTAL_MS,
   INTRODUCER,
   isOnMatchPath,
   layout,
   MATCH_PATH,
+  PHASES,
+  seenTimes,
 } from './demo-network';
 import { DEMO_LINK_GROUPS } from './demo-links';
 import { BOB_RELEASED_FACTS, DEMO_SCOPE_FIELDS, DEMO_TOTAL_FACTS } from './mock';
@@ -93,8 +95,18 @@ describe('demo network graph', () => {
         expect(Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y)).toBeGreaterThan(38);
   });
 
-  it('walkthrough fits in under 2 minutes', () => {
-    expect(DEMO_STEPS.length).toBeGreaterThanOrEqual(6);
+  it('animation: request ripples hop by hop, discovered agents are never sent it', () => {
+    const arr = arrivalTimes();
+    const seen = seenTimes();
+    expect(arr.size).toBe(19);
+    for (const n of askedNodes()) expect(arr.get(n.id)!).toBeGreaterThan(arr.get(n.via!)!);
+    for (const n of DEMO_NODES.filter((d) => d.kind === 'discovered')) {
+      expect(arr.has(n.id)).toBe(false);
+      expect(seen.get(n.id)!).toBeGreaterThan(arr.get(n.via!)!);
+    }
+    expect(Math.max(...arr.values())).toBeLessThan(PHASES.matchAt);
+    expect(PHASES.matchAt < PHASES.factsAt && PHASES.factsEnd < PHASES.introAt).toBe(true);
+    expect(PHASES.introAt < PHASES.futureAt && PHASES.futureAt < PHASES.outroAt).toBe(true);
     expect(DEMO_TOTAL_MS).toBeLessThan(120_000);
   });
 });
@@ -120,7 +132,7 @@ describe('demo privacy invariants vs seed.ts', () => {
     const files = [
       'apps/web/lib/demo-network.ts',
       'apps/web/lib/demo-links.ts',
-      'apps/web/components/DemoGraph.tsx',
+      'apps/web/components/DemoCanvas.tsx',
       'apps/web/app/demo/page.tsx',
       'docs/DEMO.md',
       'README.md',

@@ -13,6 +13,9 @@
   },
   "dependencies": {
     "@asymmetry/shared": "0.0.0",
+    "d3-ease": "^3.0.1",
+    "d3-force": "^3.0.0",
+    "d3-interpolate": "^3.0.1",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -20,6 +23,9 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/d3-ease": "^3.0.2",
+    "@types/d3-force": "^3.0.10",
+    "@types/d3-interpolate": "^3.0.4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

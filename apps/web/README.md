@@ -19,7 +19,7 @@ disclosure line, and discovered-edge update replay end to end.
 ## Shareable demo
 
 `npm run demo` (from the repo root) starts this app in mock mode on port 3000.
-Open http://localhost:3000/demo for the self-contained slideshow. See
+Open http://localhost:3000/demo for the self-contained network animation. See
 [`docs/DEMO.md`](../../docs/DEMO.md).
 
 ## Backend wiring

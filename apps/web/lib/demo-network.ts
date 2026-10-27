@@ -78,30 +78,30 @@ const found = (id: string, name: string, via: string): DemoNode => ({
 export const DEMO_NODES: DemoNode[] = [
   { id: 'jack', name: 'Jack', label: 'Jack — start', kind: 'start', via: null },
 
-  hop1('carol', 'Carol', 'No room myself — passing the scoped request to my trusted friends.'),
-  hop1('dave', 'Dave', 'No sublet. Forwarding to my friends.'),
-  hop1('erin', 'Erin', 'Public tip: GT campus housing board. Forwarding too.'),
-  hop1('maya', 'Maya', 'No match. Forwarding.'),
-  hop1('priya', 'Priya', 'No match. Forwarding.'),
-  hop1('sam', 'Sam', 'No match. Forwarding.'),
+  hop1('carol', 'Carol', 'No room myself. Passing it to my trusted friends.'),
+  hop1('jad', 'Jad', 'No sublet. Forwarding.'),
+  hop1('bayzhan', 'Bayzhan', 'No sublet. Forwarding.'),
+  hop1('akash', 'Akash', 'No match. Forwarding.'),
+  hop1('arman', 'Arman', 'No match. Forwarding.'),
+  hop1('sheila', 'Sheila', 'No match. Forwarding.'),
 
   hop2('bob', 'Bob', 'carol', 'Match: room 0.4mi from GT, $950/mo, May 15–Aug 10.'),
-  hop2('nina', 'Nina', 'carol', 'No sublet.'),
-  hop2('omar', 'Omar', 'dave', 'Lease starts in June — no.'),
-  hop2('lena', 'Lena', 'dave', 'No sublet.'),
-  hop2('theo', 'Theo', 'erin', 'Over budget ($1,650/mo).'),
-  hop2('grace', 'Grace', 'erin', 'No sublet.'),
-  hop2('ivan', 'Ivan', 'maya', 'Near Emory, not GT.'),
-  hop2('zoe', 'Zoe', 'maya', 'No sublet.'),
-  hop2('ravi', 'Ravi', 'priya', 'Only June–July.'),
-  hop2('hana', 'Hana', 'priya', 'No sublet.'),
-  hop2('leo', 'Leo', 'sam', 'No sublet.'),
-  hop2('mia', 'Mia', 'sam', 'No sublet.'),
+  hop2('kevin', 'Kevin', 'carol', 'No sublet.'),
+  hop2('alex', 'Alex', 'jad', 'Lease starts in June.'),
+  hop2('ryan', 'Ryan', 'jad', 'No sublet.'),
+  hop2('leo', 'Leo', 'bayzhan', 'Over budget.'),
+  hop2('ivan', 'Ivan', 'bayzhan', 'No sublet.'),
+  hop2('justus', 'Justus', 'akash', 'Near Emory, not GT.'),
+  hop2('albert', 'Albert', 'akash', 'No sublet.'),
+  hop2('bailey', 'Bailey', 'arman', 'Only June–July.'),
+  hop2('jamie', 'Jamie', 'arman', 'No sublet.'),
+  hop2('selin', 'Selin', 'sheila', 'No sublet.'),
+  hop2('victoria', 'Victoria', 'sheila', 'No sublet.'),
 
-  found('quinn', 'Quinn', 'nina'),
-  found('uma', 'Uma', 'omar'),
-  found('kai', 'Kai', 'ivan'),
-  found('wes', 'Wes', 'leo'),
+  found('tom', 'Tom', 'kevin'),
+  found('wesley', 'Wesley', 'ryan'),
+  found('pete', 'Pete', 'ivan'),
+  found('matheo', 'Mathéo', 'jamie'),
 ];
 
 export const DEMO_EDGES: DemoEdge[] = DEMO_NODES.filter((n) => n.via).map((n) => ({
@@ -164,111 +164,48 @@ export function layout(): Map<string, { x: number; y: number }> {
   return pos;
 }
 
-// ── Slides. Plays like a short launch film; `reveal` = node kinds visible.
-export type DemoStepId =
-  | 'title'
-  | 'need'
-  | 'ask'
-  | 'hop1'
-  | 'scope'
-  | 'hop2'
-  | 'match'
-  | 'intro'
-  | 'missed'
-  | 'today'
-  | 'tomorrow'
-  | 'more'
-  | 'trust'
-  | 'end';
+// ── Timeline (ms). One continuous animation: the request ripples out hop by
+// hop, Bob answers, his in-scope facts travel back via Carol, Carol makes the
+// intro, then every agent starts searching for its own person.
+export const TIMING = {
+  askAt: 500,
+  hop1At: 1500,
+  hop1Stagger: 110,
+  travel: 750,
+  hop2Delay: 250,
+  hop2Stagger: 150,
+  seenDelay: 450,
+} as const;
 
-export type DemoStepKind = 'title' | 'text' | 'graph';
-
-export interface DemoStep {
-  id: DemoStepId;
-  kind: DemoStepKind;
-  title: string;
-  sub?: string;
-  reveal: DemoNodeKind[];
-  /** Highlight Jack → Carol → Bob. */
-  path?: boolean;
-  durationMs: number;
+/** When the scoped request reaches each asked agent (and Jack at 0). */
+export function arrivalTimes(): Map<string, number> {
+  const t = new Map<string, number>([['jack', 0]]);
+  DEMO_NODES.filter((n) => n.kind === 'hop1').forEach((n, i) =>
+    t.set(n.id, TIMING.hop1At + i * TIMING.hop1Stagger + TIMING.travel),
+  );
+  for (const parent of DEMO_NODES.filter((n) => n.kind === 'hop1')) {
+    DEMO_NODES.filter((n) => n.kind === 'hop2' && n.via === parent.id).forEach((n, j) =>
+      t.set(n.id, t.get(parent.id)! + TIMING.hop2Delay + j * TIMING.hop2Stagger + TIMING.travel),
+    );
+  }
+  return t;
 }
 
-const ALL: DemoNodeKind[] = ['start', 'hop1', 'hop2', 'discovered'];
+/** Discovered agents are only seen as the search spreads; they are never sent the request. */
+export function seenTimes(): Map<string, number> {
+  const arr = arrivalTimes();
+  return new Map(
+    DEMO_NODES.filter((n) => n.kind === 'discovered').map((n) => [n.id, arr.get(n.via!)! + TIMING.seenDelay]),
+  );
+}
 
-export const DEMO_STEPS: DemoStep[] = [
-  { id: 'title', kind: 'title', title: 'Asymmetry', sub: 'Let the agents talk', reveal: ALL, durationMs: 4500 },
-  {
-    id: 'need',
-    kind: 'graph',
-    title: 'Jack needs a room for the summer.',
-    sub: 'Near Georgia Tech · May–Aug · under $1200/mo',
-    reveal: ['start'],
-    durationMs: 5500,
-  },
-  { id: 'ask', kind: 'graph', title: 'He asks his agent.', sub: DEMO_REQUEST, reveal: ['start'], durationMs: 5000 },
-  {
-    id: 'hop1',
-    kind: 'graph',
-    title: 'His agent asks theirs.',
-    sub: '6 trusted friends. Each in its own subchat.',
-    reveal: ['start', 'hop1'],
-    durationMs: 5500,
-  },
-  {
-    id: 'scope',
-    kind: 'graph',
-    title: 'Only what’s needed leaves.',
-    sub: 'Area, price, dates. Everything else stays home.',
-    reveal: ['start', 'hop1'],
-    durationMs: 6000,
-  },
-  {
-    id: 'hop2',
-    kind: 'graph',
-    title: 'Then their friends ask theirs.',
-    sub: '12 friends of friends. 4 more seen, never asked.',
-    reveal: ALL,
-    durationMs: 6500,
-  },
-  {
-    id: 'match',
-    kind: 'graph',
-    title: 'Two hops away, a match.',
-    sub: 'Bob · 0.4mi from campus · $950/mo · May 15–Aug 10',
-    reveal: ALL,
-    path: true,
-    durationMs: 7000,
-  },
-  {
-    id: 'intro',
-    kind: 'graph',
-    title: 'Carol makes the intro.',
-    sub: 'She trusts them both. Nothing moves without consent.',
-    reveal: ALL,
-    path: true,
-    durationMs: 6000,
-  },
-  { id: 'missed', kind: 'text', title: 'Jack never knew Bob.', sub: 'The room was two hops away the whole time.', reveal: ALL, path: true, durationMs: 5000 },
-  { id: 'today', kind: 'text', title: 'Today, your agent works for you.', reveal: ALL, durationMs: 3800 },
-  { id: 'tomorrow', kind: 'text', title: 'Tomorrow, it works with theirs.', reveal: ALL, durationMs: 4200 },
-  {
-    id: 'more',
-    kind: 'text',
-    title: 'The sublet. The job. The cofounder.',
-    sub: 'The opportunity you would never have found by asking around.',
-    reveal: ALL,
-    durationMs: 6000,
-  },
-  {
-    id: 'trust',
-    kind: 'text',
-    title: 'Consent at every hop.',
-    sub: 'Scoped sharing. Private facts never leave your agent.',
-    reveal: ALL,
-    durationMs: 5500,
-  },
-  { id: 'end', kind: 'title', title: 'Asymmetry', sub: 'Let the agents talk', reveal: ALL, durationMs: 6000 },
-];
+const lastArrival = Math.max(...arrivalTimes().values());
+const matchAt = lastArrival + 350;
+const factsAt = matchAt + 450;
+const factsEnd = factsAt + 1900;
+const introAt = factsEnd + 250;
+const futureAt = introAt + 2000;
+const outroAt = futureAt + 5200;
 
-export const DEMO_TOTAL_MS = DEMO_STEPS.reduce((s, x) => s + x.durationMs, 0);
+export const PHASES = { matchAt, factsAt, factsEnd, introAt, futureAt, outroAt } as const;
+export const DEMO_TOTAL_MS = outroAt + 3000;
