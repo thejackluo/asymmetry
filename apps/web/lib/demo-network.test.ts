@@ -15,6 +15,10 @@ import {
   JACK_WANTS,
   matchCard,
   isOnMatchPath,
+  GRAPH_H,
+  GRAPH_W,
+  clusterOf,
+  SOCIAL_LINKS,
   layout,
   MATCH_PATH,
   PHASES,
@@ -98,13 +102,31 @@ describe('demo network graph', () => {
     const pts = [...pos.values()];
     for (const p of pts) {
       expect(p.x).toBeGreaterThan(20);
-      expect(p.x).toBeLessThan(780);
+      expect(p.x).toBeLessThan(GRAPH_W - 20);
       expect(p.y).toBeGreaterThan(20);
-      expect(p.y).toBeLessThan(760);
+      expect(p.y).toBeLessThan(GRAPH_H - 20);
     }
     for (let i = 0; i < pts.length; i++)
       for (let j = i + 1; j < pts.length; j++)
         expect(Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y)).toBeGreaterThan(38);
+  });
+
+  it('clusters: dense home cluster, sparse cloud, few bridges; Carol bridges to Bob', () => {
+    const ids = new Set(DEMO_NODES.map((n) => n.id));
+    const keys = new Set(DEMO_EDGES.map((e) => [e.from, e.to].sort().join('-')));
+    for (const [a, b] of SOCIAL_LINKS) {
+      expect(ids.has(a) && ids.has(b)).toBe(true);
+      expect(keys.has([a, b].sort().join('-'))).toBe(false);
+    }
+    const all = [...DEMO_EDGES.map((e) => [e.from, e.to] as const), ...SOCIAL_LINKS];
+    const home = all.filter(([a, b]) => clusterOf(a) === 'home' && clusterOf(b) === 'home').length;
+    const cloud = all.filter(([a, b]) => clusterOf(a) === 'cloud' && clusterOf(b) === 'cloud').length;
+    const bridges = all.filter(([a, b]) => clusterOf(a) !== clusterOf(b));
+    expect(home).toBeGreaterThan(2 * cloud);
+    expect(bridges.length).toBeLessThanOrEqual(4);
+    expect(bridges.some(([a, b]) => a === 'jack' && b === 'carol')).toBe(true);
+    expect(clusterOf('jack')).toBe('home');
+    expect(clusterOf('bob')).toBe('cloud');
   });
 
   it('animation: request ripples hop by hop, discovered agents are never sent it', () => {

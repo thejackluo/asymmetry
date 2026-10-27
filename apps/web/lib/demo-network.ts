@@ -47,8 +47,11 @@ export interface DemoMatch {
   introducer: string;
   /** Facts the match's agent releases; every field is in the request's scope. */
   shares: readonly { field: string; value: string }[];
-  /** What Jack ends up with. */
+  /** One-line headline shown at the match. */
+  headline: string;
+  /** What Jack ends up with, and why it meets his criteria. */
   found: string;
+  criteria: string;
   /** Facts the match's agent keeps. Shown as a count only. */
   withheld: number;
 }
@@ -63,7 +66,9 @@ export const DEMO_MATCHES: readonly DemoMatch[] = [
       { field: 'location_area', value: '0.4 mi from GT' },
       { field: 'price', value: '$1,350/mo' },
     ],
-    found: 'apartment · $1,350/mo · via Carol',
+    headline: 'Bob · has an apartment',
+    found: 'Bob, via Carol',
+    criteria: 'near GT · $1,350 ≤ $1.5k',
     withheld: 3,
   },
   {
@@ -75,7 +80,9 @@ export const DEMO_MATCHES: readonly DemoMatch[] = [
       { field: 'mileage', value: '41k mi' },
       { field: 'price', value: '$13,900' },
     ],
-    found: 'Civic · $13,900 · via Akash',
+    headline: 'Justus · selling a car',
+    found: 'Justus, via Akash',
+    criteria: 'reliable · $13,900 ≤ $15k',
     withheld: 2,
   },
 ];
@@ -107,30 +114,30 @@ const found = (id: string, name: string, via: string): DemoNode => ({
 export const DEMO_NODES: DemoNode[] = [
   { id: 'jack', name: 'Jack', label: 'Jack — start', kind: 'start', via: null },
 
-  hop1('carol', 'Carol', 'No room myself. Passing it to my trusted friends.'),
-  hop1('jad', 'Jad', 'No sublet. Forwarding.'),
-  hop1('bayzhan', 'Bayzhan', 'No sublet. Forwarding.'),
+  hop1('carol', 'Carol', 'No match myself. Passing it to my trusted friends.'),
+  hop1('jad', 'Jad', 'No match. Forwarding.'),
+  hop1('bayzhan', 'Bayzhan', 'No match. Forwarding.'),
   hop1('akash', 'Akash', 'No match. Forwarding.'),
   hop1('arman', 'Arman', 'No match. Forwarding.'),
   hop1('sheila', 'Sheila', 'No match. Forwarding.'),
 
   hop2('bob', 'Bob', 'carol', 'Match: 1BR 0.4mi from GT, $1,350/mo.'),
-  hop2('kevin', 'Kevin', 'carol', 'No sublet.'),
-  hop2('alex', 'Alex', 'jad', 'Lease starts in June.'),
-  hop2('ryan', 'Ryan', 'jad', 'No sublet.'),
-  hop2('leo', 'Leo', 'bayzhan', 'Over budget.'),
-  hop2('ivan', 'Ivan', 'bayzhan', 'No sublet.'),
+  hop2('kevin', 'Kevin', 'carol', 'No match.'),
+  hop2('alex', 'Alex', 'jad', 'No match.'),
+  hop2('ryan', 'Ryan', 'jad', 'No match.'),
+  hop2('leo', 'Leo', 'bayzhan', 'No match.'),
+  hop2('ivan', 'Ivan', 'bayzhan', 'No match.'),
   hop2('justus', 'Justus', 'akash', 'Match: 2019 Civic, 41k mi, $13,900.'),
-  hop2('albert', 'Albert', 'akash', 'No sublet.'),
-  hop2('bailey', 'Bailey', 'arman', 'Only June–July.'),
-  hop2('jamie', 'Jamie', 'arman', 'No sublet.'),
-  hop2('selin', 'Selin', 'sheila', 'No sublet.'),
-  hop2('victoria', 'Victoria', 'sheila', 'No sublet.'),
+  hop2('albert', 'Albert', 'akash', 'No match.'),
+  hop2('bailey', 'Bailey', 'arman', 'No match.'),
+  hop2('jamie', 'Jamie', 'arman', 'No match.'),
+  hop2('selin', 'Selin', 'sheila', 'No match.'),
+  hop2('victoria', 'Victoria', 'sheila', 'No match.'),
 
   found('tom', 'Tom', 'kevin'),
   found('wesley', 'Wesley', 'ryan'),
   found('pete', 'Pete', 'ivan'),
-  found('matheo', 'Mathéo', 'jamie'),
+  found('matheo', 'Mathéo', 'victoria'),
 ];
 
 export const DEMO_EDGES: DemoEdge[] = DEMO_NODES.filter((n) => n.via).map((n) => ({
@@ -154,58 +161,81 @@ export const askedNodes = (): DemoNode[] =>
 export const isOnMatchPath = (e: DemoEdge): boolean =>
   DEMO_MATCHES.some(({ path }) => path.some((id, i) => i > 0 && path[i - 1] === e.from && id === e.to));
 
-// ── Layout: Jack near the centre, friends around him, friends of friends
-// further out near their friend, discovered agents at the edge. Small fixed
-// offsets keep it organic but deterministic.
-export const GRAPH_W = 800;
-export const GRAPH_H = 780;
-const CX = GRAPH_W / 2;
-const CY = GRAPH_H / 2;
-export const R1 = 150;
-export const R2 = 268;
-const R3 = 350;
-const WOBBLE = [0.06, -0.09, 0.04, -0.05, 0.08, -0.03, 0.05, -0.07, 0.02, 0.07, -0.04, 0.03];
-const STRETCH = [10, -14, 6, -8, 16, -4, 12, -10, 4, -16, 8, 2];
+// ── Clusters: Jack's dense home cluster, and a looser cloud across a gap.
+// Only a few bridges connect them (Jack–Carol, Sheila–Selin, Sheila–Victoria,
+// Jamie–Carol); Carol is the bridge that reaches Bob.
+export type DemoCluster = 'home' | 'cloud';
+const CLOUD = new Set(['carol', 'bob', 'kevin', 'selin', 'victoria', 'tom', 'matheo']);
+export const clusterOf = (id: string): DemoCluster => (CLOUD.has(id) ? 'cloud' : 'home');
+
+/** Everyday social ties (not request paths): dense at home, sparse in the cloud. */
+export const SOCIAL_LINKS: readonly (readonly [string, string])[] = [
+  ['jad', 'bayzhan'],
+  ['bayzhan', 'akash'],
+  ['akash', 'arman'],
+  ['arman', 'sheila'],
+  ['sheila', 'jad'],
+  ['jad', 'akash'],
+  ['alex', 'ryan'],
+  ['leo', 'ivan'],
+  ['justus', 'albert'],
+  ['bailey', 'jamie'],
+  ['alex', 'leo'],
+  ['ivan', 'justus'],
+  ['albert', 'bailey'],
+  ['ryan', 'sheila'],
+  ['jamie', 'sheila'],
+  ['bob', 'kevin'],
+  ['selin', 'victoria'],
+  ['jamie', 'carol'],
+];
+
+export const GRAPH_W = 1100;
+export const GRAPH_H = 700;
+const POS: Record<string, [number, number]> = {
+  jack: [360, 370],
+  jad: [290, 255],
+  bayzhan: [230, 385],
+  akash: [310, 510],
+  arman: [440, 500],
+  sheila: [470, 250],
+  carol: [600, 360],
+  alex: [200, 170],
+  ryan: [330, 140],
+  leo: [110, 330],
+  ivan: [130, 470],
+  justus: [220, 610],
+  albert: [380, 630],
+  bailey: [520, 600],
+  jamie: [560, 520],
+  bob: [820, 280],
+  kevin: [860, 450],
+  selin: [700, 150],
+  victoria: [870, 130],
+  wesley: [430, 60],
+  pete: [40, 560],
+  tom: [990, 520],
+  matheo: [1020, 210],
+};
 
 export function layout(): Map<string, { x: number; y: number }> {
-  const pos = new Map<string, { x: number; y: number }>();
-  const at = (r: number, a: number) => ({ x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) });
-  pos.set('jack', { x: CX, y: CY });
-  const firsts = DEMO_NODES.filter((n) => n.kind === 'hop1');
-  const angle = new Map<string, number>();
-  firsts.forEach((n, i) => {
-    const a = -Math.PI / 6 + (2 * Math.PI * i) / firsts.length + WOBBLE[i];
-    angle.set(n.id, a);
-    pos.set(n.id, at(R1 + STRETCH[i], a));
-  });
-  let k = 0;
-  for (const parent of firsts) {
-    const kids = DEMO_NODES.filter((n) => n.kind === 'hop2' && n.via === parent.id);
-    kids.forEach((n, i) => {
-      const a = angle.get(parent.id)! + (i - (kids.length - 1) / 2) * 0.44 + WOBBLE[k] / 2;
-      angle.set(n.id, a);
-      pos.set(n.id, at(R2 + STRETCH[k], a));
-      k++;
-    });
-  }
-  for (const n of DEMO_NODES.filter((d) => d.kind === 'discovered')) {
-    const a = angle.get(n.via!)! + 0.17;
-    pos.set(n.id, at(R3, a));
-  }
-  return pos;
+  return new Map(DEMO_NODES.map((n) => [n.id, { x: POS[n.id][0], y: POS[n.id][1] }]));
 }
 
 // ── Timeline (ms). One continuous animation: the request ripples out hop by
-// hop, Bob answers, his in-scope facts travel back via Carol, Carol makes the
-// intro, then every agent starts searching for its own person.
+// hop through both clusters, then each match answers, its in-scope facts
+// travel back via the introducer, Jack's criteria check off, the introducer
+// makes the intro, then every agent starts searching for its own person.
 export const TIMING = {
   askAt: 500,
   hop1At: 1500,
   hop1Stagger: 110,
-  travel: 750,
-  hop2Delay: 250,
-  hop2Stagger: 150,
+  travel: 850,
+  hop2Delay: 300,
+  hop2Stagger: 200,
   seenDelay: 450,
+  /** Non-matching agents check the request and pass. */
+  checkDelay: 300,
 } as const;
 
 /** When the scoped request reaches each asked agent (and Jack at 0). */
@@ -231,15 +261,15 @@ export function seenTimes(): Map<string, number> {
 }
 
 const lastArrival = Math.max(...arrivalTimes().values());
-const MATCH_GAP = 3200;
+const MATCH_GAP = 4300;
 const matches = DEMO_MATCHES.map((_, i) => {
-  const matchAt = lastArrival + 350 + i * MATCH_GAP;
-  const factsAt = matchAt + 450;
+  const matchAt = lastArrival + 1000 + i * MATCH_GAP;
+  const factsAt = matchAt + 1000;
   const factsEnd = factsAt + 1500;
-  return { matchAt, factsAt, factsEnd, introAt: factsEnd + 200 };
+  return { matchAt, factsAt, factsEnd, introAt: factsEnd + 700 };
 });
 const futureAt = matches[matches.length - 1].introAt + 1800;
-const outroAt = futureAt + 5000;
+const outroAt = futureAt + 4500;
 
 export const PHASES = { matchAt: matches[0].matchAt, matches, futureAt, outroAt } as const;
 export const DEMO_TOTAL_MS = outroAt + 3000;

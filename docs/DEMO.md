@@ -1,6 +1,6 @@
 # Asymmetry: shareable demo
 
-`/demo` is a continuous, full-screen network animation (about 20 seconds) that
+`/demo` is a continuous, full-screen network animation (about 22 seconds) that
 shows what Asymmetry does: Jack's agent asks his trusted friends' agents for an
 apartment and a car, the request ripples out, and both are found two hops away
 and introduced through a friend.
@@ -28,7 +28,7 @@ Alice ↔ Bob negotiation from `lib/mock.ts`.
 
 ## Recording and screenshots
 
-- Recording (0:22, 1280×720 mp4): [`demo-assets/asymmetry-demo.mp4`](demo-assets/asymmetry-demo.mp4)
+- Recording (0:24, 1280×720 mp4): [`demo-assets/asymmetry-demo.mp4`](demo-assets/asymmetry-demo.mp4)
   ([direct download](https://github.com/thejackluo/asymmetry/raw/demo/linkedin-shareable-demo/docs/demo-assets/asymmetry-demo.mp4))
 - Frames and the links overlay: [`demo-assets/`](demo-assets/)
 
@@ -40,18 +40,21 @@ The story is illustrative (not the seed data): Jack wants an apartment near
 Georgia Tech under $1.5k/mo and a reliable used car under $15k. There are no
 slides; a few small cards are the only text besides names.
 
-1. **Ask.** Jack's node glows and a small card shows what he is looking for.
-   Three blue dots (the in-scope request) orbit him; two grey dots and a lock
-   with a `2` (his private facts) stay put.
-2. **Ripple.** The camera pulls back as curved edges draw out to his 6 trusted
-   friends, then their 12 friends. Nodes bloom in and spring into place
-   (d3-force). 4 more agents are seen along dashed grey edges but are **never asked**.
-3. **Apartment.** The camera glides (d3 `interpolateZoom`) to Jack → Carol → Bob
-   as it turns orange. A card at Bob shows only what he shares
-   (`1BR · 0.4 mi from GT · $1,350/mo`); his other 3 facts stay behind a lock with a `3`.
-   The facts travel back through Carol, and Carol makes the intro.
-4. **Car.** Same for Jack → Akash → Justus in green (`2019 Civic · 41k mi · $13,900`, 2 withheld).
-   Jack's card now lists what he found, and via whom.
+1. **Ask.** Jack's node glows and a card (top-left, tied to Jack) shows what he
+   is looking for. Two grey dots and a lock with a `2` (his private facts) stay put.
+2. **Search the network first.** Curved edges draw out to his 6 trusted friends,
+   then their 12 friends, across two clusters: Jack's dense home cluster and a
+   looser cloud joined by only a few bridges (Carol is one). Each agent that
+   checks and isn't a fit flickers grey. 4 more agents are seen along dashed
+   grey edges but are **never asked**.
+3. **Apartment.** Only after the search, Jack → Carol → Bob turns orange. Bob's
+   card shows what he shares (`1BR · 0.4 mi from GT · $1,350/mo`; 3 facts stay
+   behind a lock) and a card at Carol spells out `Jack → Carol → Bob`. The facts
+   travel back through Carol; Jack's card checks off his criteria, Jack smiles,
+   and Carol makes the intro.
+4. **Car.** Jack → Akash → Justus turns green. Justus's card has a **shared**
+   section (`2019 Civic · 41k mi · $13,900`) and a **private** section of
+   redacted lines that stay with Justus's agent.
 5. **Everyone.** Coloured searches start from other people's agents across the
    same network, then `asymmetry.` / *let the agents talk*.
 

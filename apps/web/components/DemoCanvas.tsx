@@ -18,8 +18,8 @@ import {
   matchCard,
   layout,
   PHASES,
-  R1,
-  R2,
+  SOCIAL_LINKS,
+  clusterOf,
   seenTimes,
   TIMING,
   type DemoMatchId,
@@ -52,8 +52,12 @@ const ARR = arrivalTimes();
 const SEEN = seenTimes();
 const { matchAt, futureAt, outroAt } = PHASES;
 const MATCH_HUE: Record<DemoMatchId, string> = { apartment: PALETTE.accent, car: '#34d399' };
+const MATCH_ENDS = new Set(DEMO_MATCHES.map((mt) => mt.path[2]));
+const nameOf = (id: string) => DEMO_NODES.find((n) => n.id === id)!.name;
 const CX = GRAPH_W / 2;
 const CY = GRAPH_H / 2;
+const JX = TARGET.get('jack')!.x;
+const JY = TARGET.get('jack')!.y;
 const STEP_MS = 16;
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -70,15 +74,15 @@ const centreOf = (ids: readonly string[]) => {
   return { x: ps.reduce((s, p) => s + p.x, 0) / ps.length, y: ps.reduce((s, p) => s + p.y, 0) / ps.length };
 };
 const SHOTS: { at: number; dur: number; view: ZoomView }[] = [
-  { at: 0, dur: 0, view: [CX, CY, 140] },
-  { at: TIMING.hop1At - 300, dur: 1600, view: [CX, CY, 520] },
-  { at: TIMING.hop1At + 1400, dur: 1300, view: [CX, CY, 900] },
+  { at: 0, dur: 0, view: [JX, JY, 140] },
+  { at: TIMING.hop1At - 300, dur: 1600, view: [JX, JY, 560] },
+  { at: TIMING.hop1At + 1300, dur: 1700, view: [CX + 10, CY, 1180] },
   ...DEMO_MATCHES.map((mt, i) => {
     const c = centreOf(mt.path);
-    return { at: PHASES.matches[i].matchAt - 100, dur: 1100, view: [c.x, c.y + 30, 720] as ZoomView };
+    return { at: PHASES.matches[i].matchAt - 100, dur: 1100, view: [c.x, c.y + 30, 780] as ZoomView };
   }),
-  { at: futureAt - 200, dur: 1800, view: [CX, CY, 960] },
-  { at: outroAt - 400, dur: 4200, view: [CX, CY, 1250] },
+  { at: futureAt - 200, dur: 1800, view: [CX + 10, CY, 1180] },
+  { at: outroAt - 400, dur: 4200, view: [CX, CY, 1450] },
 ];
 function cameraAt(t: number): ZoomView {
   let v = SHOTS[0].view;
@@ -163,32 +167,35 @@ function lockBadge(ctx: CanvasRenderingContext2D, p: P, m: number, count: number
   ctx.fillText(String(count), p.x + 6 * m, p.y - 0.6 * m);
 }
 
-type CardLine = { text: string; color: string; dot?: string };
+type CardLine = { text?: string; color: string; dot?: string; check?: boolean; redact?: number; indent?: boolean };
+/** A small rounded card; `at` is its top-centre (align centre) or top-left (align left). */
 function card(
   ctx: CanvasRenderingContext2D,
-  anchor: P,
-  gap: number,
+  at: P,
+  align: 'center' | 'left',
   lines: CardLine[],
   alpha: number,
   pop: number,
-  m: number,
+  fs: number,
   font: string,
 ) {
-  if (alpha <= 0 || !lines.length) return;
-  const fs = Math.min(17, Math.max(10, 10.5 * m));
+  if (alpha <= 0 || !lines.length) return null;
   ctx.font = `${fs}px ${font}`;
   const padX = fs * 0.9;
   const padY = fs * 0.65;
   const lh = fs * 1.5;
-  const w = Math.max(...lines.map((l) => ctx.measureText(l.text).width + (l.dot ? fs : 0))) + padX * 2;
+  const lead = (l: CardLine) => (l.dot || l.check || l.indent ? fs : 0);
+  const w =
+    Math.max(...lines.map((l) => lead(l) + (l.redact ? l.redact * fs * 0.6 : ctx.measureText(l.text ?? '').width))) +
+    padX * 2;
   const h = (lines.length - 1) * lh + fs + padY * 2;
-  const x = anchor.x - w / 2;
-  const y = anchor.y + gap;
+  const x = align === 'center' ? at.x - w / 2 : at.x;
+  const y = at.y;
   const sc = 0.86 + 0.14 * easeBackOut(pop);
   ctx.save();
-  ctx.translate(anchor.x, y);
+  ctx.translate(at.x, y);
   ctx.scale(sc, sc);
-  ctx.translate(-anchor.x, -y);
+  ctx.translate(-at.x, -y);
   ctx.globalAlpha = alpha;
   ctx.fillStyle = 'rgba(13,14,24,0.9)';
   ctx.strokeStyle = 'rgba(255,255,255,0.12)';
@@ -207,12 +214,29 @@ function card(
       ctx.beginPath();
       ctx.arc(lx + fs * 0.25, ly, fs * 0.22, 0, Math.PI * 2);
       ctx.fill();
-      lx += fs;
     }
-    ctx.fillStyle = l.color;
-    ctx.fillText(l.text, lx, ly);
+    if (l.check) {
+      ctx.strokeStyle = l.color;
+      ctx.lineWidth = Math.max(1.2, fs * 0.12);
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(lx + fs * 0.22, ly + fs * 0.22);
+      ctx.lineTo(lx + fs * 0.6, ly - fs * 0.25);
+      ctx.stroke();
+    }
+    lx += lead(l);
+    if (l.redact) {
+      ctx.fillStyle = 'rgba(255,255,255,0.14)';
+      ctx.beginPath();
+      ctx.roundRect(lx, ly - fs * 0.3, l.redact * fs * 0.6, fs * 0.6, fs * 0.15);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = l.color;
+      ctx.fillText(l.text ?? '', lx, ly);
+    }
   });
   ctx.restore();
+  return { x, y, w, h };
 }
 
 function createSim() {
@@ -277,11 +301,21 @@ function draw(
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
-  // Faint orbit rings for each hop.
-  ring(ctx, jack, R1 * k, PALETTE.hop1, 0.07 * prog(t, TIMING.hop1At + 400, 900), 26 * k);
-  ring(ctx, jack, R1 * k, PALETTE.hop1, 0.12 * prog(t, TIMING.hop1At + 400, 900), 1);
-  ring(ctx, jack, R2 * k, PALETTE.trusted, 0.05 * prog(t, TIMING.hop1At + 1600, 900), 30 * k);
-  ring(ctx, jack, R2 * k, PALETTE.trusted, 0.1 * prog(t, TIMING.hop1At + 1600, 900), 1);
+  // Two clusters: a dense home cluster around Jack and a looser cloud.
+  for (const [cl, rgb, r0, at] of [
+    ['home', '110,100,255', 330, TIMING.hop1At + 300],
+    ['cloud', '60,200,220', 300, ARR.get('carol')!],
+  ] as const) {
+    const ns = world.nodes.filter((n) => clusterOf(n.id) === cl);
+    const c = S({ x: ns.reduce((a, n) => a + n.tx, 0) / ns.length, y: ns.reduce((a, n) => a + n.ty, 0) / ns.length });
+    const al = prog(t, at, 1200);
+    if (al <= 0) continue;
+    const hz = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r0 * k);
+    hz.addColorStop(0, `rgba(${rgb},${0.11 * al})`);
+    hz.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = hz;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   const dimAsked = 1 - 0.6 * prog(t, matchAt, 600) + 0.45 * prog(t, futureAt, 900);
   const curves = DEMO_EDGES.map((e, i) => {
@@ -290,8 +324,22 @@ function draw(
     return { e, a, b, c: ctrl(a, b, bendOf(i)) };
   });
 
-  // Edges draw out behind the travelling request.
+  // Everyday social ties: dense at home, sparse in the cloud, few bridges.
   ctx.lineCap = 'round';
+  SOCIAL_LINKS.forEach(([a, b], i) => {
+    const na = world.byId.get(a)!;
+    const nb = world.byId.get(b)!;
+    const vis = prog(t, Math.max(appearAt(a, na.kind), appearAt(b, nb.kind)) + 200, 800);
+    if (vis <= 0) return;
+    const pa = pos(a);
+    const pb = pos(b);
+    ctx.globalAlpha = 0.2 * vis * Math.min(1, dimAsked);
+    ctx.strokeStyle = '#8088d0';
+    ctx.lineWidth = 0.9 * m;
+    strokeCurve(ctx, pa, ctrl(pa, pb, bendOf(i + 7)), pb, 0, 1);
+  });
+
+  // Edges draw out behind the travelling request.
   for (const { e, a, b, c } of curves) {
     if (e.kind === 'discovered') {
       const al = prog(t, SEEN.get(e.to)! - 500, 900) * 0.6;
@@ -430,6 +478,10 @@ function draw(
 
     const f = prog(t, A, 900);
     if (f > 0 && f < 1 && n.kind !== 'discovered') ring(ctx, p, r * (1 + 2.4 * easeCubicOut(f)), color, 0.5 * (1 - f), 1.2 * m);
+    if ((n.kind === 'hop1' || n.kind === 'hop2') && !MATCH_ENDS.has(n.id)) {
+      const cf = prog(t, A + TIMING.checkDelay, 600);
+      if (cf > 0 && cf < 1) ring(ctx, p, r * (2.1 - 1.1 * cf), PALETTE.muted, 0.6 * (1 - cf), 1.1 * m);
+    }
     for (const fl of flashes) {
       if (fl.id !== n.id) continue;
       const ff = prog(t, fl.at, 800);
@@ -470,50 +522,99 @@ function draw(
   orbit(jack, JACK_PRIVATE_WITHHELD, PALETTE.muted, prog(t, TIMING.askAt, 400) * 0.9 * fadeOut, 0);
   lockBadge(ctx, { x: jack.x + 20 * m, y: jack.y - 17 * m }, m, JACK_PRIVATE_WITHHELD, prog(t, TIMING.askAt + 300, 400) * 0.85 * fadeOut, font);
 
-  // Minimal cards: what Jack wants, what each match shares, what Jack ends up with.
+  // Jack is happy: each answer that meets his criteria bursts at his node.
+  const jr = 11 * m;
+  DEMO_MATCHES.forEach((mt, mi) => {
+    const f = prog(t, PHASES.matches[mi].factsEnd, 1100);
+    if (f <= 0 || f >= 1) return;
+    const hue = MATCH_HUE[mt.id];
+    ring(ctx, jack, jr * (1 + 3.2 * easeCubicOut(f)), hue, 0.8 * (1 - f), 2 * m);
+    for (let j = 0; j < 10; j++) {
+      const a = (j / 10) * Math.PI * 2 + mi;
+      const d = jr * (1.4 + 3.4 * easeCubicOut(f));
+      glowDot(ctx, { x: jack.x + Math.cos(a) * d, y: jack.y + Math.sin(a) * d }, 1.8 * m, hue, 1 - f);
+    }
+  });
+  const smile = prog(t, PHASES.matches[0].factsEnd, 500) * fadeOut;
+  if (smile > 0) {
+    ctx.globalAlpha = smile;
+    ctx.fillStyle = PALETTE.bg;
+    for (const sx of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(jack.x + sx * 0.34 * jr, jack.y - 0.2 * jr, 0.11 * jr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = PALETTE.bg;
+    ctx.lineWidth = 0.13 * jr;
+    ctx.beginPath();
+    ctx.arc(jack.x, jack.y + 0.02 * jr, 0.45 * jr, 0.18 * Math.PI, 0.82 * Math.PI);
+    ctx.stroke();
+  }
+
+  // Minimal cards: what Jack wants (and what he found), what each match shares.
   const shown = (at: number, until: number) => prog(t, at, 300) * (1 - prog(t, until, 350));
-  const labelGap = 11 * m + 28 * m;
+  const nodeFs = Math.min(17, Math.max(10, 10.5 * m));
+  const below = (p: P) => ({ x: p.x, y: p.y + 30 * m });
   DEMO_MATCHES.forEach((mt, mi) => {
     const ph = PHASES.matches[mi];
     const hue = MATCH_HUE[mt.id];
-    const endPos = pos(mt.path[2]);
+    const [, mid, end] = mt.path;
+    const endPos = pos(end);
     orbit(endPos, mt.withheld, PALETTE.muted, prog(t, ph.matchAt, 400) * 0.9 * fadeOut, 1.2 + mi);
     lockBadge(ctx, { x: endPos.x + 15 * m, y: endPos.y - 14 * m }, m, mt.withheld, prog(t, ph.matchAt + 200, 400) * 0.85 * fadeOut, font);
     orbit(endPos, 3, hue, prog(t, ph.matchAt, 300) * (1 - prog(t, ph.factsAt, 200)), 0.6);
-    card(ctx, endPos, 6 * m + 24 * m, [{ text: matchCard(mt), color: hue }], shown(ph.matchAt + 250, ph.introAt + 1300), prog(t, ph.matchAt + 250, 450), m, font);
+    const lines: CardLine[] =
+      mt.id === 'car'
+        ? [
+            { text: mt.headline, color: hue },
+            { text: 'shared', color: PALETTE.muted },
+            { text: matchCard(mt), color: '#d9dbf5' },
+            { text: `private · stays with ${nameOf(end)}`, color: PALETTE.muted },
+            ...Array.from({ length: mt.withheld }, (_, j) => ({ redact: 16 - j * 5, color: PALETTE.muted })),
+          ]
+        : [
+            { text: mt.headline, color: hue },
+            { text: matchCard(mt), color: '#d9dbf5' },
+          ];
+    card(ctx, below(endPos), 'center', lines, shown(ph.matchAt + 250, ph.introAt + 900), prog(t, ph.matchAt + 250, 450), nodeFs, font);
+    card(
+      ctx,
+      below(pos(mid)),
+      'center',
+      [{ text: `Jack → ${nameOf(mid)} → ${nameOf(end)}`, color: hue }],
+      shown(ph.matchAt + 500, ph.introAt + 900),
+      prog(t, ph.matchAt + 500, 450),
+      nodeFs,
+      font,
+    );
   });
+
+  const hudFs = Math.max(12, (15 * Math.min(W, H)) / 720);
   const askOn = TIMING.askAt + 150;
-  card(
-    ctx,
-    jack,
-    labelGap,
-    [
-      { text: 'looking for', color: PALETTE.muted },
-      ...JACK_WANTS.map((w) => ({ text: w.text, color: '#d9dbf5', dot: MATCH_HUE[w.id] })),
-    ],
-    shown(askOn, TIMING.hop1At + 1900),
-    prog(t, askOn, 450),
-    m,
-    font,
-  );
-  const firstFound = PHASES.matches[0].factsEnd;
-  card(
-    ctx,
-    jack,
-    labelGap,
-    [
-      { text: 'found', color: PALETTE.muted },
-      ...DEMO_MATCHES.filter((_, mi) => t > PHASES.matches[mi].factsEnd).map((mt) => ({
-        text: mt.found,
-        color: '#d9dbf5',
-        dot: MATCH_HUE[mt.id],
-      })),
-    ],
-    shown(firstFound, outroAt),
-    prog(t, firstFound, 450),
-    m,
-    font,
-  );
+  const foundAll = t > PHASES.matches[PHASES.matches.length - 1].factsEnd;
+  const hud: CardLine[] = [{ text: foundAll ? 'Jack found both' : 'Jack is looking for', color: foundAll ? PALETTE.ink : PALETTE.muted }];
+  JACK_WANTS.forEach((w) => {
+    const mi = DEMO_MATCHES.findIndex((mt) => mt.id === w.id);
+    const mt = DEMO_MATCHES[mi];
+    hud.push({ text: w.text, color: '#d9dbf5', dot: MATCH_HUE[w.id] });
+    if (t > PHASES.matches[mi].factsEnd) {
+      hud.push({ text: mt.found, color: MATCH_HUE[w.id], indent: true });
+      hud.push({ text: mt.criteria, color: MATCH_HUE[w.id], check: true });
+    }
+  });
+  const hudA = shown(askOn, outroAt);
+  const box = card(ctx, { x: Math.max(24, W * 0.035), y: Math.max(24, H * 0.07) }, 'left', hud, hudA, prog(t, askOn, 450), hudFs, font);
+  if (box) {
+    ctx.globalAlpha = 0.3 * hudA;
+    ctx.strokeStyle = '#9fb6ff';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath();
+    ctx.moveTo(box.x + box.w, box.y + box.h / 2);
+    ctx.quadraticCurveTo(jack.x, box.y + box.h / 2, jack.x - 8 * m, jack.y - 8 * m);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 
   // Outro wordmark.
   const out = prog(t, outroAt, 1400);
