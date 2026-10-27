@@ -21,6 +21,13 @@ Alice ↔ Bob negotiation from `lib/mock.ts`.
 - `/demo?step=4` opens a specific step (1–7). `/demo?autoplay=1` plays it (about 1:26).
 - ← / → keys move between steps.
 
+## Recording and screenshots
+
+- Recording (1:34, mp4): [`demo-assets/asymmetry-demo.mp4`](demo-assets/asymmetry-demo.mp4)
+- Screenshots of steps 1–7 and the links section: [`demo-assets/`](demo-assets/)
+
+![Step 6: intro through Carol](demo-assets/step-6.png)
+
 ## What it shows
 
 The housing story is the seeded one in `apps/server/src/seed.ts` (Alice wants a
