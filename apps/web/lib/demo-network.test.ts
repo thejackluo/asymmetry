@@ -12,6 +12,8 @@ import {
   arrivalTimes,
   DEMO_TOTAL_MS,
   INTRODUCER,
+  JACK_WANTS,
+  matchCard,
   isOnMatchPath,
   layout,
   MATCH_PATH,
@@ -130,7 +132,11 @@ describe('demo privacy invariants vs seed.ts', () => {
 
   it('shares only scoped fields and shows withheld facts as counts', () => {
     expect([...DEMO_SCOPE]).toEqual([...DEMO_SCOPE_FIELDS]);
-    for (const m of DEMO_MATCHES) expect(`${m.card} ${m.found}`).not.toMatch(/address|phone|\d{3}-\d{3}-\d{4}/i);
+    for (const m of DEMO_MATCHES) {
+      const scope: readonly string[] = JACK_WANTS.find((w) => w.id === m.id)!.scope;
+      for (const f of m.shares) expect(scope).toContain(f.field);
+      expect(`${matchCard(m)} ${m.found}`).not.toMatch(/address|phone|\d{3}-\d{3}-\d{4}/i);
+    }
   });
 
   it('never includes Bob’s private fact content in demo code or docs', () => {

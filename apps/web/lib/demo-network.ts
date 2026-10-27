@@ -31,10 +31,10 @@ export const DEMO_REQUEST =
 // Fields the request scope asks for (same scope as lib/mock.ts DEMO_SCOPE_FIELDS).
 export const DEMO_SCOPE = ['location_area', 'price', 'dates'] as const;
 
-/** What Jack's agent shares: only these leave his agent. */
+/** What Jack's agent shares, and the fields each request is scoped to. */
 export const JACK_WANTS = [
-  { id: 'apartment', text: 'apartment · near GT · ≤ $1.5k/mo' },
-  { id: 'car', text: 'used car · reliable · ≤ $15k' },
+  { id: 'apartment', text: 'apartment · near GT · ≤ $1.5k/mo', scope: ['unit_type', 'location_area', 'price'] },
+  { id: 'car', text: 'used car · reliable · ≤ $15k', scope: ['model', 'mileage', 'price'] },
 ] as const;
 export const JACK_PRIVATE_WITHHELD = 2;
 
@@ -45,8 +45,8 @@ export interface DemoMatch {
   /** Jack → introducer → match. Never a direct edge. */
   path: readonly [string, string, string];
   introducer: string;
-  /** In-scope facts the match's agent releases. */
-  card: string;
+  /** Facts the match's agent releases; every field is in the request's scope. */
+  shares: readonly { field: string; value: string }[];
   /** What Jack ends up with. */
   found: string;
   /** Facts the match's agent keeps. Shown as a count only. */
@@ -58,7 +58,11 @@ export const DEMO_MATCHES: readonly DemoMatch[] = [
     id: 'apartment',
     path: ['jack', 'carol', 'bob'],
     introducer: 'carol',
-    card: '1BR · 0.4 mi from GT · $1,350/mo',
+    shares: [
+      { field: 'unit_type', value: '1BR' },
+      { field: 'location_area', value: '0.4 mi from GT' },
+      { field: 'price', value: '$1,350/mo' },
+    ],
     found: 'apartment · $1,350/mo · via Carol',
     withheld: 3,
   },
@@ -66,7 +70,11 @@ export const DEMO_MATCHES: readonly DemoMatch[] = [
     id: 'car',
     path: ['jack', 'akash', 'justus'],
     introducer: 'akash',
-    card: '2019 Civic · 41k mi · $13,900',
+    shares: [
+      { field: 'model', value: '2019 Civic' },
+      { field: 'mileage', value: '41k mi' },
+      { field: 'price', value: '$13,900' },
+    ],
     found: 'Civic · $13,900 · via Akash',
     withheld: 2,
   },
@@ -130,6 +138,8 @@ export const DEMO_EDGES: DemoEdge[] = DEMO_NODES.filter((n) => n.via).map((n) =>
   to: n.id,
   kind: n.kind === 'discovered' ? 'discovered' : 'trusted',
 }));
+
+export const matchCard = (m: DemoMatch): string => m.shares.map((f) => f.value).join(' · ');
 
 export const MATCH_PATH = DEMO_MATCHES[0].path;
 export const INTRODUCER = DEMO_MATCHES[0].introducer;

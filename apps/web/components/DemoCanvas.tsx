@@ -15,6 +15,7 @@ import {
   isOnMatchPath,
   JACK_PRIVATE_WITHHELD,
   JACK_WANTS,
+  matchCard,
   layout,
   PHASES,
   R1,
@@ -479,7 +480,7 @@ function draw(
     orbit(endPos, mt.withheld, PALETTE.muted, prog(t, ph.matchAt, 400) * 0.9 * fadeOut, 1.2 + mi);
     lockBadge(ctx, { x: endPos.x + 15 * m, y: endPos.y - 14 * m }, m, mt.withheld, prog(t, ph.matchAt + 200, 400) * 0.85 * fadeOut, font);
     orbit(endPos, 3, hue, prog(t, ph.matchAt, 300) * (1 - prog(t, ph.factsAt, 200)), 0.6);
-    card(ctx, endPos, 6 * m + 24 * m, [{ text: mt.card, color: hue }], shown(ph.matchAt + 250, ph.introAt + 1300), prog(t, ph.matchAt + 250, 450), m, font);
+    card(ctx, endPos, 6 * m + 24 * m, [{ text: matchCard(mt), color: hue }], shown(ph.matchAt + 250, ph.introAt + 1300), prog(t, ph.matchAt + 250, 450), m, font);
   });
   const askOn = TIMING.askAt + 150;
   card(
