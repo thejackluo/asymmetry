@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "predev": "npm run build -w @asymmetry/shared",
+    "demo": "npm run build -w @asymmetry/shared && npm run demo -w @asymmetry/web",
     "dev": "concurrently -n server,web \"npm run dev -w @asymmetry/server\" \"npm run dev -w @asymmetry/web --if-present\"",
     "build": "npm run build -w @asymmetry/shared && npm run build --workspaces --if-present",
     "pretest": "npm run build -w @asymmetry/shared",

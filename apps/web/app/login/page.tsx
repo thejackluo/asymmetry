@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ApiError, login } from '@/lib/api';
@@ -82,6 +83,12 @@ export default function LoginPage() {
             {pending ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+        <p className="mt-4 text-center text-xs text-neutral-500">
+          New here?{' '}
+          <Link href="/demo" className="text-blue-700 hover:underline">
+            Watch the demo
+          </Link>
+        </p>
       </div>
     </main>
   );

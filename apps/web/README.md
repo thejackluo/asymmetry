@@ -16,6 +16,12 @@ Open http://localhost:3000 — log in with any username (mock auto-registers),
 open the seeded task, and send a message to watch the agent↔agent negotiation,
 disclosure line, and discovered-edge update replay end to end.
 
+## Shareable demo
+
+`npm run demo` (from the repo root) starts this app in mock mode on port 3000.
+Open http://localhost:3000/demo for the self-contained network animation. See
+[`docs/DEMO.md`](../../docs/DEMO.md).
+
 ## Backend wiring
 
 Everything talks through `lib/socket.ts` (`SocketClient` interface) and
